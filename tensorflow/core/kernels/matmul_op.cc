@@ -32,6 +32,11 @@ limitations under the License.
 #include "tensorflow/core/platform/stream_executor.h"
 #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
+#if defined(ENABLE_KDNN)
+#include "kdnn_adapter.h"
+#include "tensorflow/core/util/env_var.h"
+#endif
+
 namespace tensorflow {
 
 typedef Eigen::ThreadPoolDevice CPUDevice;
@@ -442,13 +447,14 @@ template <typename Device, typename T, bool USE_CUBLAS>
 class MatMulOp : public OpKernel {
  public:
   explicit MatMulOp(OpKernelConstruction* ctx)
-      : OpKernel(ctx), algorithms_set_already_(false) {
+      : OpKernel(ctx), algorithms_set_already_(false), kdnn_enable(true) {
     OP_REQUIRES_OK(ctx, ctx->GetAttr("transpose_a", &transpose_a_));
     OP_REQUIRES_OK(ctx, ctx->GetAttr("transpose_b", &transpose_b_));
 
     LaunchMatMul<Device, T, USE_CUBLAS>::GetBlasGemmAlgorithm(
         ctx, &algorithms_, &algorithms_set_already_);
     use_autotune_ = MatmulAutotuneEnable();
+    TF_CHECK_OK(tensorflow::ReadBoolFromEnvVar("KDNN_ENABLE", true, &kdnn_enable));
   }
 
   void Compute(OpKernelContext* ctx) override {
@@ -516,7 +522,14 @@ class MatMulOp : public OpKernel {
           &out_float);
       FloatToBFloat16(out_float.flat<float>().data(),
                       out->flat<bfloat16>().data(), out->NumElements());
-    } else {
+    }
+#if defined(ENABLE_KDNN)
+    else if (kdnn_enable && std::is_same<T, float>::value &&
+            !transpose_a_ && !transpose_b_) {
+      kdnnGemm(ctx, a, b, out, transpose_a_, transpose_b_);
+    }
+#endif
+    else {
       LaunchMatMul<Device, T, USE_CUBLAS>::launch(
           ctx, a, b, dim_pair, &algorithms_, use_autotune_, out);
     }
@@ -528,6 +541,7 @@ class MatMulOp : public OpKernel {
   bool use_autotune_;
   bool transpose_a_;
   bool transpose_b_;
+  bool kdnn_enable;
 };
 
 namespace functor {
