@@ -108,8 +108,11 @@ bazel build --config=opt //tensorflow/libtensorflow_cc.so
 #### 版本兼容性
 v2.15
 
-## 支持
+## 贡献
 如果使用过程中有任何问题，或者需要反馈特性需求和bug报告，可以提交[isssues](https://gitcode.com/BoostKit/tensorflow/issues)联系我们。
+
+## 免责声明
+此代码仓计划参与Tensorflow社区开源，编码风格遵照原生开源软件，继承原生开源软件安全设计，不破坏原生开源软件设计及编码风格和方式，软件的任何漏洞与安全问题，均由相应的上游社区根据其漏洞和安全响应机制解决。请密切关注上游社区发布的通知和版本更新。鲲鹏计算社区对软件的漏洞及安全问题不承担任何责任。
 
 ## 许可协议
 [Apache License 2.0](LICENSE)
