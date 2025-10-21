@@ -69,6 +69,11 @@ limitations under the License.
 #include "tensorflow/core/util/use_cudnn.h"
 #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 
+#if defined(ENABLE_KDNN)
+#include "kdnn_adapter.h"
+#endif
+#include "tensorflow/core/util/env_var.h"
+
 namespace tensorflow {
 
 typedef Eigen::ThreadPoolDevice CPUDevice;
@@ -93,6 +98,17 @@ struct LaunchFusedMatMulOp<CPUDevice, T> {
     OP_REQUIRES(context, DataTypeToEnum<T>::value != DT_HALF,
                 errors::InvalidArgument("_FusedMatMul doesn't support DT_HALF "
                                         "data type on CPU devices."));
+#if defined(ENABLE_KDNN)
+    bool transpose_a_ = dim_pair[0].first == 0;
+    bool transpose_b_ = dim_pair[0].second == 1;
+    bool kdnn_enable = true;
+    TF_CHECK_OK(tensorflow::ReadBoolFromEnvVar("KDNN_ENABLE", true, &kdnn_enable));
+    bool fusion_passed = (fusion == FusedComputationType::kBiasAdd) || (fusion == FusedComputationType::kBiasAddWithRelu); 
+    if (kdnn_enable && std::is_same<T, float>::value && fusion_passed && !transpose_a_) {
+      kdnnFusedGemm(context, a, b, output, fusion, fusion_args, transpose_a_, transpose_b_);
+      return;
+    }
+#endif
     auto lhs = a.matrix<T>();
     auto rhs = b.matrix<T>();
     auto out = output->matrix<T>();
