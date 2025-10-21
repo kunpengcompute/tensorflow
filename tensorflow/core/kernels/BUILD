@@ -39,6 +39,11 @@ load(
     "mkl_deps",
 )
 load(
+    "//third_party/KDNN:build_defs.bzl",
+    "if_enable_kdnn",
+    "kdnn_deps",
+)
+load(
     "//third_party/ktfop:build_defs.bzl",
     "if_ktfop",
 )
@@ -3492,7 +3497,8 @@ tf_kernel_library(
         "//tensorflow/core/protobuf:autotuning_proto_cc",
         "//tensorflow/core/util/autotune_maps:conv_parameters",
         "//tensorflow/core/util/proto:proto_utils",
-    ]),
+    ]) + kdnn_deps(),
+    defines = if_enable_kdnn(["ENABLE_KDNN=1"])
 )
 
 cc_library(

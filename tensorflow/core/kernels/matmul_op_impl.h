@@ -64,6 +64,11 @@ limitations under the License.
 #endif
 #endif
 
+#if defined(ENABLE_KDNN)
+#include "kdnn_adapter.h"
+#include "tensorflow/core/util/env_var.h"
+#endif
+
 namespace tensorflow {
 
 typedef Eigen::ThreadPoolDevice CPUDevice;
@@ -142,6 +147,16 @@ struct ParallelMatMulKernel<Scalar, false> {
                   const Tensor& in_y, bool adj_x, bool adj_y, bool trans_x,
                   bool trans_y, const MatMulBCast& bcast, Tensor* out,
                   int batch_size) {
+// kdnn support
+#if defined(ENABLE_KDNN)
+    bool kdnn_enable = true;
+    TF_CHECK_OK(tensorflow::ReadBoolFromEnvVar("KDNN_ENABLE", true, &kdnn_enable));
+    if (kdnn_enable && std::is_same<Scalar, float>::value && !trans_x) {
+      kdnnParallelGemm(context, in_x, in_y, out, bcast, 0, batch_size, trans_x, trans_y);
+      return;
+    }
+#endif
+// kdnn end
     const bool should_bcast = bcast.IsBroadcastingRequired();
     const Eigen::ThreadPoolDevice d = context->eigen_cpu_device();
     Eigen::array<Eigen::IndexPair<Eigen::DenseIndex>, 1> contract_pairs;
