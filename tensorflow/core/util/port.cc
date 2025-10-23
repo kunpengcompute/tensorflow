@@ -148,4 +148,31 @@ bool IsZenDnnEnabled() {
 #endif  // !AMD_ZENDNN
 }
 
+bool IsKDNNEnabled() {
+#ifndef ENABLE_KDNN
+  return false;
+#else
+  static absl::once_flag once;
+  static bool KDNN_enabled = true;
+  absl::call_once(once, [&] {
+    auto status = ReadBoolFromEnvVar("TF_ENABLE_KDNN_OPTS", KDNN_enabled,
+                                     &KDNN_enabled);
+
+    if (!status.ok()) {
+      LOG(WARNING) << "TF_ENABLE_KDNN_OPTS is not set to either '0', 'false',"
+                   << " '1', or 'true'. Using the default setting: "
+                   << KDNN_enabled;
+    }
+    if (KDNN_enabled) {
+      LOG(INFO) << "KDNN custom operations are on. "
+                << "You may see slightly different numerical results due to "
+                << "floating-point round-off errors from different computation "
+                << "orders. To turn them off, set the environment variable "
+                << "`TF_ENABLE_KDNN_OPTS=0`.";
+    }
+  });
+  return KDNN_enabled;
+#endif  // !KDNN
+}
+
 }  // namespace tensorflow

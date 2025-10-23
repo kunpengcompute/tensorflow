@@ -46,6 +46,7 @@ limitations under the License.
 #include "tensorflow/core/platform/errors.h"
 #include "tensorflow/core/util/matmul_autotune.h"
 #include "tensorflow/core/util/tensor_format.h"
+#include "tensorflow/core/util/port.h"
 
 #if defined(TENSORFLOW_USE_CUSTOM_CONTRACTION_KERNEL)
 #include "tsl/framework/contraction/eigen_contraction_kernel.h"
@@ -72,7 +73,6 @@ limitations under the License.
 #if defined(ENABLE_KDNN)
 #include "kdnn_adapter.h"
 #endif
-#include "tensorflow/core/util/env_var.h"
 
 namespace tensorflow {
 
@@ -101,11 +101,10 @@ struct LaunchFusedMatMulOp<CPUDevice, T> {
 #if defined(ENABLE_KDNN)
     bool transpose_a_ = dim_pair[0].first == 0;
     bool transpose_b_ = dim_pair[0].second == 1;
-    bool kdnn_enable = true;
-    TF_CHECK_OK(tensorflow::ReadBoolFromEnvVar("KDNN_ENABLE", true, &kdnn_enable));
-    bool fusion_passed = (fusion == FusedComputationType::kBiasAdd) || (fusion == FusedComputationType::kBiasAddWithRelu); 
-    if (kdnn_enable && std::is_same<T, float>::value && fusion_passed && !transpose_a_) {
-      kdnnFusedGemm(context, a, b, output, fusion, fusion_args, transpose_a_, transpose_b_);
+    bool fusion_relu = fusion == FusedComputationType::kBiasAddWithRelu;
+    bool kdnn_enable_fusion = (fusion == FusedComputationType::kBiasAdd) || fusion_relu;
+    if (IsKDNNEnabled() && std::is_same<T, float>::value && kdnn_enable_fusion && !transpose_a_) {
+      kdnnFusedGemm(context, a, b, output, fusion_relu, transpose_a_, transpose_b_);
       return;
     }
 #endif

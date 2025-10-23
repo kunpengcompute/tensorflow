@@ -18,7 +18,6 @@ limitations under the License.
 #include "kdnn.hpp"
 #include "tensorflow/core/util/matmul_bcast.h"
 #include "kdnn_threadpool.h"
-#include "tensorflow/core/kernels/fused_eigen_output_kernels.h"
 
 namespace tensorflow {
 
@@ -57,7 +56,7 @@ inline void kdnnParallelGemm(const OpKernelContext* ctx, const Tensor& a, const 
 }
 
 inline void kdnnFusedGemm(OpKernelContext* ctx, const Tensor& a, const Tensor& b, Tensor* out,
-                    FusedComputationType fusion, const FusedComputationArgs& fusion_args, bool trans_x, bool trans_y) {
+                    bool fusion_relu, bool trans_x, bool trans_y) {
   int m = a.dim_size(0);
   int n = b.dim_size(trans_y ? 0 : 1);
   int k = b.dim_size(trans_y ? 1 : 0);
@@ -72,7 +71,7 @@ inline void kdnnFusedGemm(OpKernelContext* ctx, const Tensor& a, const Tensor& b
   }
   KDNN::PostOpsDataPtrs po_ptrs;
   KDNN::PostOps post_ops;
-  if (fusion == FusedComputationType::kBiasAddWithRelu) {
+  if (fusion_relu) {
     post_ops.AppendEltwise(KDNN::ActivationFunction::RELU);
     po_ptrs.push_back(&post_ops);
   }
@@ -92,6 +91,40 @@ inline void kdnnFusedGemm(OpKernelContext* ctx, const Tensor& a, const Tensor& b
   KDNN::Gemm gemm(srcInfo, weightsInfo, dstInfo, biasInfo, attr);
   gemm.Run(A, B, C, Bias, po_ptrs); 
   KDNN::Threading::DeactivateThreadpool();
+}
+
+template<typename Tindices>
+inline void kdnnSparseMatmul(const std::size_t nnz,
+                      const std::size_t rhs_right, const std::size_t lhs_right,
+                      const int lhs_index_a, const int rhs_index_a,
+                      typename TTypes<float>::Matrix out,
+                      typename TTypes<Tindices>::ConstMatrix a_indices, 
+                      typename TTypes<float>::ConstVec a_values,
+                      const float* b_data) {
+    std::vector<int> idx(nnz);
+    int lhs_left = out.dimension(0);
+    std::vector<int> pntrb(lhs_left);
+    std::vector<int> pntre(lhs_left);
+    std::vector<int> row_counts(lhs_left);
+    for (size_t i = 0; i < nnz; ++i) {
+        idx[i] = a_indices(i, rhs_index_a);
+        ++row_counts[a_indices(i, lhs_index_a)];
+    }
+    
+    int current_pos = 0;
+    for (size_t i = 0; i < lhs_left; ++i) {
+        pntrb[i] = current_pos;
+        current_pos += row_counts[i];
+        pntre[i] = current_pos;
+    }
+    const KDNN::CsrSparseTensorInfo aInfo = {{lhs_left, lhs_right},
+        KDNN::Element::TypeT::F32, KDNN::Layout::AB, pntrb, pntre, idx, nnz};
+    const KDNN::TensorInfo bInfo = {{lhs_right, rhs_right},
+        KDNN::Element::TypeT::F32, KDNN::Layout::AB};
+    const KDNN::TensorInfo dstInfo = {{lhs_left, rhs_right},
+        KDNN::Element::TypeT::F32, KDNN::Layout::AB};
+    KDNN::SparseGemm sparse_csr(aInfo, bInfo, dstInfo);
+    sparse_csr.Run(a_values.data(), b_data, out.data());
 }
 
 }// namespace tensorflow

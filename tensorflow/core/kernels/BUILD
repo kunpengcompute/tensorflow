@@ -3498,7 +3498,6 @@ tf_kernel_library(
         "//tensorflow/core/util/autotune_maps:conv_parameters",
         "//tensorflow/core/util/proto:proto_utils",
     ]) + kdnn_deps(),
-    defines = if_enable_kdnn(["ENABLE_KDNN=1"])
 )
 
 cc_library(
@@ -5146,7 +5145,7 @@ tf_kernel_library(
         "//tensorflow/core/framework:bounds_check",
         "//tensorflow/core/util:determinism_for_kernels",
         "@eigen_archive//:eigen3",
-    ],
+    ] + kdnn_deps(),
 )
 
 tf_kernel_library(

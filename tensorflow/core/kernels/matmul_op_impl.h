@@ -41,6 +41,7 @@ limitations under the License.
 #include "tensorflow/core/util/matmul_autotune.h"
 #include "tensorflow/core/util/matmul_bcast.h"
 #include "tensorflow/core/util/work_sharder.h"
+#include "tensorflow/core/util/port.h"
 
 #if defined(TENSORFLOW_USE_CUSTOM_CONTRACTION_KERNEL)
 #include "tsl/framework/contraction/eigen_contraction_kernel.h"
@@ -66,7 +67,6 @@ limitations under the License.
 
 #if defined(ENABLE_KDNN)
 #include "kdnn_adapter.h"
-#include "tensorflow/core/util/env_var.h"
 #endif
 
 namespace tensorflow {
@@ -149,9 +149,7 @@ struct ParallelMatMulKernel<Scalar, false> {
                   int batch_size) {
 // kdnn support
 #if defined(ENABLE_KDNN)
-    bool kdnn_enable = true;
-    TF_CHECK_OK(tensorflow::ReadBoolFromEnvVar("KDNN_ENABLE", true, &kdnn_enable));
-    if (kdnn_enable && std::is_same<Scalar, float>::value && !trans_x) {
+    if (IsKDNNEnabled() && std::is_same<Scalar, float>::value && !trans_x) {
       kdnnParallelGemm(context, in_x, in_y, out, bcast, 0, batch_size, trans_x, trans_y);
       return;
     }
