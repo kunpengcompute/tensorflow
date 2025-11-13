@@ -51,33 +51,45 @@
 
 **安装方式<a name="section49733392819"></a>**
 
-1.  拉取代码
+1. 拉取代码
+- 开源tensorflow代码
 
-    ```
-    git clone -b {tensorflow_tag} https://gitcode.com/boostkit/tensorflow.git 
-    ```
+```
+git clone -b v2.15.0 https://github.com/tensorflow/tensorflow.git open-tensorflow
+```
+- 搜推广优化patch
 
-    其中，tensorflow\_tag需要替换为release版本的tag点。
+```
+git clone -b master https://gitcode.com/BoostKit/tensorflow.git sra-tensorflow
+```
 
-1.  编译
+- 将patch打到开源serving代码仓
 
-    -   编译pip包
+```
+cp sra-tensorflow/0001-boostsra-tensorflow.patch open-tensorflow
+cd open-tensorflow
+patch -p1 < 0001-boostsra-tensorflow.patch
+```
 
-    ```
-    bazel build --config=opt //tensorflow/tools/pip_package:build_pip_package 
-    ```
+2.  编译
 
-    -   编译libtensorflow\_cc.so
+-   编译pip包
 
-    ```
-    bazel build --config=opt //tensorflow/libtensorflow_cc.so 
-    ```
+```
+bazel build --config=opt //tensorflow/tools/pip_package:build_pip_package 
+```
 
-    如果在编译过程中遇到任何问题，可参考以下文档：
+-   编译libtensorflow\_cc.so
 
-    [TensorFlow 移植指南](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0001.html)
+```
+bazel build --config=opt //tensorflow/libtensorflow_cc.so 
+```
 
-    [TensorFlow 安装](https://tensorflow.google.cn/install/source?hl=zh-cn)
+如果在编译过程中遇到任何问题，可参考以下文档：
+
+[TensorFlow 移植指南](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0001.html)
+
+[TensorFlow 安装](https://tensorflow.google.cn/install/source?hl=zh-cn)
 
 # 快速上手<a name="ZH-CN_TOPIC_0000002442693246"></a>
 
@@ -92,6 +104,14 @@
 鲲鹏BoostKit提出了Tensorflow Serving ANNC优化方案。ANNC是专注于加速神经网络计算的编译器，聚焦于通过计算图优化，高性能融合算子生成和对接技术，高效代码生成和优化能力，加速推荐的推理性能。ANNC作为基于开源OpenXLA的扩展加速套件，发布在openEuler组织的ANNC开源仓，具有鲲鹏亲和的优化特性，包括Tensorflow图融合、XLA图融合、算子优化能力。
 
 快速上手：[Tensorflow Serving ANNC](https://gitcode.com/boostkit/tensorflow/tree/master/%E5%BE%85%E5%8F%91%E5%B8%83)
+
+**KDNN特性<a name="section147391344338"></a>**
+
+KDNN是华为提供的基于鲲鹏平台优化的高性能深度神经网络算子库，可以以插件形式集成至开源软件oneDNN使能优化能力，也可以对接到Tensorflow框架，实现Matmul等算子的加速。
+
+快速上手：
+[oneDNN对接KDNN](https://gitcode.com/boostkit/kdnn)
+[Tensorflow对接KDNN](https://gitcode.com/boostkit/kdnn)
 
 # 贡献指南<a name="ZH-CN_TOPIC_0000002476053213"></a>
 
