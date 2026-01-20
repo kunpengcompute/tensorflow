@@ -42,6 +42,11 @@ limitations under the License.
 #include "tensorflow/core/platform/types.h"
 #include "tensorflow/core/profiler/lib/traceme.h"
 #include "tensorflow/core/util/einsum_op_util.h"
+#include "tensorflow/core/util/port.h"
+
+#if defined(ENABLE_KDNN)
+#include "kdnn_adapter.h"
+#endif
 
 #if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
 #include "tensorflow/core/kernels/reduction_ops_common_gpu.h"
@@ -466,6 +471,16 @@ struct EinsumHelper {
       set_zero(ctx->eigen_device<Device>(), output->flat<T>());
       return OkStatus();
     }
+#if defined(ENABLE_KDNN)
+    if (IsKDNNEnabled()
+        && std::is_same<T, float>::value
+        && inputs.size() == 2
+        && inputs[0].dims() >= 2 && inputs[0].dims() <= 5
+        && inputs[1].dims() >= 2 && inputs[1].dims() <= 5) {
+      kdnnBatchGemm(ctx, inputs[0], inputs[1], output, trans_x, trans_y);
+      return OkStatus();
+    }
+#endif
     Tensor output_reshaped;
     TF_RETURN_IF_ERROR(
         ReshapeToRank3(*output, bcast.output_batch_size(), &output_reshaped));

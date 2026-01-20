@@ -864,7 +864,7 @@ ARRAY_DEPS = [
     "//tensorflow/core/framework:bounds_check",
     "//tensorflow/core/profiler/lib:scoped_memory_debug_annotation",
     "@eigen_archive//:eigen3",
-]
+] + kdnn_deps()
 
 tf_kernel_library(
     name = "immutable_constant_op",
