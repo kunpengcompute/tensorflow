@@ -35,6 +35,10 @@ limitations under the License.
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/util/bcast.h"
 
+#if defined(ENABLE_KDNN)
+#include "kdnn_adapter.h"
+#endif
+
 namespace tensorflow {
 
 typedef Eigen::ThreadPoolDevice CPUDevice;
@@ -109,6 +113,15 @@ class BinaryOp : public BinaryOpShared {
       Tensor* out;
       OP_REQUIRES_OK(ctx, ctx->forward_input_or_allocate_output(
                               {0, 1}, 0, input_0.shape(), &out));
+#if defined(ENABLE_KDNN)
+    if constexpr (std::is_same<Functor, functor::safe_floor_mod<int64_t>>::value ||
+        std::is_same<Functor, functor::floor_fmod<float>>::value) {
+        if (IsKDNNEnabled()) {
+            kdnnFloormodOp<Functor>(ctx, input_0, input_1, out);
+            return;
+        }
+    }
+#endif
       functor::BinaryFunctor<Device, Functor, 1>()(
           eigen_device, out->template flat<Tout>(),
           input_0.template flat<Tin>(), input_1.template flat<Tin>(),
@@ -322,6 +335,16 @@ class UnaryOp : public OpKernel {
     } else {
       OP_REQUIRES_OK(ctx, ctx->allocate_output(0, inp.shape(), &out));
     }
+
+#if defined(ENABLE_KDNN)
+    if constexpr (std::is_same<Functor, functor::sigmoid<float>>::value) {
+        if (IsKDNNEnabled() & inp.NumElements() > 0) {
+            kdnnSigmoidOp<Functor>(ctx, inp, out);
+            return;
+        }
+    }
+#endif
+
     functor::UnaryFunctor<Device, Functor>()(
         ctx->eigen_device<Device>(), out->flat<Tout>(), inp.flat<Tin>());
   }

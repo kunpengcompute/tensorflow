@@ -25,6 +25,10 @@ limitations under the License.
 #include "tensorflow/core/framework/tensor_shape.h"
 #include "tensorflow/core/kernels/softmax_op_functor.h"
 
+#if defined(ENABLE_KDNN)
+#include "kdnn_adapter.h"
+#endif
+
 namespace tensorflow {
 
 typedef Eigen::ThreadPoolDevice CPUDevice;
@@ -61,6 +65,15 @@ class SoftmaxOp : public OpKernel {
     OP_REQUIRES_OK(context, context->forward_input_or_allocate_output(
                                 {0}, 0, logits_in.shape(), &softmax_out));
     if (logits_in.NumElements() > 0) {
+#if defined(ENABLE_KDNN)
+    if constexpr (std::is_same<T, float>::value) {
+        if (!log_ && IsKDNNEnabled()) {
+            kdnnSoftmaxOp<T>(context, logits_in, softmax_out);
+            return;
+        }
+    }
+#endif
+
       functor::SoftmaxFunctor<Device, T> functor;
       functor(context->eigen_device<Device>(), logits_in.flat_inner_dims<T>(),
               softmax_out->flat_inner_dims<T>(), log_);

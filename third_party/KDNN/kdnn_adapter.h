@@ -22,6 +22,10 @@ limitations under the License.
 #include "kdnn_threadpool.h"
 #include "kdnn_types_adapter.h"
 #include "kdnn_layout_adapter.h"
+#include "tensorflow/core/util/port.h"
+#include "tensorflow/core/framework/tensor.h"
+#include "operations/kdnn_softmax.hpp"
+#include "operations/kdnn_eltwise.hpp"
 
 namespace tensorflow {
 
@@ -203,6 +207,82 @@ inline void kdnnBatchGemm(const OpKernelContext* ctx, const Tensor& a, const Ten
   KDNN::Gemm gemm(srcInfo, weightsInfo, dstInfo);
   gemm.Run(A, B, C); 
   KDNN::Threading::DeactivateThreadpool();
+}
+
+template <typename Functor>
+inline void kdnnFloormodOp(OpKernelContext* ctx, const Tensor &input_0, const Tensor &input_1, Tensor *output) {
+    typedef typename Functor::in_type Tin;    // Input scalar data type.
+    const Tin* src = input_0.flat<Tin>().data();
+    const Tin* src_1 = input_1.flat<Tin>().data();
+    Tin* dst = output->flat<Tin>().data();
+
+    KDNN::Shape tensorShape({input_0.shape().num_elements()});
+    thread::ThreadPool* thread_pool = 
+        ctx->device()
+        ->tensorflow_cpu_worker_threads()
+        ->workers;
+    kdnn::KDNNThreadPool kdnn_tp(thread_pool);
+    KDNN::Threading::ActivateThreadpool(&kdnn_tp);
+
+    if (std::is_same<Tin, int64_t>::value) {
+        KDNN::TensorInfo inputTensorInfo(tensorShape, KDNN::Element::TypeT::S64, KDNN::Layout::A);
+        KDNN::TensorInfo inputTensorInfo_1(tensorShape, KDNN::Element::TypeT::S64, KDNN::Layout::A);
+        KDNN::TensorInfo outputTensorInfo(tensorShape, KDNN::Element::TypeT::S64, KDNN::Layout::A);
+        KDNN::BinaryLayer layer(inputTensorInfo, inputTensorInfo_1, outputTensorInfo, KDNN::BinaryFunction::FLOORMOD);
+        layer.Run(src, src_1, dst);
+    } else {
+        KDNN::TensorInfo inputTensorInfo(tensorShape, KDNN::Element::TypeT::F32, KDNN::Layout::A);
+        KDNN::TensorInfo inputTensorInfo_1(tensorShape, KDNN::Element::TypeT::F32, KDNN::Layout::A);
+        KDNN::TensorInfo outputTensorInfo(tensorShape, KDNN::Element::TypeT::F32, KDNN::Layout::A);
+        KDNN::BinaryLayer layer(inputTensorInfo, inputTensorInfo_1, outputTensorInfo, KDNN::BinaryFunction::FLOORMOD);
+        layer.Run(src, src_1, dst);
+    }
+
+    KDNN::Threading::DeactivateThreadpool();
+    return;
+}
+
+template <typename Functor>
+inline void kdnnSigmoidOp(OpKernelContext* ctx, const Tensor &input, Tensor *output)
+{
+    typedef typename Functor::in_type Tin;
+    const Tin* src = input.flat<Tin>().data();
+    Tin* dst = output->flat<Tin>().data();
+    KDNN::Shape tensorShape({input.shape().num_elements()});
+    KDNN::TensorInfo inputTensorInfo(tensorShape, KDNN::Element::TypeT::F32, KDNN::Layout::A);
+    KDNN::TensorInfo outputTensorInfo(tensorShape, KDNN::Element::TypeT::F32, KDNN::Layout::A);
+
+    thread::ThreadPool* thread_pool = 
+        ctx->device()
+        ->tensorflow_cpu_worker_threads()
+        ->workers;
+    kdnn::KDNNThreadPool kdnn_tp(thread_pool);
+    KDNN::Threading::ActivateThreadpool(&kdnn_tp);
+    KDNN::ActivationLayerFWD layer(inputTensorInfo, outputTensorInfo, KDNN::ActivationFunction::SIGMOID);
+    layer.Run(src, dst);
+    KDNN::Threading::DeactivateThreadpool();
+    return;
+}
+
+template <typename T>
+inline void kdnnSoftmaxOp(OpKernelContext* ctx, const Tensor &input, Tensor *output)
+{
+    const T* src = input.flat_inner_dims<T>().data();
+    T* dst = output->flat_inner_dims<T>().data();
+    KDNN::Shape tensorShape({input.flat_inner_dims<T>().dimension(0), input.flat_inner_dims<T>().dimension(1)});
+    KDNN::TensorInfo inputTensorInfo(tensorShape, KDNN::Element::TypeT::F32, KDNN::Layout::AB);
+    KDNN::TensorInfo outputTensorInfo(tensorShape, KDNN::Element::TypeT::F32, KDNN::Layout::AB);
+
+    thread::ThreadPool* thread_pool = 
+        ctx->device()
+        ->tensorflow_cpu_worker_threads()
+        ->workers;
+    kdnn::KDNNThreadPool kdnn_tp(thread_pool);
+    KDNN::Threading::ActivateThreadpool(&kdnn_tp);
+    KDNN::SoftmaxLayerFWD layer(inputTensorInfo, outputTensorInfo, 1, KDNN::AlgorithmKind::SOFTMAX);
+    layer.Run(src, dst);
+    KDNN::Threading::DeactivateThreadpool();
+    return;
 }
 
 }// namespace tensorflow

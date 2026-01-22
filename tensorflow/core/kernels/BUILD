@@ -3577,7 +3577,7 @@ tf_kernel_library(
     prefix = "cwise_op",
     deps = MATH_DEPS + [
         "//tensorflow/core/kernels/mlir_generated:cwise_op",
-    ],
+    ] + kdnn_deps(),
 )
 
 tf_kernel_library(
@@ -4305,7 +4305,7 @@ tf_kernel_library(
     ]) + [
         ":gpu_prim_hdrs",
         ":loose_headers",
-    ],
+    ] + kdnn_deps(),
 )
 
 tf_kernel_library(
