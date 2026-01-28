@@ -147,14 +147,6 @@ struct ParallelMatMulKernel<Scalar, false> {
                   const Tensor& in_y, bool adj_x, bool adj_y, bool trans_x,
                   bool trans_y, const MatMulBCast& bcast, Tensor* out,
                   int batch_size) {
-// kdnn support
-#if defined(ENABLE_KDNN)
-    if (IsKDNNEnabled() && std::is_same<Scalar, float>::value && !trans_x) {
-      kdnnParallelGemm(context, in_x, in_y, out, bcast, 0, batch_size, trans_x, trans_y);
-      return;
-    }
-#endif
-// kdnn end
     const bool should_bcast = bcast.IsBroadcastingRequired();
     const Eigen::ThreadPoolDevice d = context->eigen_cpu_device();
     Eigen::array<Eigen::IndexPair<Eigen::DenseIndex>, 1> contract_pairs;
@@ -940,6 +932,24 @@ class BaseBatchMatMulOp : public OpKernel {
       f(ctx->eigen_device<Device>(), out->flat<Tout>());
       return;
     }
+#if defined(ENABLE_KDNN)
+    int dims = in0.shape().dims();
+    bool trans_x = (adj_x_ || trans_x_);
+    bool trans_y = (adj_y_ || trans_y_);
+
+    if (IsKDNNEnabled()
+        && std::is_same<Ta, float>::value
+        && std::is_same<Tb, float>::value
+        && std::is_same<Tout, float>::value
+        && dims >= 2 && dims <= 5) {
+      if (batch_size == 1) {
+        kdnnGemm(ctx, in0_reshaped, in1_reshaped, out, trans_x, trans_y);
+      } else {
+        kdnnBatchGemm(ctx, in0, in1, out, trans_x, trans_y);
+      }
+      return;
+    }
+#endif
     Tensor out_reshaped;
     OP_REQUIRES(ctx,
                 out_reshaped.CopyFrom(*out, TensorShape({batch_size, d0, d3})),

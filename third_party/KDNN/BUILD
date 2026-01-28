@@ -21,7 +21,7 @@ cc_library(
 
 cc_library(
     name = "kdnn_adapter",
-    hdrs = ["kdnn_adapter.h", "kdnn_threadpool.h"],
+    hdrs = ["kdnn_adapter.h", "kdnn_threadpool.h", "kdnn_types_adapter.h", "kdnn_layout_adapter.h"],
     strip_include_prefix = "/third_party/KDNN",
     visibility = ["//visibility:public"],
     deps = [":kdnn"],

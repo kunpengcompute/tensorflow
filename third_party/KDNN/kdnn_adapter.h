@@ -16,44 +16,14 @@ limitations under the License.
 #ifndef TENSORFLOW_CORE_UTIL_KDNN_ADAPTER_H_
 #define TENSORFLOW_CORE_UTIL_KDNN_ADAPTER_H_
 #include "kdnn.hpp"
+#include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/util/matmul_bcast.h"
+#include "tensorflow/core/util/work_sharder.h"
 #include "kdnn_threadpool.h"
+#include "kdnn_types_adapter.h"
+#include "kdnn_layout_adapter.h"
 
 namespace tensorflow {
-
-
-inline void kdnnParallelGemm(const OpKernelContext* ctx, const Tensor& a, const Tensor& b, Tensor* out,
-                     const MatMulBCast& bcast, int start, int end, bool trans_x, bool trans_y) {
-  const bool should_bcast = bcast.IsBroadcastingRequired();
-  const auto& x_batch_indices = bcast.x_batch_indices();
-  const auto& y_batch_indices = bcast.y_batch_indices();
-  int m = a.dim_size(1);
-  int n = b.dim_size(trans_y ? 1 : 2);
-  int k = b.dim_size(trans_y ? 2 : 1);
-  int stride_a = m * k;
-  int stride_b = k * n;
-  int stride_c = m * n;
-  const float *A = a.flat<float>().data();
-  const float *B = b.flat<float>().data();
-  float *C = out->flat<float>().data();
-  // intra_op thread_pool
-  thread::ThreadPool* thread_pool = 
-    ctx->device()
-    ->tensorflow_cpu_worker_threads()
-    ->workers;
-  kdnn::KDNNThreadPool kdnn_tp(thread_pool);
-  KDNN::Threading::ActivateThreadpool(&kdnn_tp);
-  const KDNN::TensorInfo srcInfo = {{m, k}, KDNN::Element::TypeT::F32, KDNN::Layout::AB};
-  const KDNN::TensorInfo weightsInfo = {{k, n}, KDNN::Element::TypeT::F32, trans_y ? KDNN::Layout::BA : KDNN::Layout::AB};
-  const KDNN::TensorInfo dstInfo = {{m, n}, KDNN::Element::TypeT::F32, KDNN::Layout::AB};
-  KDNN::Gemm gemm(srcInfo, weightsInfo, dstInfo);
-  for (int64_t i = start; i < end; ++i) {
-    const int64_t x_batch_index = should_bcast ? x_batch_indices[i] : i;
-    const int64_t y_batch_index = should_bcast ? y_batch_indices[i] : i;
-    gemm.Run(A + x_batch_index * stride_a, B + y_batch_index * stride_b, C + i * stride_c); 
-  }
-  KDNN::Threading::DeactivateThreadpool();
-}
 
 inline void kdnnFusedGemm(OpKernelContext* ctx, const Tensor& a, const Tensor& b, Tensor* out,
                     bool fusion_relu, bool trans_x, bool trans_y) {
@@ -125,6 +95,114 @@ inline void kdnnSparseMatmul(const std::size_t nnz,
         KDNN::Element::TypeT::F32, KDNN::Layout::AB};
     KDNN::SparseGemm sparse_csr(aInfo, bInfo, dstInfo);
     sparse_csr.Run(a_values.data(), b_data, out.data());
+}
+
+template<typename T>
+inline void KDNNConcatImpl(OpKernelContext* ctx,
+                    const std::vector<std::unique_ptr<typename TTypes<T, 2>::ConstMatrix>>& inputs,
+                    typename TTypes<T, 2>::Matrix* output) {
+  KDNN::Element::TypeT kdnnType = KDNN::Element::TypeAdapter<T>::value;
+  KDNN::Layout kdnnLayout = KDNN::LayoutAdapter<2, false>::value;
+  OP_REQUIRES(ctx, kdnnType != KDNN::Element::TypeT::UNDEFINED,
+    errors::InvalidArgument("unsupported kdnn data type"));
+  OP_REQUIRES(ctx, kdnnLayout != KDNN::Layout::UNDEFINED,
+    errors::InvalidArgument("unsupported kdnn layout"));
+  std::vector<KDNN::TensorInfo> inputInfos;
+  std::vector<const void *> input_ptrs;
+  inputInfos.reserve(inputs.size());
+  input_ptrs.reserve(inputs.size());
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    auto dim0 = inputs[i]->dimension(0);
+    auto dim1 = inputs[i]->dimension(1);
+    inputInfos.emplace_back(KDNN::TensorInfo{{dim0, dim1}, kdnnType, kdnnLayout});
+    input_ptrs.push_back(static_cast<const void*>(inputs[i]->data()));
+  }
+  void* output_ptr = static_cast<void *>(output->data());
+  thread::ThreadPool* thread_pool = 
+    ctx->device()
+    ->tensorflow_cpu_worker_threads()
+    ->workers;
+  kdnn::KDNNThreadPool kdnn_tp(thread_pool);
+  KDNN::Threading::ActivateThreadpool(&kdnn_tp);
+  KDNN::TensorInfo outputInfo({output->dimension(0), output->dimension(1)}, kdnnType, kdnnLayout);
+  KDNN::ConcatLayer concat(inputInfos, 1, outputInfo);
+  concat.Run(input_ptrs.data(), output_ptr);
+  KDNN::Threading::DeactivateThreadpool();
+}
+
+inline KDNN::TensorInfo MakeInfo(const tensorflow::Tensor* tensor, bool transposed) {
+  const tensorflow::TensorShape& shape = tensor->shape();
+  int dims = shape.dims();
+
+  std::vector<int64_t> d5 = {1, 1, 1, 1, 1};
+  for (int i = 0; i < dims; ++i) {
+    d5[4 - i] = shape.dim_size(dims - 1 - i);
+  }
+
+  if (transposed) {
+    std::swap(d5[3], d5[4]);
+  }
+
+  return KDNN::TensorInfo(
+    {d5[0], d5[1], d5[2], d5[3], d5[4]},
+    KDNN::Element::TypeT::F32,
+    transposed ? KDNN::Layout::ABCED : KDNN::Layout::ABCDE
+  );
+}
+
+inline KDNN::TensorInfo MakeOutputInfo(const KDNN::TensorInfo &tensorA, const KDNN::TensorInfo &tensorB) {
+  int dims = tensorA.GetNumDims();
+  std::vector<int64_t> d5 = {1, 1, 1, 1, 1};
+  for (int i = 0; i < dims - 2; ++i) {
+    d5[i] = std::max(tensorA.GetDims()[i], tensorB.GetDims()[i]);
+  }
+  d5[3] = tensorA.GetDims()[3];
+  d5[4] = tensorB.GetDims()[4];
+  return KDNN::TensorInfo(
+    {d5[0], d5[1], d5[2], d5[3], d5[4]},
+    KDNN::Element::TypeT::F32, KDNN::Layout::ABCDE
+  );
+}
+
+inline void kdnnGemm(const OpKernelContext* ctx, const Tensor& a, const Tensor& b, Tensor* out,
+                     bool trans_x, bool trans_y) {
+  int m = a.dim_size(trans_x ? 2 : 1);
+  int n = b.dim_size(trans_y ? 1 : 2);
+  int k = b.dim_size(trans_y ? 2 : 1);
+  const float *A = a.flat<float>().data();
+  const float *B = b.flat<float>().data();
+  float *C = out->flat<float>().data();
+  thread::ThreadPool* thread_pool = 
+    ctx->device()
+    ->tensorflow_cpu_worker_threads()
+    ->workers;
+  kdnn::KDNNThreadPool kdnn_tp(thread_pool);
+  KDNN::Threading::ActivateThreadpool(&kdnn_tp);
+  const KDNN::TensorInfo srcInfo = {{m, k}, KDNN::Element::TypeT::F32, trans_x ? KDNN::Layout::BA : KDNN::Layout::AB};
+  const KDNN::TensorInfo weightsInfo = {{k, n}, KDNN::Element::TypeT::F32, trans_y ? KDNN::Layout::BA : KDNN::Layout::AB};
+  const KDNN::TensorInfo dstInfo = {{m, n}, KDNN::Element::TypeT::F32, KDNN::Layout::AB};
+  KDNN::Gemm gemm(srcInfo, weightsInfo, dstInfo);
+  gemm.Run(A, B, C); 
+  KDNN::Threading::DeactivateThreadpool();
+}
+
+inline void kdnnBatchGemm(const OpKernelContext* ctx, const Tensor& a, const Tensor& b, Tensor* out,
+                          bool trans_x, bool trans_y) {
+  const float *A = a.flat<float>().data();
+  const float *B = b.flat<float>().data();
+  float *C = out->flat<float>().data();
+  thread::ThreadPool* thread_pool = 
+    ctx->device()
+    ->tensorflow_cpu_worker_threads()
+    ->workers;
+  kdnn::KDNNThreadPool kdnn_tp(thread_pool);
+  KDNN::Threading::ActivateThreadpool(&kdnn_tp);
+  const KDNN::TensorInfo srcInfo = MakeInfo(&a, trans_x);
+  const KDNN::TensorInfo weightsInfo = MakeInfo(&b, trans_y);
+  const KDNN::TensorInfo dstInfo = MakeOutputInfo(srcInfo, weightsInfo);
+  KDNN::Gemm gemm(srcInfo, weightsInfo, dstInfo);
+  gemm.Run(A, B, C); 
+  KDNN::Threading::DeactivateThreadpool();
 }
 
 }// namespace tensorflow

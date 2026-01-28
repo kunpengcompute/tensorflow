@@ -31,6 +31,11 @@ limitations under the License.
 #include "tensorflow/core/lib/core/status.h"
 #include "tensorflow/core/platform/errors.h"
 #include "tensorflow/core/platform/types.h"
+#include "tensorflow/core/util/port.h"
+
+#if defined(ENABLE_KDNN)
+#include "kdnn_adapter.h"
+#endif
 
 namespace tensorflow {
 
@@ -172,6 +177,11 @@ class ConcatBaseOp : public OpKernel {
         return;
       }
 #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
+      KDNN::Element::TypeT kdnnType = KDNN::Element::TypeAdapter<T>::value;
+      if(IsKDNNEnabled() && kdnnType != KDNN::Element::TypeT::UNDEFINED) {
+        KDNNConcatImpl<T>(c, inputs_flat, &output_flat);
+        return;
+      }
       ConcatCPU<T>(c->device(), inputs_flat, &output_flat);
     }
   }
