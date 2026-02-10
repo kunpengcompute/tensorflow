@@ -1,10 +1,3 @@
-exports_files(glob(["requirements*"]) + [
-    "configure",
-    "configure.py",
-    "ACKNOWLEDGEMENTS",
-    "AUTHORS",
-    "LICENSE",
-])
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.
@@ -71,10 +64,10 @@ COPTS = [
     "-Wno-unused-parameter",
     "-fno-omit-frame-pointer",
 ] + select({
-    "@brpc//bazel/config:brpc_with_glog": ["-DBRPC_WITH_GLOG=1"],
+    "//bazel/config:brpc_with_glog": ["-DBRPC_WITH_GLOG=1"],
     "//conditions:default": ["-DBRPC_WITH_GLOG=0"],
 }) + select({
-    "@brpc//bazel/config:brpc_with_rdma": ["-DBRPC_WITH_RDMA=1"],
+    "//bazel/config:brpc_with_rdma": ["-DBRPC_WITH_RDMA=1"],
     "//conditions:default": [""],
 })
 
@@ -100,9 +93,9 @@ cc_binary(
     copts = COPTS,
     deps = [
         ":cc_dummy_proto",
-        "@brpc//:brpc",
+        "//:brpc",
         "//:dummy_tf_func",
-        "@com_github_google_gperftools//:tcmalloc"
+        "@com_github_google_gperftools//:tcmalloc_and_profiler"
     ],
 )
 
@@ -114,6 +107,6 @@ cc_binary(
     copts = COPTS,
     deps = [
         ":cc_dummy_proto",
-        "@brpc//:brpc",
+        "//:brpc",
     ],
 )

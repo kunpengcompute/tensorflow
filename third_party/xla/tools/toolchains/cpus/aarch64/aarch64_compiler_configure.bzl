@@ -13,7 +13,7 @@ def ml2014_tf_aarch64_configs(name_container_map, env):
         remote_aarch64_configure(
             name = "%s_config_aarch64" % name,
             environ = env,
-            exec_properties = exec_properties,
+            # exec_properties = exec_properties,
         )
 
         remote_platform_configure(

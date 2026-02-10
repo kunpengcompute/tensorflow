@@ -1,30 +1,32 @@
-diff --git a/src/google/protobuf/map_field.h b/src/google/protobuf/map_field.h
---- a/src/google/protobuf/map_field.h	(revision 5fda5abda3dee5f7a102c85860594bff8d8610bd)
-+++ b/src/google/protobuf/map_field.h	(date 1748033655723)
-@@ -710,7 +710,7 @@
-   typedef MapField<T, Key, Value, kKeyFieldType, kValueFieldType> MapFieldType;
- };
-
--class PROTOBUF_EXPORT DynamicMapField final
-+class DynamicMapField final
-     : public TypeDefinedMapFieldBase<MapKey, MapValueRef> {
-  public:
-   explicit DynamicMapField(const Message* default_entry);
+diff --git a/BUILD.bazel b/BUILD.bazel
+index 8926b04e5..42a36554a 100644
+--- a/BUILD.bazel
++++ b/BUILD.bazel
+@@ -563,7 +563,7 @@ proto_lang_toolchain(
+         "//:cpp_features_proto",
+         "//:descriptor_proto",
+     ],
+-    command_line = "--cpp_out=$(OUT)",
++    command_line = "--cpp_out=dllexport_decl=PROTOBUF_EXPORT:$(OUT)",
+     plugin = "//src/google/protobuf/compiler/cpp:protoc-gen-cpp",
+     plugin_format_flag = "--plugin=protoc-gen-cpp=%s",
+     protoc_minimal_do_not_use = "//src/google/protobuf/compiler:protoc_minimal",
 diff --git a/build_defs/BUILD.bazel b/build_defs/BUILD.bazel
---- a/build_defs/BUILD.bazel	(revision 5fda5abda3dee5f7a102c85860594bff8d8610bd)
-+++ b/build_defs/BUILD.bazel	(date 1748034990268)
+index 128c5575c..6aeebd0e3 100644
+--- a/build_defs/BUILD.bazel
++++ b/build_defs/BUILD.bazel
 @@ -1,6 +1,7 @@
  # Internal Starlark definitions for Protobuf.
-
+ 
  load("@bazel_skylib//lib:selects.bzl", "selects")
 +load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
  load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "strip_prefix")
  load("//bazel:cc_proto_library.bzl", starlark_cc_proto_library = "cc_proto_library")
  load(":cc_proto_blacklist_test.bzl", "cc_proto_blacklist_test")
-@@ -13,6 +14,20 @@
+@@ -13,6 +14,20 @@ package(
      ],
  )
-
+ 
 +bool_flag(
 +    name = "use_dlls",
 +    build_setting_default = False,
@@ -43,12 +45,13 @@ diff --git a/build_defs/BUILD.bazel b/build_defs/BUILD.bazel
      name = "config_msvc_cl",
      value = "msvc-cl",
 diff --git a/python/dist/system_python.bzl b/python/dist/system_python.bzl
---- a/python/dist/system_python.bzl	(revision 5fda5abda3dee5f7a102c85860594bff8d8610bd)
-+++ b/python/dist/system_python.bzl	(date 1746939979885)
-@@ -73,11 +73,10 @@
- load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
- load("@bazel_tools//tools/python:toolchain.bzl", "py_runtime_pair")
-
+index 2a1c56483..6e0ec222d 100644
+--- a/python/dist/system_python.bzl
++++ b/python/dist/system_python.bzl
+@@ -75,11 +75,10 @@ load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+ load("@rules_python//python:py_runtime.bzl", "py_runtime")
+ load("@rules_python//python:py_runtime_pair.bzl", "py_runtime_pair")
+ 
 -cc_library(
 -   name = "python_headers",
 -   hdrs = glob(["python/**/*.h"], allow_empty = True),
@@ -59,21 +62,84 @@ diff --git a/python/dist/system_python.bzl b/python/dist/system_python.bzl
 +    actual = "@python//:python_headers",
 +    visibility = ["//visibility:public"],
  )
-
+ 
  string_flag(
-@@ -219,7 +218,7 @@
+@@ -221,7 +220,7 @@ def _system_python_impl(repository_ctx):
      python3 = repository_ctx.which("python3")
      python_version = _get_python_version(repository_ctx)
-
+ 
 -    if path and python_version[0] == "3":
 +    if False:
          _populate_package(repository_ctx, path, python3, python_version)
      else:
          # buildifier: disable=print
+diff --git a/python/google/protobuf/__init__.py b/python/google/protobuf/__init__.py
+index 21bb2598b..4a9b05379 100755
+--- a/python/google/protobuf/__init__.py
++++ b/python/google/protobuf/__init__.py
+@@ -8,3 +8,9 @@
+ # Copyright 2007 Google Inc. All Rights Reserved.
+ 
+ __version__ = '6.33.0'
++
++if __name__ != '__main__':
++  try:
++    __import__('pkg_resources').declare_namespace(__name__)
++  except ImportError:
++    __path__ = __import__('pkgutil').extend_path(__path__, __name__)
+diff --git a/src/google/protobuf/BUILD.bazel b/src/google/protobuf/BUILD.bazel
+index 1b8a3ec87..6dfcd9738 100644
+--- a/src/google/protobuf/BUILD.bazel
++++ b/src/google/protobuf/BUILD.bazel
+@@ -539,6 +539,13 @@ cc_library(
+         "serial_arena.h",
+         "thread_safe_arena.h",
+     ],
++    local_defines = select({
++        "//build_defs:config_use_dlls": [
++            "PROTOBUF_USE_DLLS",
++            "LIBPROTOBUF_EXPORTS",
++        ],
++        "//conditions:default": [],
++    }),
+     strip_include_prefix = "/src",
+     visibility = [
+         "//:__subpackages__",
+@@ -673,7 +680,15 @@ cc_library(
+         "serial_arena.h",
+         "thread_safe_arena.h",
+         "wire_format_lite.h",
++	"port.h",
+     ],
++    local_defines = select({
++        "//build_defs:config_use_dlls": [
++            "PROTOBUF_USE_DLLS",
++            "LIBPROTOBUF_EXPORTS",
++        ],
++        "//conditions:default": [],
++    }),
+     copts = COPTS + select({
+         "//build_defs:config_msvc": [],
+         "//conditions:default": [
+@@ -843,6 +858,13 @@ cc_library(
+     name = "protobuf_layering_check_legacy",
+     hdrs = PROTOBUF_HEADERS,
+     copts = COPTS,
++    local_defines = select({
++        "//build_defs:config_use_dlls": [
++            "PROTOBUF_USE_DLLS",
++            "LIBPROTOBUF_EXPORTS",
++        ],
++        "//conditions:default": [],
++    }),
+     linkopts = LINK_OPTS,
+     strip_include_prefix = "/src",
+     visibility = [
 diff --git a/src/google/protobuf/arena.cc b/src/google/protobuf/arena.cc
---- a/src/google/protobuf/arena.cc	(revision 5fda5abda3dee5f7a102c85860594bff8d8610bd)
-+++ b/src/google/protobuf/arena.cc	(date 1748042877047)
-@@ -554,7 +554,7 @@
+index 284b8fb00..0ca6a75bb 100644
+--- a/src/google/protobuf/arena.cc
++++ b/src/google/protobuf/arena.cc
+@@ -547,7 +547,7 @@ ThreadSafeArena::ThreadCache& ThreadSafeArena::thread_cache() {
        new internal::ThreadLocalStorage<ThreadCache>();
    return *thread_cache_->Get();
  }
@@ -82,23 +148,11 @@ diff --git a/src/google/protobuf/arena.cc b/src/google/protobuf/arena.cc
  ThreadSafeArena::ThreadCache& ThreadSafeArena::thread_cache() {
    static PROTOBUF_THREAD_LOCAL ThreadCache thread_cache;
    return thread_cache;
-diff --git a/BUILD.bazel b/BUILD.bazel
---- a/BUILD.bazel	(revision 5fda5abda3dee5f7a102c85860594bff8d8610bd)
-+++ b/BUILD.bazel	(date 1746940994484)
-@@ -424,7 +424,8 @@
-         "//:cpp_features_proto",
-         "//:descriptor_proto",
-     ],
--    command_line = "--cpp_out=$(OUT)",
-+    command_line = "--cpp_out=dllexport_decl=PROTOBUF_EXPORT:$(OUT)",
-+#    command_line = "--cpp_out=$(OUT)",
-     runtime = "//src/google/protobuf",
-     visibility = ["//visibility:public"],
- )
 diff --git a/src/google/protobuf/io/BUILD.bazel b/src/google/protobuf/io/BUILD.bazel
---- a/src/google/protobuf/io/BUILD.bazel	(revision 5fda5abda3dee5f7a102c85860594bff8d8610bd)
-+++ b/src/google/protobuf/io/BUILD.bazel	(date 1748038681727)
-@@ -22,6 +22,13 @@
+index bb00b0acc..9600ffd09 100644
+--- a/src/google/protobuf/io/BUILD.bazel
++++ b/src/google/protobuf/io/BUILD.bazel
+@@ -22,6 +22,13 @@ cc_library(
          "zero_copy_stream_impl.h",
          "zero_copy_stream_impl_lite.h",
      ],
@@ -113,11 +167,12 @@ diff --git a/src/google/protobuf/io/BUILD.bazel b/src/google/protobuf/io/BUILD.b
      strip_include_prefix = "/src",
      deps = [
 diff --git a/src/google/protobuf/port_def.inc b/src/google/protobuf/port_def.inc
---- a/src/google/protobuf/port_def.inc	(revision 5fda5abda3dee5f7a102c85860594bff8d8610bd)
-+++ b/src/google/protobuf/port_def.inc	(date 1748019340115)
-@@ -456,7 +456,7 @@
+index b3b9cb187..a31c99e5a 100644
+--- a/src/google/protobuf/port_def.inc
++++ b/src/google/protobuf/port_def.inc
+@@ -444,7 +444,7 @@ static_assert(PROTOBUF_ABSL_MIN(20230125, 3),
  #endif
-
+ 
  // Lexan sets both MSV_VER and clang, so handle it with the clang path.
 -#if defined(_MSC_VER) && !defined(__clang__)
 +#if defined(_MSC_VER)
@@ -125,9 +180,10 @@ diff --git a/src/google/protobuf/port_def.inc b/src/google/protobuf/port_def.inc
  # if PROTOBUF_MSC_VER_MIN(1930)
  #  define PROTOBUF_CONSTINIT
 diff --git a/src/google/protobuf/thread_safe_arena.h b/src/google/protobuf/thread_safe_arena.h
---- a/src/google/protobuf/thread_safe_arena.h	(revision 5fda5abda3dee5f7a102c85860594bff8d8610bd)
-+++ b/src/google/protobuf/thread_safe_arena.h	(date 1748042886641)
-@@ -248,7 +248,7 @@
+index 4f976eaa0..764d3b99a 100644
+--- a/src/google/protobuf/thread_safe_arena.h
++++ b/src/google/protobuf/thread_safe_arena.h
+@@ -252,7 +252,7 @@ class PROTOBUF_EXPORT ThreadSafeArena {
    // iOS does not support __thread keyword so we use a custom thread local
    // storage class we implemented.
    static ThreadCache& thread_cache();
@@ -136,63 +192,3 @@ diff --git a/src/google/protobuf/thread_safe_arena.h b/src/google/protobuf/threa
    // Thread local variables cannot be exposed through MSVC DLL interface but we
    // can wrap them in static functions.
    static ThreadCache& thread_cache();
-diff --git a/src/google/protobuf/BUILD.bazel b/src/google/protobuf/BUILD.bazel
---- a/src/google/protobuf/BUILD.bazel	(revision 5fda5abda3dee5f7a102c85860594bff8d8610bd)
-+++ b/src/google/protobuf/BUILD.bazel	(date 1748038617126)
-@@ -411,6 +411,13 @@
-         "serial_arena.h",
-         "thread_safe_arena.h",
-     ],
-+    local_defines = select({
-+        "//build_defs:config_use_dlls": [
-+            "PROTOBUF_USE_DLLS",
-+            "LIBPROTOBUF_EXPORTS",
-+        ],
-+        "//conditions:default": [],
-+    }),
-     strip_include_prefix = "/src",
-     visibility = [
-         "//:__subpackages__",
-@@ -509,7 +516,15 @@
-         "serial_arena.h",
-         "thread_safe_arena.h",
-         "wire_format_lite.h",
-+        "port.h",
-     ],
-+    local_defines = select({
-+        "//build_defs:config_use_dlls": [
-+            "PROTOBUF_USE_DLLS",
-+            "LIBPROTOBUF_EXPORTS",
-+        ],
-+        "//conditions:default": [],
-+    }),
-     copts = COPTS + select({
-         "//build_defs:config_msvc": [],
-         "//conditions:default": [
-@@ -615,6 +630,13 @@
-     ],
-     hdrs = PROTOBUF_HEADERS,
-     copts = COPTS,
-+    local_defines = select({
-+        "//build_defs:config_use_dlls": [
-+            "PROTOBUF_USE_DLLS",
-+            "LIBPROTOBUF_EXPORTS",
-+        ],
-+        "//conditions:default": [],
-+    }),
-     linkopts = LINK_OPTS,
-     strip_include_prefix = "/src",
-     visibility = [
-diff --git a/python/google/protobuf/__init__.py b/python/google/protobuf/__init__.py
---- a/python/google/protobuf/__init__.py	(revision 5fda5abda3dee5f7a102c85860594bff8d8610bd)
-+++ b/python/google/protobuf/__init__.py	(date 1746939979902)
-@@ -8,3 +8,9 @@
- # Copyright 2007 Google Inc. All Rights Reserved.
-
- __version__ = '5.28.3'
-+
-+if __name__ != '__main__':
-+  try:
-+    __import__('pkg_resources').declare_namespace(__name__)
-+  except ImportError:
-+    __path__ = __import__('pkgutil').extend_path(__path__, __name__)

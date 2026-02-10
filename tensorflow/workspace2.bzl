@@ -395,14 +395,6 @@ def _tf_repositories():
     )
 
     tf_http_archive(
-        name = "com_google_protobuf",
-        patch_file = ["@local_xla//third_party/protobuf:protobuf.patch"],
-        sha256 = "f645e6e42745ce922ca5388b1883ca583bafe4366cc74cf35c3c9299005136e2",
-        strip_prefix = "protobuf-5.28.3",
-        urls = tf_mirror_urls("https://github.com/protocolbuffers/protobuf/archive/refs/tags/v5.28.3.zip"),
-    )
-
-    tf_http_archive(
         name = "com_google_googletest",
         # Use the commit on 2025/6/09:
         # https://github.com/google/googletest/commit/28e9d1f26771c6517c3b4be10254887673c94018

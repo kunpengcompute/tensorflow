@@ -310,7 +310,7 @@ _ENVIRONS = [
 remote_aarch64_configure = repository_rule(
     implementation = _clang_autoconf_impl,
     environ = _ENVIRONS,
-    remotable = True,
+    # remotable = True,
     attrs = {
         "environ": attr.string_dict(),
     },
