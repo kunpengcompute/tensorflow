@@ -527,6 +527,7 @@ cc_library(
         ":env_var",
         "//tensorflow/core/platform:platform_port",
         "@com_google_absl//absl/base",
+        "@com_github_gflags_gflags//:gflags",
     ],
     alwayslink = 1,
 )

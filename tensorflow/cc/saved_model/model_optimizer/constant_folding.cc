@@ -214,7 +214,7 @@ Status ConstantFoldingRewritter::get_tensors(
     }
     if (stage_ == LoaderDumpCache) save_variables_to_proto_file(hash);
   }
-  return Status::OK();
+  return absl::OkStatus();
 }
 
 void ConstantFoldingRewritter::fold_matmuladd_batchnorm(
@@ -475,7 +475,7 @@ Status dump_saved_model(const MetaGraphDef& meta_graph_def,
         tensorflow::Env::Default(), saved_model_pb_path, saved_model_proto));
   }
   LOG(INFO) << "Model saved: " << saved_model_pb_path;
-  return Status::OK();
+  return absl::OkStatus();
 }
 
 void run_annc_constant_folding(GraphDef* graph, Session* session) {

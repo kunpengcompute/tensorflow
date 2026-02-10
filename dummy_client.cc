@@ -15,12 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// A client sending requests to server every 1 second.
+// A client sending requests to server for performance testing.
 
 #include <gflags/gflags.h>
+#include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <cmath>
 #include <butil/logging.h>
 #include <butil/time.h>
 #include <brpc/channel.h>
+#include <numeric>
+#include <thread>
+#include <vector>
 #include "dummy.pb.h"
 
 DEFINE_string(attachment, "", "Carry this along with requests");
@@ -28,10 +35,20 @@ DEFINE_string(protocol, "baidu_std", "Protocol type. Defined in src/brpc/options
 DEFINE_string(connection_type, "", "Connection type. Available values: single, pooled, short");
 DEFINE_string(server, "0.0.0.0:8000", "IP Address of server");
 DEFINE_string(load_balancer, "", "The algorithm for load balancing");
-DEFINE_int32(timeout_ms, 100, "RPC timeout in milliseconds");
+DEFINE_int32(timeout_ms, 1000, "RPC timeout in milliseconds");
 DEFINE_int32(max_retry, 3, "Max retries(not including the first RPC)"); 
-DEFINE_int32(interval_ms, 1000, "Milliseconds between consecutive requests");
 DEFINE_bool(enable_checksum, false, "Enable checksum or not");
+DEFINE_int32(thread_num, 1, "Load test thread number");
+DEFINE_int32(test_duration_s, 5, "Load test duration in seconds");
+DEFINE_double(max_qps, 0, "Max target QPS (0 means unlimited)");
+DEFINE_int32(warmup_duration_s, 1, "Warmup duration in seconds before actual test"); 
+
+struct ThreadStats {
+    uint64_t total = 0;
+    uint64_t success = 0;
+    uint64_t failure = 0;
+    std::vector<int64_t> latencies_us;
+};
 
 int main(int argc, char* argv[]) {
     // Parse gflags. We recommend you to use gflags as well.
@@ -56,42 +73,154 @@ int main(int argc, char* argv[]) {
     // a stub Service wrapping it. stub can be shared by all threads as well.
     example::EchoService_Stub stub(&channel);
 
-    // Send a request and wait for the response every 1 second.
-    int log_id = 0;
-    while (!brpc::IsAskedToQuit()) {
-        // We will receive response synchronously, safe to put variables
-        // on stack.
-        example::EchoRequest request;
-        example::EchoResponse response;
-        brpc::Controller cntl;
-
-        request.set_message("hello world");
-
-        cntl.set_log_id(log_id ++);  // set by user
-        // Set attachment which is wired to network directly instead of 
-        // being serialized into protobuf messages.
-        cntl.request_attachment().append(FLAGS_attachment);
-
-        // Use checksum, only support CRC32C now.
-        if (FLAGS_enable_checksum) {
-            cntl.set_request_checksum_type(brpc::CHECKSUM_TYPE_CRC32C);
-        }
-
-        // Because `done'(last parameter) is NULL, this function waits until
-        // the response comes back or error occurs(including timedout).
-        stub.Echo(&cntl, &request, &response, NULL);
-        if (!cntl.Failed()) {
-            LOG(INFO) << "Received response from " << cntl.remote_side()
-                << " to " << cntl.local_side()
-                << ": " << response.message() << " (attached="
-                << cntl.response_attachment() << ")"
-                << " latency=" << cntl.latency_us() << "us";
-        } else {
-            LOG(WARNING) << cntl.ErrorText();
-        }
-        usleep(FLAGS_interval_ms * 1000L);
+    if (FLAGS_thread_num <= 0) {
+        LOG(ERROR) << "thread_num must be greater than 0";
+        return -1;
     }
 
-    LOG(INFO) << "EchoClient is going to quit";
+     if (FLAGS_test_duration_s <= 0) {
+        LOG(ERROR) << "test_duration_s must be greater than 0";
+        return -1;
+    }
+
+    // --- Phase 1: Warmup ---
+    if (FLAGS_warmup_duration_s > 0) { // 后续可重构代码
+        LOG(INFO) << "Starting Warmup (" << FLAGS_warmup_duration_s << "s)...";
+        std::atomic<int> warmup_log_id{0};
+        std::vector<std::thread> warmup_workers;
+        const auto warmup_end = std::chrono::steady_clock::now() + 
+                                std::chrono::seconds(FLAGS_warmup_duration_s);
+
+        for (int i = 0; i < FLAGS_thread_num; ++i) {
+            warmup_workers.emplace_back([&stub, &warmup_end, &warmup_log_id]() {
+                while (!brpc::IsAskedToQuit() && std::chrono::steady_clock::now() < warmup_end) {
+                    example::EchoRequest request;
+                    example::EchoResponse response;
+                    brpc::Controller cntl;
+
+                    request.set_message("warmup");
+                    cntl.set_log_id(warmup_log_id.fetch_add(1, std::memory_order_relaxed));
+                    if (!FLAGS_attachment.empty()) {
+                        cntl.request_attachment().append(FLAGS_attachment);
+                    }
+                    if (FLAGS_enable_checksum) {
+                        cntl.set_request_checksum_type(brpc::CHECKSUM_TYPE_CRC32C);
+                    }
+
+                    stub.Echo(&cntl, &request, &response, nullptr);
+                    // Warmup 不记录结果，只发请求
+                }
+            });
+        }
+
+        for (auto& t : warmup_workers) {
+            t.join();
+        }
+
+        LOG(INFO) << "Warmup finished. Waiting 1s before main test...";
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+    
+    // --- Phase 2: Main Test ---
+    LOG(INFO) << "Starting Load Test (" << FLAGS_test_duration_s << "s)...";
+    std::atomic<int> log_id{0};
+    std::vector<ThreadStats> stats(static_cast<size_t>(FLAGS_thread_num));
+    std::vector<std::thread> workers;
+    workers.reserve(static_cast<size_t>(FLAGS_thread_num));
+
+    const auto start_time = std::chrono::steady_clock::now();
+    const auto end_time = start_time + std::chrono::seconds(FLAGS_test_duration_s);
+    const double max_qps = FLAGS_max_qps;
+    const double per_thread_qps = (max_qps > 0)
+        ? max_qps / static_cast<double>(FLAGS_thread_num)
+        : 0.0;
+    const auto interval = (per_thread_qps > 0)
+        ? std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+            std::chrono::duration<double>(1.0 / per_thread_qps))
+        : std::chrono::steady_clock::duration::zero();
+
+    for (int i = 0; i < FLAGS_thread_num; ++i) {
+        workers.emplace_back([&, i]() {
+            auto next_send = std::chrono::steady_clock::now();
+            while (!brpc::IsAskedToQuit() && std::chrono::steady_clock::now() < end_time) {
+                if (interval != std::chrono::steady_clock::duration::zero()) {
+                    const auto now = std::chrono::steady_clock::now();
+                    if (now < next_send) {
+                        std::this_thread::sleep_until(next_send);
+                    }
+                    next_send = std::chrono::steady_clock::now() + interval;
+                }
+
+                example::EchoRequest request;
+                example::EchoResponse response;
+                brpc::Controller cntl;
+
+                request.set_message("hello world");
+                cntl.set_log_id(log_id.fetch_add(1, std::memory_order_relaxed));
+                cntl.request_attachment().append(FLAGS_attachment);
+                if (FLAGS_enable_checksum) {
+                    cntl.set_request_checksum_type(brpc::CHECKSUM_TYPE_CRC32C);
+                }
+
+                stub.Echo(&cntl, &request, &response, NULL);
+                stats[i].total += 1;
+                stats[i].latencies_us.push_back(cntl.latency_us());
+                if (!cntl.Failed()) {
+                    stats[i].success += 1;
+                } else {
+                    stats[i].failure += 1;
+                }
+            }
+        });
+    }
+
+    for (auto& worker : workers) {
+        worker.join();
+    }
+
+    // --- Statistics Aggregation ---
+    uint64_t total_requests = 0;
+    uint64_t total_success = 0;
+    uint64_t total_failure = 0;
+    std::vector<int64_t> all_latencies;
+    for (const auto& stat : stats) {
+        total_requests += stat.total;
+        total_success += stat.success;
+        total_failure += stat.failure;
+        all_latencies.insert(all_latencies.end(),
+                             stat.latencies_us.begin(),
+                             stat.latencies_us.end());
+    }
+
+    double avg_latency = 0.0;
+    int64_t p99_latency = 0;
+    if (!all_latencies.empty()) {
+        const int64_t total_latency = std::accumulate(
+            all_latencies.begin(), all_latencies.end(), static_cast<int64_t>(0));
+        avg_latency = static_cast<double>(total_latency) /
+                      static_cast<double>(all_latencies.size());
+        std::sort(all_latencies.begin(), all_latencies.end());
+        const size_t p99_index = static_cast<size_t>(
+            std::ceil(all_latencies.size() * 0.99)) - 1;
+        p99_latency = all_latencies[std::min(p99_index, all_latencies.size() - 1)];
+    }
+
+    const auto actual_duration_s = std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - start_time).count();
+    const double actual_qps = (actual_duration_s > 0)
+        ? static_cast<double>(total_requests) / actual_duration_s
+        : 0.0;
+
+    LOG(INFO) << "Load test finished.\n"
+              << "----------------------------\n"
+              << "duration_s     : " << actual_duration_s << "\n"
+              << "total          : " << total_requests << "\n"
+              << "success        : " << total_success << "\n"
+              << "failure        : " << total_failure << "\n"
+              << "avg_latency_us : " << avg_latency << "\n"
+              << "p99_latency_us : " << p99_latency << "\n"
+              << "qps            : " << actual_qps << "\n"
+              << "----------------------------";
+
     return 0;
 }

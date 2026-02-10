@@ -62,7 +62,7 @@ REGISTER_OP("KPFusedEmbeddingPaddingFast")
       ShapeHandle scalar_shape = c->Scalar();
       c->set_output(0, scalar_shape);
       c->set_output(1, scalar_shape);
-      return Status::OK();
+      return absl::OkStatus();
     });
 
 REGISTER_OP("KPFusedEmbeddingPadding")
@@ -79,7 +79,7 @@ REGISTER_OP("KPFusedEmbeddingPadding")
       TF_RETURN_IF_ERROR(c->MakeShapeFromShapeTensor(3, &out));
       c->set_output(0, scalar_shape);
       c->set_output(1, out);
-      return Status::OK();
+      return absl::OkStatus();
     });
 
 REGISTER_OP("KPFusedSparseSelect")
@@ -165,4 +165,4 @@ REGISTER_OP("KPFusedTopKSegmentMin")
     .Output("out_scores: float")
     .Output("out_attrs: int64")
     .SetShapeFn(shape_inference::UnknownShape);
-}  // namespace tensorflow
+}  // namespace tensorflow

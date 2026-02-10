@@ -1,9 +1,14 @@
 #include <iostream>
+#include <gflags/gflags.h>
 #include <sstream>
 #include <unordered_set>
+#include <vector>
+#include <random>
 
 #include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/framework/tensor.pb.h"
+#include "tensorflow/core/framework/tensor_shape.h"
+#include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/public/session.h"
 #include "tensorflow/core/public/session_options.h"
 
@@ -26,19 +31,158 @@
 using tensorflow::Flag;
 using tensorflow::string;
 using tensorflow::Tensor;
+using tensorflow::DataType;
+using tensorflow::TensorShape;
+
+DECLARE_bool(debug);
 
 static const size_t kLoadSessionThreadPoolIndex = 0;
 static const size_t kRunSessionThreadPoolIndex = 1;
 
+// Default batch size for dynamic dimensions (marked as -1 in TensorShape)
+static const int64_t kDefaultBatchSize = 1;
+
+// convert TensorShapeProto to TensorShape
+TensorShape ConvertToTensorShape(const tensorflow::TensorShapeProto& shape_proto) {
+  std::vector<int64_t> dims;
+  for (const auto& dim : shape_proto.dim()) {
+    int64_t size = dim.size();
+    // Replace dynamic dimension (-1) with default batch size
+    if (size <= 0) {
+      size = kDefaultBatchSize;
+    }
+    dims.push_back(size);
+  }
+  return TensorShape(dims);
+}
+
+// create a mock tensor with the given dtype and shape
+Tensor CreateMockTensor(DataType dtype, const TensorShape& shape) {
+  Tensor tensor(dtype, shape);
+  
+  // Initialize random generator
+  static std::random_device rd;
+  static std::mt19937 gen(rd());
+  
+  switch (dtype) {
+    case tensorflow::DT_FLOAT: {
+      std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+      auto flat = tensor.flat<float>();
+      for (int64_t i = 0; i < flat.size(); ++i) {
+        flat(i) = dist(gen);
+      }
+      break;
+    }
+    case tensorflow::DT_DOUBLE: {
+      std::uniform_real_distribution<double> dist(0.0, 1.0);
+      auto flat = tensor.flat<double>();
+      for (int64_t i = 0; i < flat.size(); ++i) {
+        flat(i) = dist(gen);
+      }
+      break;
+    }
+    case tensorflow::DT_INT32: {
+      std::uniform_int_distribution<int32_t> dist(0, 100);
+      auto flat = tensor.flat<int32_t>();
+      for (int64_t i = 0; i < flat.size(); ++i) {
+        flat(i) = dist(gen);
+      }
+      break;
+    }
+    case tensorflow::DT_INT64: {
+      std::uniform_int_distribution<int64_t> dist(0, 100);
+      auto flat = tensor.flat<int64_t>();
+      for (int64_t i = 0; i < flat.size(); ++i) {
+        flat(i) = dist(gen);
+      }
+      break;
+    }
+    case tensorflow::DT_STRING: {
+      auto flat = tensor.flat<tensorflow::tstring>();
+      for (int64_t i = 0; i < flat.size(); ++i) {
+        flat(i) = "mock_string";
+      }
+      break;
+    }
+    case tensorflow::DT_BOOL: {
+      std::uniform_int_distribution<int> dist(0, 1);
+      auto flat = tensor.flat<bool>();
+      for (int64_t i = 0; i < flat.size(); ++i) {
+        flat(i) = dist(gen) == 1;
+      }
+      break;
+    }
+    case tensorflow::DT_INT8: {
+      std::uniform_int_distribution<int> dist(-128, 127);
+      auto flat = tensor.flat<int8_t>();
+      for (int64_t i = 0; i < flat.size(); ++i) {
+        flat(i) = static_cast<int8_t>(dist(gen));
+      }
+      break;
+    }
+    case tensorflow::DT_UINT8: {
+      std::uniform_int_distribution<int> dist(0, 255);
+      auto flat = tensor.flat<uint8_t>();
+      for (int64_t i = 0; i < flat.size(); ++i) {
+        flat(i) = static_cast<uint8_t>(dist(gen));
+      }
+      break;
+    }
+    case tensorflow::DT_INT16: {
+      std::uniform_int_distribution<int16_t> dist(-1000, 1000);
+      auto flat = tensor.flat<int16_t>();
+      for (int64_t i = 0; i < flat.size(); ++i) {
+        flat(i) = dist(gen);
+      }
+      break;
+    }
+    case tensorflow::DT_UINT16: {
+      std::uniform_int_distribution<uint16_t> dist(0, 1000);
+      auto flat = tensor.flat<uint16_t>();
+      for (int64_t i = 0; i < flat.size(); ++i) {
+        flat(i) = dist(gen);
+      }
+      break;
+    }
+    case tensorflow::DT_UINT32: {
+      std::uniform_int_distribution<uint32_t> dist(0, 100);
+      auto flat = tensor.flat<uint32_t>();
+      for (int64_t i = 0; i < flat.size(); ++i) {
+        flat(i) = dist(gen);
+      }
+      break;
+    }
+    case tensorflow::DT_UINT64: {
+      std::uniform_int_distribution<uint64_t> dist(0, 100);
+      auto flat = tensor.flat<uint64_t>();
+      for (int64_t i = 0; i < flat.size(); ++i) {
+        flat(i) = dist(gen);
+      }
+      break;
+    }
+    default: {
+      LOG(WARNING) << "Unsupported data type for mock tensor: " 
+                   << tensorflow::DataTypeString(dtype) 
+                   << ", using zero-initialized tensor";
+      // Tensor is already zero-initialized by default
+      break;
+    }
+  }
+  
+  return tensor;
+}
+
 class Tf_Model {
 public:
-  Tf_Model(const string& model_path) {
+  Tf_Model(const string& model_path, int64_t batch_size = 1) 
+      : batch_size_(batch_size) {
     tensorflow::SessionOptions session_options;
     tensorflow::RunOptions run_options;  // Using 0 index thread pool to load model (contain one thread)
     run_options.set_inter_op_thread_pool(kLoadSessionThreadPoolIndex);
     if (!LoadFromSavedModelBundle(model_path, run_options, session_options, &bundle_)) {
-      LOG(ERROR) << "load from SavedModel fail: " << master_model_path;
+      LOG(ERROR) << "load from SavedModel fail: " << model_path;
     }
+    LOG(INFO) << "Model loaded with batch_size=" << batch_size_;
   }
   ~Tf_Model() {};
 
@@ -83,16 +227,40 @@ private:
       std::vector<std::pair<string, Tensor>> inputs;
       std::vector<string> output_node_names;
       std::vector<Tensor> output_tensors;
+
+      // Mock input data - create tensors based on SignatureDef input specifications
+      if (FLAGS_debug) {
+        LOG(INFO) << "Preparing inputs for SignatureDef: " << io_key;
+      }
+      for (const auto& input_iter : io_def.inputs()) {
+        const string& input_key = input_iter.first;
+        const tensorflow::TensorInfo& tensor_info = input_iter.second;
+
+        // Get tensor name
+        string input_tensor_name = tensor_info.name();
+        // Get data type
+        DataType dtype = tensor_info.dtype();
+        // Get tensor shape and convert to TensorShape
+        const tensorflow::TensorShapeProto& shape_proto = tensor_info.tensor_shape();
+        TensorShape shape = ConvertToTensorShape(shape_proto);
+        // Create mock tensor with appropriate data
+        Tensor input_tensor = CreateMockTensor(dtype, shape);
+
+        if (FLAGS_debug) {
+          LOG(INFO) << "Input '" << input_key << "': name=" << input_tensor_name 
+                    << ", dtype=" << tensorflow::DataTypeString(dtype) 
+                    << ", shape=" << shape.DebugString();
+        }
+        
+        inputs.emplace_back(input_tensor_name, std::move(input_tensor));
+      }
     
-//      // Mock input data
-//      for (const auto& input_iter : io_def.inputs()) {
-//        std::string input_node_names = input_iter.second.name();
-//        Tensor input_tensor(DT_STRING, TensorShape({}));  // Mock input tensor data
-//        inputs[input_node_names] = input_tensor;
-//      }
       // Get output node name
       for (const auto& output_iter : io_def.outputs()) {
         output_node_names.push_back(output_iter.second.name());
+        if (FLAGS_debug) {
+          LOG(INFO) << "Output '" << output_iter.first << "': name=" << output_iter.second.name();
+        }
       }
   
       tensorflow::Status run_status =
@@ -104,19 +272,26 @@ private:
       }
   
       std::stringstream ss;
-      ss << "\nSession Run SignatureDef Key: " << io_key << "\n";
+      if (FLAGS_debug) {
+        ss << "\nSession Run SignatureDef Key: " << io_key << "\n";
+      }
       // Print output tensor using TensorProto
-      for (int i = 0; i < output_tensors.size(); ++i) {
+      for (size_t i = 0; i < output_tensors.size(); ++i) {
         tensorflow::TensorProto output;
         output_tensors[i].AsProtoField(&output);
-        ss << "######## " << output_node_names[i] << " ########\n"
-           << output.ShortDebugString() << "\n";
+        if (FLAGS_debug) {
+          ss << "######## " << output_node_names[i] << " ########\n"
+             << output.ShortDebugString() << "\n";
+        }
       }
-      LOG(INFO) << ss.str();
+      if (FLAGS_debug) {
+        LOG(INFO) << ss.str();
+      }
     }
     return true;
   }
 
 private:
   tensorflow::SavedModelBundle bundle_;
+  int64_t batch_size_;
 };
