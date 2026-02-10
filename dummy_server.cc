@@ -33,6 +33,8 @@ DEFINE_int32(idle_timeout_s, -1, "Connection will be closed if there is no "
              "read/write operations during the last `idle_timeout_s'");
 DEFINE_bool(enable_checksum, false, "Enable checksum or not");
 DEFINE_string(model_path, "", "tf SavedModel path");
+DEFINE_int32(batch_size, 1, "Batch size for model inference (used for dynamic dimensions)");
+DEFINE_bool(debug, false, "Enable debug logs");
 
 // Your implementation of example::EchoService
 // Notice that implementing brpc::Describable grants the ability to put
@@ -40,7 +42,7 @@ DEFINE_string(model_path, "", "tf SavedModel path");
 namespace example {
 class EchoServiceImpl : public EchoService {
 public:
-    EchoServiceImpl() : tf_model(FLAGS_model_path) {}
+    EchoServiceImpl() : tf_model(FLAGS_model_path, FLAGS_batch_size) {}
     virtual ~EchoServiceImpl() {}
     virtual void Echo(google::protobuf::RpcController* cntl_base,
                       const EchoRequest* request,
@@ -61,11 +63,13 @@ public:
         // The purpose of following logs is to help you to understand
         // how clients interact with servers more intuitively. You should 
         // remove these logs in performance-sensitive servers.
-        LOG(INFO) << "Received request[log_id=" << cntl->log_id() 
-                  << "] from " << cntl->remote_side() 
-                  << " to " << cntl->local_side()
-                  << ": " << request->message()
-                  << " (attached=" << cntl->request_attachment() << ")";
+        if (FLAGS_debug) {
+            LOG(INFO) << "Received request[log_id=" << cntl->log_id() 
+                    << "] from " << cntl->remote_side() 
+                    << " to " << cntl->local_side()
+                    << ": " << request->message()
+                    << " (attached=" << cntl->request_attachment() << ")";
+        }
 
         bool ret = tf_model.Infer();
         std::string echo_str = request->message();
@@ -103,8 +107,10 @@ public:
         std::string res_str;
         json2pb::ProtoMessageToJson(*req, &req_str, NULL);
         json2pb::ProtoMessageToJson(*res, &res_str, NULL);
-        LOG(INFO) << "req:" << req_str
-                    << " res:" << res_str;
+        if (FLAGS_debug) {
+            LOG(INFO) << "req:" << req_str
+                      << " res:" << res_str;
+        }
     }
 
 private:
@@ -121,6 +127,7 @@ do {                                                  \
     LOG(INFO) << "Start ReleaseFreeMemory";           \
     MallocExtension::instance()->ReleaseFreeMemory(); \
     LOG(INFO) << "End ReleaseFreeMemory";             \
+}                                                     \
 while (0);
     
     ReleaseFreeMemoryMaco();

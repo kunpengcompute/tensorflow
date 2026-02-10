@@ -64,10 +64,10 @@ COPTS = [
     "-Wno-unused-parameter",
     "-fno-omit-frame-pointer",
 ] + select({
-    "//bazel/config:brpc_with_glog": ["-DBRPC_WITH_GLOG=1"],
+    "@brpc//bazel/config:brpc_with_glog": ["-DBRPC_WITH_GLOG=1"],
     "//conditions:default": ["-DBRPC_WITH_GLOG=0"],
 }) + select({
-    "//bazel/config:brpc_with_rdma": ["-DBRPC_WITH_RDMA=1"],
+    "@brpc//bazel/config:brpc_with_rdma": ["-DBRPC_WITH_RDMA=1"],
     "//conditions:default": [""],
 })
 
@@ -93,9 +93,9 @@ cc_binary(
     copts = COPTS,
     deps = [
         ":cc_dummy_proto",
-        "//:brpc",
+        "@brpc//:brpc",
         "//:dummy_tf_func",
-        "@com_github_google_gperftools//:tcmalloc_and_profiler"
+        "@com_github_google_gperftools//:tcmalloc"
     ],
 )
 
@@ -107,6 +107,6 @@ cc_binary(
     copts = COPTS,
     deps = [
         ":cc_dummy_proto",
-        "//:brpc",
+        "@brpc//:brpc",
     ],
 )
