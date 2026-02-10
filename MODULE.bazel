@@ -1,0 +1,37 @@
+###############################################################################
+# Bazel now uses Bzlmod by default to manage external dependencies.
+# Please consider migrating your external dependencies from WORKSPACE to MODULE.bazel.
+#
+# For more details, please check https://github.com/bazelbuild/bazel/issues/18958
+###############################################################################
+module(
+    name = "tensorflow",
+    version = "2.20.0",
+)
+
+bazel_dep(name = "protobuf", version = "33.0", repo_name = "com_google_protobuf")
+bazel_dep(name = "abseil-cpp", version = "20250127.1", repo_name = "com_google_absl")
+bazel_dep(name = "rules_java", version = "7.10.0")
+bazel_dep(name = "rules_cc", version = "0.0.9")
+bazel_dep(name = "bazel_skylib", version = "1.7.1")
+
+git_override(
+    module_name = "abseil-cpp",
+    remote = "https://github.com/abseil/abseil-cpp.git",
+    commit = "d9e4955c65cd4367dd6bf46f4ccb8cd3d100540b", # 与 workspace.bzl 一致
+    patches = [
+        "third_party/xla/third_party/absl/btree.patch",
+        "third_party/xla/third_party/absl/build_dll.patch",
+        "third_party/xla/third_party/absl/nullability_macros.patch",
+        "third_party/xla/third_party/absl/rules_cc.patch",
+    ],
+    patch_strip = 1,
+)
+
+single_version_override(
+    module_name = "protobuf",
+    version = "33.0",
+    patches = ["third_party/xla/third_party/protobuf/protobuf.patch"],
+    patch_strip = 1,
+)
+

@@ -1,127 +1,173 @@
-# 项目介绍<a name="ZH-CN_TOPIC_0000002442690778"></a>
+<div align="center">
+  <img src="https://www.tensorflow.org/images/tf_logo_horizontal.png">
+</div>
 
-鲲鹏Tensorflow是基于开源Tensorflow的高性能推理加速扩展，聚焦于搜推广推理场景下的高效执行。通过在图优化、算子、Runtime等方面进行了深度的性能增强，显著提升了模型推理的吞吐量和时延表现，为AI应用提供基于鲲鹏CPU极致性能。
+[![Python](https://img.shields.io/pypi/pyversions/tensorflow.svg)](https://badge.fury.io/py/tensorflow)
+[![PyPI](https://badge.fury.io/py/tensorflow.svg)](https://badge.fury.io/py/tensorflow)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4724125.svg)](https://doi.org/10.5281/zenodo.4724125)
+[![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/1486/badge)](https://bestpractices.coreinfrastructure.org/projects/1486)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/tensorflow/tensorflow/badge)](https://securityscorecards.dev/viewer/?uri=github.com/tensorflow/tensorflow)
+[![Fuzzing Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/tensorflow.svg)](https://bugs.chromium.org/p/oss-fuzz/issues/list?sort=-opened&can=1&q=proj:tensorflow)
+[![Fuzzing Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/tensorflow-py.svg)](https://bugs.chromium.org/p/oss-fuzz/issues/list?sort=-opened&can=1&q=proj:tensorflow-py)
+[![OSSRank](https://shields.io/endpoint?url=https://ossrank.com/shield/44)](https://ossrank.com/p/44)
+[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-v1.4%20adopted-ff69b4.svg)](CODE_OF_CONDUCT.md)
 
-主要特性包括：
+**`Documentation`** |
+------------------- |
+[![Documentation](https://img.shields.io/badge/api-reference-blue.svg)](https://www.tensorflow.org/api_docs/) |
 
--   图优化：识别Embedding常见子图进行融合，减少图执行开销；
--   算子优化：针对核心算子提供鲲鹏亲和实现，结合鲲鹏硬件底层指令集提升计算效率；
--   运行时优化：引入轻量化调度器，提升并发执行效率。
+[TensorFlow](https://www.tensorflow.org/) is an end-to-end open source platform
+for machine learning. It has a comprehensive, flexible ecosystem of
+[tools](https://www.tensorflow.org/resources/tools),
+[libraries](https://www.tensorflow.org/resources/libraries-extensions), and
+[community](https://www.tensorflow.org/community) resources that lets
+researchers push the state-of-the-art in ML and developers easily build and
+deploy ML-powered applications.
 
-**图 1**  项目架构<a name="fig47161150181513"></a>  
-![](./docs/guide/images/architecture.png "项目架构")
+TensorFlow was originally developed by researchers and engineers working within
+the Machine Intelligence team at Google Brain to conduct research in machine
+learning and neural networks. However, the framework is versatile enough to be
+used in other areas as well.
 
--   Executor层：运行时优化。
--   Kernel层：自定义算子，基于KDNN提供鲲鹏高性能DNN算子。
--   XLA层：基于ANNC提供鲲鹏图编译器。
+TensorFlow provides stable [Python](https://www.tensorflow.org/api_docs/python)
+and [C++](https://www.tensorflow.org/api_docs/cc) APIs, as well as a
+non-guaranteed backward compatible API for
+[other languages](https://www.tensorflow.org/api_docs).
 
-# 版本说明<a name="ZH-CN_TOPIC_0000002442853110"></a>
+Keep up-to-date with release announcements and security updates by subscribing
+to
+[announce@tensorflow.org](https://groups.google.com/a/tensorflow.org/forum/#!forum/announce).
+See all the [mailing lists](https://www.tensorflow.org/community/forums).
 
-<a name="table2197946132516"></a>
-<table><thead align="left"><tr id="row42091246172511"><th class="cellrowborder" valign="top" width="50%" id="mcps1.1.3.1.1"><p id="p12095461252"><a name="p12095461252"></a><a name="p12095461252"></a>Kunpeng Tensorflow</p>
-</th>
-<th class="cellrowborder" valign="top" width="50%" id="mcps1.1.3.1.2"><p id="p14209646192510"><a name="p14209646192510"></a><a name="p14209646192510"></a>Stock TensorFlow</p>
-</th>
-</tr>
-</thead>
-<tbody><tr id="row62095469253"><td class="cellrowborder" valign="top" width="50%" headers="mcps1.1.3.1.1 "><p id="p162092046182518"><a name="p162092046182518"></a><a name="p162092046182518"></a>v2.15.0</p>
-</td>
-<td class="cellrowborder" valign="top" width="50%" headers="mcps1.1.3.1.2 "><p id="p17209114618255"><a name="p17209114618255"></a><a name="p17209114618255"></a>2.15</p>
-</td>
-</tr>
-</tbody>
-</table>
+## Install
 
-# 环境部署<a name="ZH-CN_TOPIC_0000002476133021"></a>
+See the [TensorFlow install guide](https://www.tensorflow.org/install) for the
+[pip package](https://www.tensorflow.org/install/pip), to
+[enable GPU support](https://www.tensorflow.org/install/gpu), use a
+[Docker container](https://www.tensorflow.org/install/docker), and
+[build from source](https://www.tensorflow.org/install/source).
 
-**硬件要求<a name="section19905171013614"></a>**
-
-鲲鹏TensorFlow扩展提供对鲲鹏920系列处理器的支持。
-
-**软件要求<a name="section2088201912369"></a>**
-
-操作系统：openEuler 22.03 LTS SP3、Kernel=5.10.0
-
-软件：
-
--   GCC/G++：10.3.1
--   Bazel：6.5.0
--   Python 3.9
--   鲲鹏AI编译器：ANNC
-
-**安装方式<a name="section49733392819"></a>**
-
-1. 拉取代码
-- 开源tensorflow代码
+To install the current release, which includes support for
+[CUDA-enabled GPU cards](https://www.tensorflow.org/install/gpu) *(Ubuntu and
+Windows)*:
 
 ```
-git clone -b v2.15.0 https://github.com/tensorflow/tensorflow.git open-tensorflow
-```
-- 搜推广优化patch
-
-```
-git clone -b master https://gitcode.com/BoostKit/tensorflow.git sra-tensorflow
+$ pip install tensorflow
 ```
 
-- 将patch打到开源serving代码仓
+Other devices (DirectX and MacOS-metal) are supported using
+[Device plugins](https://www.tensorflow.org/install/gpu_plugins#available_devices).
+
+A smaller CPU-only package is also available:
 
 ```
-cp sra-tensorflow/0001-boostsra-tensorflow.patch open-tensorflow
-cd open-tensorflow
-patch -p1 < 0001-boostsra-tensorflow.patch
+$ pip install tensorflow-cpu
 ```
 
-2.  编译
+To update TensorFlow to the latest version, add `--upgrade` flag to the above
+commands.
 
--   编译pip包
+*Nightly binaries are available for testing using the
+[tf-nightly](https://pypi.python.org/pypi/tf-nightly) and
+[tf-nightly-cpu](https://pypi.python.org/pypi/tf-nightly-cpu) packages on PyPI.*
 
+#### *Try your first TensorFlow program*
+
+```shell
+$ python
 ```
-bazel build --config=opt //tensorflow/tools/pip_package:build_pip_package 
+
+```python
+>>> import tensorflow as tf
+>>> tf.add(1, 2).numpy()
+3
+>>> hello = tf.constant('Hello, TensorFlow!')
+>>> hello.numpy()
+b'Hello, TensorFlow!'
 ```
 
--   编译libtensorflow\_cc.so
+For more examples, see the
+[TensorFlow tutorials](https://www.tensorflow.org/tutorials/).
 
-```
-bazel build --config=opt //tensorflow/libtensorflow_cc.so 
-```
+## Contribution guidelines
 
-如果在编译过程中遇到任何问题，可参考以下文档：
+**If you want to contribute to TensorFlow, be sure to review the
+[contribution guidelines](CONTRIBUTING.md). This project adheres to TensorFlow's
+[code of conduct](CODE_OF_CONDUCT.md). By participating, you are expected to
+uphold this code.**
 
-[TensorFlow 移植指南](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0001.html)
+**We use [GitHub issues](https://github.com/tensorflow/tensorflow/issues) for
+tracking requests and bugs, please see
+[TensorFlow Forum](https://discuss.tensorflow.org/) for general questions and
+discussion, and please direct specific questions to
+[Stack Overflow](https://stackoverflow.com/questions/tagged/tensorflow).**
 
-[TensorFlow 安装](https://tensorflow.google.cn/install/source?hl=zh-cn)
+The TensorFlow project strives to abide by generally accepted best practices in
+open-source software development.
 
-# 快速上手<a name="ZH-CN_TOPIC_0000002442693246"></a>
+## Patching guidelines
 
-**线程调度优化特性<a name="section2696329173210"></a>**
+Follow these steps to patch a specific version of TensorFlow, for example, to
+apply fixes to bugs or security vulnerabilities:
 
-为提升TensorFlow Serving（以下简称TF Serving）推理性能，鲲鹏BoostKit提出了TensorFlow Serving线程调度优化方案。传统TensorFlow使用算子间的线程池并行计算不同的算子，虽可实现没有数据依赖的算子的并发执行，但在高并发场景下，多Session共享算子间线程池会导致任务抢占，严重降低整图计算效率。针对这一痛点，鲲鹏BoostKit改进了算子调度算法，并加入了其他线程管理优化，有效提升了高并发场景下的模型推理吞吐量。
+*   Clone the TensorFlow repo and switch to the corresponding branch for your
+    desired TensorFlow version, for example, branch `r2.8` for version 2.8.
+*   Apply (that is, cherry-pick) the desired changes and resolve any code
+    conflicts.
+*   Run TensorFlow tests and ensure they pass.
+*   [Build](https://www.tensorflow.org/install/source) the TensorFlow pip
+    package from source.
 
-快速上手：[TensorFlow Serving线程调度优化](https://www.hikunpeng.com/document/detail/zh/SRA/accelFeatures/TFTSO/kunpengsra_tfserving_20_0002.html)
+## Continuous build status
 
-**ANNC特性<a name="section147391344338"></a>**
+You can find more community-supported platforms and configurations in the
+[TensorFlow SIG Build community builds table](https://github.com/tensorflow/build#community-supported-tensorflow-builds).
 
-鲲鹏BoostKit提出了Tensorflow Serving ANNC优化方案。ANNC是专注于加速神经网络计算的编译器，聚焦于通过计算图优化，高性能融合算子生成和对接技术，高效代码生成和优化能力，加速推荐的推理性能。ANNC作为基于开源OpenXLA的扩展加速套件，发布在openEuler组织的ANNC开源仓，具有鲲鹏亲和的优化特性，包括Tensorflow图融合、XLA图融合、算子优化能力。
+### Official Builds
 
-快速上手：[Tensorflow Serving ANNC](https://gitcode.com/boostkit/tensorflow/tree/master/%E5%BE%85%E5%8F%91%E5%B8%83)
+Build Type                    | Status                                                                                                                                                                           | Artifacts
+----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------
+**Linux CPU**                 | [![Status](https://storage.googleapis.com/tensorflow-kokoro-build-badges/ubuntu-cc.svg)](https://storage.googleapis.com/tensorflow-kokoro-build-badges/ubuntu-cc.html)           | [PyPI](https://pypi.org/project/tf-nightly/)
+**Linux GPU**                 | [![Status](https://storage.googleapis.com/tensorflow-kokoro-build-badges/ubuntu-gpu-py3.svg)](https://storage.googleapis.com/tensorflow-kokoro-build-badges/ubuntu-gpu-py3.html) | [PyPI](https://pypi.org/project/tf-nightly-gpu/)
+**Linux XLA**                 | [![Status](https://storage.googleapis.com/tensorflow-kokoro-build-badges/ubuntu-xla.svg)](https://storage.googleapis.com/tensorflow-kokoro-build-badges/ubuntu-xla.html)         | TBA
+**macOS**                     | [![Status](https://storage.googleapis.com/tensorflow-kokoro-build-badges/macos-py2-cc.svg)](https://storage.googleapis.com/tensorflow-kokoro-build-badges/macos-py2-cc.html)     | [PyPI](https://pypi.org/project/tf-nightly/)
+**Windows CPU**               | [![Status](https://storage.googleapis.com/tensorflow-kokoro-build-badges/windows-cpu.svg)](https://storage.googleapis.com/tensorflow-kokoro-build-badges/windows-cpu.html)       | [PyPI](https://pypi.org/project/tf-nightly/)
+**Windows GPU**               | [![Status](https://storage.googleapis.com/tensorflow-kokoro-build-badges/windows-gpu.svg)](https://storage.googleapis.com/tensorflow-kokoro-build-badges/windows-gpu.html)       | [PyPI](https://pypi.org/project/tf-nightly-gpu/)
+**Android**                   | [![Status](https://storage.googleapis.com/tensorflow-kokoro-build-badges/android.svg)](https://storage.googleapis.com/tensorflow-kokoro-build-badges/android.html)               | [Download](https://bintray.com/google/tensorflow/tensorflow/_latestVersion)
+**Raspberry Pi 0 and 1**      | [![Status](https://storage.googleapis.com/tensorflow-kokoro-build-badges/rpi01-py3.svg)](https://storage.googleapis.com/tensorflow-kokoro-build-badges/rpi01-py3.html)           | [Py3](https://storage.googleapis.com/tensorflow-nightly/tensorflow-1.10.0-cp34-none-linux_armv6l.whl)
+**Raspberry Pi 2 and 3**      | [![Status](https://storage.googleapis.com/tensorflow-kokoro-build-badges/rpi23-py3.svg)](https://storage.googleapis.com/tensorflow-kokoro-build-badges/rpi23-py3.html)           | [Py3](https://storage.googleapis.com/tensorflow-nightly/tensorflow-1.10.0-cp34-none-linux_armv7l.whl)
+**Libtensorflow MacOS CPU**   | Status Temporarily Unavailable                                                                                                                                                   | [Nightly Binary](https://storage.googleapis.com/libtensorflow-nightly/prod/tensorflow/release/macos/latest/macos_cpu_libtensorflow_binaries.tar.gz) [Official GCS](https://storage.googleapis.com/tensorflow/)
+**Libtensorflow Linux CPU**   | Status Temporarily Unavailable                                                                                                                                                   | [Nightly Binary](https://storage.googleapis.com/libtensorflow-nightly/prod/tensorflow/release/ubuntu_16/latest/cpu/ubuntu_cpu_libtensorflow_binaries.tar.gz) [Official GCS](https://storage.googleapis.com/tensorflow/)
+**Libtensorflow Linux GPU**   | Status Temporarily Unavailable                                                                                                                                                   | [Nightly Binary](https://storage.googleapis.com/libtensorflow-nightly/prod/tensorflow/release/ubuntu_16/latest/gpu/ubuntu_gpu_libtensorflow_binaries.tar.gz) [Official GCS](https://storage.googleapis.com/tensorflow/)
+**Libtensorflow Windows CPU** | Status Temporarily Unavailable                                                                                                                                                   | [Nightly Binary](https://storage.googleapis.com/libtensorflow-nightly/prod/tensorflow/release/windows/latest/cpu/windows_cpu_libtensorflow_binaries.tar.gz) [Official GCS](https://storage.googleapis.com/tensorflow/)
+**Libtensorflow Windows GPU** | Status Temporarily Unavailable                                                                                                                                                   | [Nightly Binary](https://storage.googleapis.com/libtensorflow-nightly/prod/tensorflow/release/windows/latest/gpu/windows_gpu_libtensorflow_binaries.tar.gz) [Official GCS](https://storage.googleapis.com/tensorflow/)
 
-**KDNN特性<a name="section147391344338"></a>**
+## Resources
 
-KDNN是华为提供的基于鲲鹏平台优化的高性能深度神经网络算子库，可以以插件形式集成至开源软件oneDNN使能优化能力，也可以对接到Tensorflow框架，实现Matmul等算子的加速。
+*   [TensorFlow.org](https://www.tensorflow.org)
+*   [TensorFlow Tutorials](https://www.tensorflow.org/tutorials/)
+*   [TensorFlow Official Models](https://github.com/tensorflow/models/tree/master/official)
+*   [TensorFlow Examples](https://github.com/tensorflow/examples)
+*   [TensorFlow Codelabs](https://codelabs.developers.google.com/?cat=TensorFlow)
+*   [TensorFlow Blog](https://blog.tensorflow.org)
+*   [Learn ML with TensorFlow](https://www.tensorflow.org/resources/learn-ml)
+*   [TensorFlow Twitter](https://twitter.com/tensorflow)
+*   [TensorFlow YouTube](https://www.youtube.com/channel/UC0rqucBdTuFTjJiefW5t-IQ)
+*   [TensorFlow model optimization roadmap](https://www.tensorflow.org/model_optimization/guide/roadmap)
+*   [TensorFlow White Papers](https://www.tensorflow.org/about/bib)
+*   [TensorBoard Visualization Toolkit](https://github.com/tensorflow/tensorboard)
+*   [TensorFlow Code Search](https://cs.opensource.google/tensorflow/tensorflow)
 
-快速上手：
-[oneDNN对接KDNN](https://gitcode.com/boostkit/kdnn)
-[Tensorflow对接KDNN](https://gitcode.com/boostkit/kdnn)
+Learn more about the
+[TensorFlow community](https://www.tensorflow.org/community) and how to
+[contribute](https://www.tensorflow.org/community/contribute).
 
-# 贡献指南<a name="ZH-CN_TOPIC_0000002476053213"></a>
+## Courses
 
-如果使用过程中有任何问题，或者需要反馈特性需求和bug报告，可以提交isssues联系我们，具体贡献方法可参考[这里](https://gitcode.com/boostkit/community/blob/master/docs/contributor/contributing.md)。
+* [Coursera](https://www.coursera.org/search?query=TensorFlow)
+* [Udacity](https://www.udacity.com/courses/all?search=TensorFlow)
+* [Edx](https://www.edx.org/search?q=TensorFlow)
 
-# 免责声明<a name="ZH-CN_TOPIC_0000002442853118"></a>
+## License
 
-此代码仓计划参与Tensorflow社区开源，编码风格遵照原生开源软件，继承原生开源软件安全设计，不破坏原生开源软件设计及编码风格和方式，软件的任何漏洞与安全问题，均由相应的上游社区根据其漏洞和安全响应机制解决。请密切关注上游社区发布的通知和版本更新。鲲鹏计算社区对软件的漏洞及安全问题不承担任何责任。
-
-# 许可证书<a name="ZH-CN_TOPIC_0000002476133025"></a>
-
-[Apache License 2.0](https://gitcode.com/boostkit/tensorflow/blob/master/LICENSE)  通过下载并使用此源码及其附带的软件，您即同意遵守软件许可协议中的条款和条件。
-
+[Apache License 2.0](LICENSE)
