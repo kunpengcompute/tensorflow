@@ -1,3 +1,5 @@
+third_party/KDNN/include
+third_party/KDNN/src
 output
 .DS_Store
 .ipynb_checkpoints
