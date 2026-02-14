@@ -50,6 +50,65 @@ struct ThreadStats {
     std::vector<int64_t> latencies_us;
 };
 
+// Benchmark report
+struct BenchmarkSummary {
+    uint64_t total_requests = 0;
+    uint64_t total_success = 0;
+    uint64_t total_failure = 0;
+    double avg_latency_us = 0.0;
+    int64_t p99_latency_us = 0;
+};
+
+BenchmarkSummary BuildBenchmarkSummary(const std::vector<ThreadStats>& stats) {
+    BenchmarkSummary summary;
+    std::vector<int64_t> all_latencies;
+
+    for (const auto& stat : stats) {
+        summary.total_requests += stat.total;
+        summary.total_success += stat.success;
+        summary.total_failure += stat.failure;
+        all_latencies.insert(all_latencies.end(),
+                             stat.latencies_us.begin(),
+                             stat.latencies_us.end());
+    }
+
+    if (all_latencies.empty()) {
+        return summary;
+    }
+
+    const int64_t total_latency = std::accumulate(
+        all_latencies.begin(), all_latencies.end(), static_cast<int64_t>(0));
+    summary.avg_latency_us = static_cast<double>(total_latency) /
+                             static_cast<double>(all_latencies.size());
+
+    std::sort(all_latencies.begin(), all_latencies.end());
+    const size_t p99_index = static_cast<size_t>(
+        std::ceil(all_latencies.size() * 0.99)) - 1;
+    summary.p99_latency_us = all_latencies[std::min(p99_index, all_latencies.size() - 1)];
+    return summary;
+}
+
+void ReportBenchmarkStats(const std::vector<ThreadStats>& stats,
+                          std::chrono::steady_clock::time_point start_time) {
+    const BenchmarkSummary summary = BuildBenchmarkSummary(stats);
+    const auto actual_duration_s = std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - start_time).count();
+    const double actual_qps = (actual_duration_s > 0)
+        ? static_cast<double>(summary.total_requests) / actual_duration_s
+        : 0.0;
+
+    LOG(INFO) << "Load test finished.\n"
+              << "----------------------------\n"
+              << "duration_s     : " << actual_duration_s << "\n"
+              << "total          : " << summary.total_requests << "\n"
+              << "success        : " << summary.total_success << "\n"
+              << "failure        : " << summary.total_failure << "\n"
+              << "avg_latency_us : " << summary.avg_latency_us << "\n"
+              << "p99_latency_us : " << summary.p99_latency_us << "\n"
+              << "qps            : " << actual_qps << "\n"
+              << "----------------------------";
+}
+
 void RunEchoPhase(example::EchoService_Stub* stub,
                   int duration_s,
                   int thread_num,
@@ -190,48 +249,6 @@ int main(int argc, char* argv[]) {
                  &stats);
     
     // --- Statistics Aggregation ---
-    uint64_t total_requests = 0;
-    uint64_t total_success = 0;
-    uint64_t total_failure = 0;
-    std::vector<int64_t> all_latencies;
-    for (const auto& stat : stats) {
-        total_requests += stat.total;
-        total_success += stat.success;
-        total_failure += stat.failure;
-        all_latencies.insert(all_latencies.end(),
-                             stat.latencies_us.begin(),
-                             stat.latencies_us.end());
-    }
-
-    double avg_latency = 0.0;
-    int64_t p99_latency = 0;
-    if (!all_latencies.empty()) {
-        const int64_t total_latency = std::accumulate(
-            all_latencies.begin(), all_latencies.end(), static_cast<int64_t>(0));
-        avg_latency = static_cast<double>(total_latency) /
-                      static_cast<double>(all_latencies.size());
-        std::sort(all_latencies.begin(), all_latencies.end());
-        const size_t p99_index = static_cast<size_t>(
-            std::ceil(all_latencies.size() * 0.99)) - 1;
-        p99_latency = all_latencies[std::min(p99_index, all_latencies.size() - 1)];
-    }
-
-    const auto actual_duration_s = std::chrono::duration<double>(
-        std::chrono::steady_clock::now() - start_time).count();
-    const double actual_qps = (actual_duration_s > 0)
-        ? static_cast<double>(total_requests) / actual_duration_s
-        : 0.0;
-
-    LOG(INFO) << "Load test finished.\n"
-              << "----------------------------\n"
-              << "duration_s     : " << actual_duration_s << "\n"
-              << "total          : " << total_requests << "\n"
-              << "success        : " << total_success << "\n"
-              << "failure        : " << total_failure << "\n"
-              << "avg_latency_us : " << avg_latency << "\n"
-              << "p99_latency_us : " << p99_latency << "\n"
-              << "qps            : " << actual_qps << "\n"
-              << "----------------------------";
-
+    ReportBenchmarkStats(stats, start_time);
     return 0;
 }
