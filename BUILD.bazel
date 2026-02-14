@@ -50,7 +50,6 @@ cc_library(
   alwayslink = True,
 )
 
-
 COPTS = [
     "-D__STDC_FORMAT_MACROS",
     "-DBTHREAD_USE_FAST_PTHREAD_MUTEX",

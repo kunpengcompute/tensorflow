@@ -50,9 +50,145 @@ struct ThreadStats {
     std::vector<int64_t> latencies_us;
 };
 
+// Benchmark report
+struct BenchmarkSummary {
+    uint64_t total_requests = 0;
+    uint64_t total_success = 0;
+    uint64_t total_failure = 0;
+    double avg_latency_us = 0.0;
+    int64_t p99_latency_us = 0;
+};
+
+BenchmarkSummary BuildBenchmarkSummary(const std::vector<ThreadStats>& stats) {
+    BenchmarkSummary summary;
+    std::vector<int64_t> all_latencies;
+
+    for (const auto& stat : stats) {
+        summary.total_requests += stat.total;
+        summary.total_success += stat.success;
+        summary.total_failure += stat.failure;
+        all_latencies.insert(all_latencies.end(),
+                             stat.latencies_us.begin(),
+                             stat.latencies_us.end());
+    }
+
+    if (all_latencies.empty()) {
+        return summary;
+    }
+
+    const int64_t total_latency = std::accumulate(
+        all_latencies.begin(), all_latencies.end(), static_cast<int64_t>(0));
+    summary.avg_latency_us = static_cast<double>(total_latency) /
+                             static_cast<double>(all_latencies.size());
+
+    std::sort(all_latencies.begin(), all_latencies.end());
+    const size_t p99_index = static_cast<size_t>(
+        std::ceil(all_latencies.size() * 0.99)) - 1;
+    summary.p99_latency_us = all_latencies[std::min(p99_index, all_latencies.size() - 1)];
+    return summary;
+}
+
+void ReportBenchmarkStats(const std::vector<ThreadStats>& stats,
+                          std::chrono::steady_clock::time_point start_time) {
+    const BenchmarkSummary summary = BuildBenchmarkSummary(stats);
+    const auto actual_duration_s = std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - start_time).count();
+    const double actual_qps = (actual_duration_s > 0)
+        ? static_cast<double>(summary.total_requests) / actual_duration_s
+        : 0.0;
+
+    LOG(INFO) << "Load test finished.\n"
+              << "----------------------------\n"
+              << "duration_s     : " << actual_duration_s << "\n"
+              << "total          : " << summary.total_requests << "\n"
+              << "success        : " << summary.total_success << "\n"
+              << "failure        : " << summary.total_failure << "\n"
+              << "avg_latency_us : " << summary.avg_latency_us << "\n"
+              << "p99_latency_us : " << summary.p99_latency_us << "\n"
+              << "qps            : " << actual_qps << "\n"
+              << "----------------------------";
+}
+
+void RunEchoPhase(example::EchoService_Stub* stub,
+                  int duration_s,
+                  int thread_num,
+                  const std::string& message,
+                  double max_qps,
+                  bool record_stats,
+                  std::vector<ThreadStats>* stats) {
+    if (record_stats && (stats == nullptr || stats->size() < static_cast<size_t>(thread_num))) {
+        LOG(ERROR) << "stats must be initialized when record_stats is enabled";
+        return;
+    }
+
+    std::atomic<int> log_id{0};
+    std::vector<std::thread> workers;
+    workers.reserve(static_cast<size_t>(thread_num));
+
+    const auto end_time = std::chrono::steady_clock::now() +
+                          std::chrono::seconds(duration_s);
+    const double per_thread_qps = (max_qps > 0)
+        ? max_qps / static_cast<double>(thread_num)
+        : 0.0;
+    const auto interval = (per_thread_qps > 0)
+        ? std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+            std::chrono::duration<double>(1.0 / per_thread_qps))
+        : std::chrono::steady_clock::duration::zero();
+
+    for (int i = 0; i < thread_num; ++i) {
+        workers.emplace_back([&, i]() {
+            auto next_send = std::chrono::steady_clock::now();
+            while (!brpc::IsAskedToQuit() && std::chrono::steady_clock::now() < end_time) {
+                if (interval != std::chrono::steady_clock::duration::zero()) {
+                    const auto now = std::chrono::steady_clock::now();
+                    if (now < next_send) {
+                        std::this_thread::sleep_until(next_send);
+                    }
+                    next_send = std::chrono::steady_clock::now() + interval;
+                }
+
+                example::EchoRequest request;
+                example::EchoResponse response;
+                brpc::Controller cntl;
+
+                request.set_message(message);
+                cntl.set_log_id(log_id.fetch_add(1, std::memory_order_relaxed));
+                if (!FLAGS_attachment.empty()) {
+                    cntl.request_attachment().append(FLAGS_attachment);
+                }
+                if (FLAGS_enable_checksum) {
+                    cntl.set_request_checksum_type(brpc::CHECKSUM_TYPE_CRC32C);
+                }
+
+                stub->Echo(&cntl, &request, &response, nullptr);
+                if (!record_stats) {
+                    continue;
+                }
+
+                (*stats)[i].total += 1;
+                (*stats)[i].latencies_us.push_back(cntl.latency_us());
+                if (!cntl.Failed()) {
+                    (*stats)[i].success += 1;
+                } else {
+                    (*stats)[i].failure += 1;
+                }
+            }
+        });
+    }
+
+    for (auto& worker : workers) {
+        worker.join();
+    }
+}
+
 int main(int argc, char* argv[]) {
     // Parse gflags. We recommend you to use gflags as well.
     GFLAGS_NAMESPACE::ParseCommandLineFlags(&argc, &argv, true);
+
+    if (FLAGS_thread_num <= 0 || FLAGS_test_duration_s <= 0) {
+        LOG(ERROR) << "thread_num and test_duration_s must be greater than 0";
+        return -1;
+    }
     
     // A Channel represents a communication line to a Server. Notice that 
     // Channel is thread-safe and can be shared by all threads in your program.
@@ -64,6 +200,7 @@ int main(int argc, char* argv[]) {
     options.connection_type = FLAGS_connection_type;
     options.timeout_ms = FLAGS_timeout_ms/*milliseconds*/;
     options.max_retry = FLAGS_max_retry;
+    
     if (channel.Init(FLAGS_server.c_str(), FLAGS_load_balancer.c_str(), &options) != 0) {
         LOG(ERROR) << "Fail to initialize channel";
         return -1;
@@ -84,143 +221,34 @@ int main(int argc, char* argv[]) {
     }
 
     // --- Phase 1: Warmup ---
-    if (FLAGS_warmup_duration_s > 0) { // 后续可重构代码
+    if (FLAGS_warmup_duration_s > 0) { // 已重构代码
         LOG(INFO) << "Starting Warmup (" << FLAGS_warmup_duration_s << "s)...";
-        std::atomic<int> warmup_log_id{0};
-        std::vector<std::thread> warmup_workers;
-        const auto warmup_end = std::chrono::steady_clock::now() + 
-                                std::chrono::seconds(FLAGS_warmup_duration_s);
-
-        for (int i = 0; i < FLAGS_thread_num; ++i) {
-            warmup_workers.emplace_back([&stub, &warmup_end, &warmup_log_id]() {
-                while (!brpc::IsAskedToQuit() && std::chrono::steady_clock::now() < warmup_end) {
-                    example::EchoRequest request;
-                    example::EchoResponse response;
-                    brpc::Controller cntl;
-
-                    request.set_message("warmup");
-                    cntl.set_log_id(warmup_log_id.fetch_add(1, std::memory_order_relaxed));
-                    if (!FLAGS_attachment.empty()) {
-                        cntl.request_attachment().append(FLAGS_attachment);
-                    }
-                    if (FLAGS_enable_checksum) {
-                        cntl.set_request_checksum_type(brpc::CHECKSUM_TYPE_CRC32C);
-                    }
-
-                    stub.Echo(&cntl, &request, &response, nullptr);
-                    // Warmup 不记录结果，只发请求
-                }
-            });
-        }
-
-        for (auto& t : warmup_workers) {
-            t.join();
-        }
-
+        RunEchoPhase(&stub,
+                     FLAGS_warmup_duration_s,
+                     FLAGS_thread_num,
+                     "warmup",
+                     0.0,
+                     false,
+                     nullptr);
+        
         LOG(INFO) << "Warmup finished. Waiting 1s before main test...";
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
     
     // --- Phase 2: Main Test ---
     LOG(INFO) << "Starting Load Test (" << FLAGS_test_duration_s << "s)...";
-    std::atomic<int> log_id{0};
     std::vector<ThreadStats> stats(static_cast<size_t>(FLAGS_thread_num));
-    std::vector<std::thread> workers;
-    workers.reserve(static_cast<size_t>(FLAGS_thread_num));
 
     const auto start_time = std::chrono::steady_clock::now();
-    const auto end_time = start_time + std::chrono::seconds(FLAGS_test_duration_s);
-    const double max_qps = FLAGS_max_qps;
-    const double per_thread_qps = (max_qps > 0)
-        ? max_qps / static_cast<double>(FLAGS_thread_num)
-        : 0.0;
-    const auto interval = (per_thread_qps > 0)
-        ? std::chrono::duration_cast<std::chrono::steady_clock::duration>(
-            std::chrono::duration<double>(1.0 / per_thread_qps))
-        : std::chrono::steady_clock::duration::zero();
-
-    for (int i = 0; i < FLAGS_thread_num; ++i) {
-        workers.emplace_back([&, i]() {
-            auto next_send = std::chrono::steady_clock::now();
-            while (!brpc::IsAskedToQuit() && std::chrono::steady_clock::now() < end_time) {
-                if (interval != std::chrono::steady_clock::duration::zero()) {
-                    const auto now = std::chrono::steady_clock::now();
-                    if (now < next_send) {
-                        std::this_thread::sleep_until(next_send);
-                    }
-                    next_send = std::chrono::steady_clock::now() + interval;
-                }
-
-                example::EchoRequest request;
-                example::EchoResponse response;
-                brpc::Controller cntl;
-
-                request.set_message("hello world");
-                cntl.set_log_id(log_id.fetch_add(1, std::memory_order_relaxed));
-                cntl.request_attachment().append(FLAGS_attachment);
-                if (FLAGS_enable_checksum) {
-                    cntl.set_request_checksum_type(brpc::CHECKSUM_TYPE_CRC32C);
-                }
-
-                stub.Echo(&cntl, &request, &response, NULL);
-                stats[i].total += 1;
-                stats[i].latencies_us.push_back(cntl.latency_us());
-                if (!cntl.Failed()) {
-                    stats[i].success += 1;
-                } else {
-                    stats[i].failure += 1;
-                }
-            }
-        });
-    }
-
-    for (auto& worker : workers) {
-        worker.join();
-    }
-
+    RunEchoPhase(&stub,
+                 FLAGS_test_duration_s,
+                 FLAGS_thread_num,
+                 "hello world",
+                 FLAGS_max_qps,
+                 true,
+                 &stats);
+    
     // --- Statistics Aggregation ---
-    uint64_t total_requests = 0;
-    uint64_t total_success = 0;
-    uint64_t total_failure = 0;
-    std::vector<int64_t> all_latencies;
-    for (const auto& stat : stats) {
-        total_requests += stat.total;
-        total_success += stat.success;
-        total_failure += stat.failure;
-        all_latencies.insert(all_latencies.end(),
-                             stat.latencies_us.begin(),
-                             stat.latencies_us.end());
-    }
-
-    double avg_latency = 0.0;
-    int64_t p99_latency = 0;
-    if (!all_latencies.empty()) {
-        const int64_t total_latency = std::accumulate(
-            all_latencies.begin(), all_latencies.end(), static_cast<int64_t>(0));
-        avg_latency = static_cast<double>(total_latency) /
-                      static_cast<double>(all_latencies.size());
-        std::sort(all_latencies.begin(), all_latencies.end());
-        const size_t p99_index = static_cast<size_t>(
-            std::ceil(all_latencies.size() * 0.99)) - 1;
-        p99_latency = all_latencies[std::min(p99_index, all_latencies.size() - 1)];
-    }
-
-    const auto actual_duration_s = std::chrono::duration<double>(
-        std::chrono::steady_clock::now() - start_time).count();
-    const double actual_qps = (actual_duration_s > 0)
-        ? static_cast<double>(total_requests) / actual_duration_s
-        : 0.0;
-
-    LOG(INFO) << "Load test finished.\n"
-              << "----------------------------\n"
-              << "duration_s     : " << actual_duration_s << "\n"
-              << "total          : " << total_requests << "\n"
-              << "success        : " << total_success << "\n"
-              << "failure        : " << total_failure << "\n"
-              << "avg_latency_us : " << avg_latency << "\n"
-              << "p99_latency_us : " << p99_latency << "\n"
-              << "qps            : " << actual_qps << "\n"
-              << "----------------------------";
-
+    ReportBenchmarkStats(stats, start_time);
     return 0;
 }
