@@ -124,11 +124,23 @@ class UniversalOpBenchmark:
         # 未匹配到返回默认名称
         return f"unknown_operator_{metadata_id}"
 
-    def parse_xplane_file_optimized(self, file_path):
-        if not os.path.exists(file_path):
-            print(f"file is not exist: {file_path}")
+    def parse_xplane_file_optimized(self, dir_path):
+        if not os.path.isdir(dir_path):
+            print(f"dir is not exist: {dir_path}")
             return None
 
+        xplane_files = []
+        for file_name in os.listdir(dir_path):
+            if file_name.endswith(".xplane.pb"):
+                xplane_files.append(os.path.join(dir_path, file_name))
+
+        if not xplane_files:
+            print(f"file is not exist in {dir_path}")
+            return None
+        elif len(xplane_files) > 1:
+            print(f"Found multiple.xplane.pb files: {xplane_files}; the first file will be used.")
+
+        file_path = xplane_files[0]
         with open(file_path, 'rb') as f:
             content = f.read()
     
@@ -142,7 +154,7 @@ class UniversalOpBenchmark:
 
     def get_average_wall_during(self, input_dir, operator_name, test_case: TestCase):
         # 1.提取数据
-        xplane_data = self.parse_xplane_file_optimized(input_dir + "/localhost.localdomain.xplane.pb")
+        xplane_data = self.parse_xplane_file_optimized(input_dir)
         if not xplane_data:
             return 0.0
 
