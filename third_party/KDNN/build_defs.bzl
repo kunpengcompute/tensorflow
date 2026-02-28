@@ -23,7 +23,6 @@ def kdnn_deps():
         "//conditions:default": [],
     })
 
-
 def reorder_instance(name, in_type, out_type, headers):
     """Generates a cc_library that instantiates ReorderDefault<in_type, out_type>.
 
@@ -56,16 +55,17 @@ def reorder_instance(name, in_type, out_type, headers):
         includes = [
             "src",
             "include",
+            "src/aarch64_codegen",
         ],
         visibility = ["//visibility:private"],
     )
 
 def fast_reorder_sve_same_layouts_instance(name, in_type, out_type, headers):
-    """Generates a cc_library that instantiates the SVE fast-path reorder kernel
+    """Generates a cc_library that instantiates the SVE fast-path reorder kernels
     for same-layout tensor transformations.
 
     This macro compiles the SVE-specific fast reorder source file with concrete
-    IN_TYPE and OUT_TYPE macro definitions. The resulting library provides a
+    IN_TYPE and OUT_TYPE macro definitions. The resulting library provides A
     vectorized SVE implementation optimized for cases where input and output
     tensors share the same logical layout (e.g., NCHW → NCHW with type cast).
 
@@ -88,12 +88,12 @@ def fast_reorder_sve_same_layouts_instance(name, in_type, out_type, headers):
             "-DOUT_TYPE={}".format(out_type),
             "-march=armv8.5-a+fp+simd+bf16+sve",
         ],
-        includes = ["src", "include"],
+        includes = ["src", "include", "src/aarch64_codegen"],
         visibility = ["//visibility:private"],
     )
 
 
-def generate_reorder_instances(headers):
+def generate_reorder_instances(hd):
     """Generates cc_library targets for all supported reorder type combinations.
 
     This function iterates over all pairs of input and output data types and
@@ -109,7 +109,7 @@ def generate_reorder_instances(headers):
         A list of labels (strings) referencing all generated reorder instance
         cc_library targets, suitable for use in a cc_library's deps attribute.
     """
-    
+
     PRECISIONS = {
         "float": "f32",
         "__fp16": "f16",
@@ -129,7 +129,7 @@ def generate_reorder_instances(headers):
                 name = generic_name,
                 in_type = in_type,
                 out_type = out_type,
-                headers = headers,
+                headers = hd,
             )
             all_instance_targets.append(":" + generic_name)
 
@@ -139,8 +139,8 @@ def generate_reorder_instances(headers):
                 name = sve_name,
                 in_type = in_type,
                 out_type = out_type,
-                headers = headers,
+                headers = hd,
             )
             all_instance_targets.append(":" + sve_name)
     
-    return all_instance_targets
+    return all_instance_targets

@@ -1,7 +1,7 @@
 licenses(["notice"])
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
-load(":build_defs.bzl",  "generate_reorder_instances")
+load(":build_defs.bzl", "generate_reorder_instances")
 
 config_setting(
     name = "enable_kdnn",
@@ -29,6 +29,10 @@ MATMUL_JIT_NON_SME_SRCS = glob(
     exclude = ["src/kernels/matmul_jit/sme/**/*.cpp"],
 )
 MATMUL_JIT_SME_SRCS = glob(["src/kernels/matmul_jit/sme/**/*.cpp"])
+
+UNIGEMM_SRCS = glob(
+    ["src/kernels/unigemm/*.cpp"],
+)
 
 # === 3. Reorder ===
 REORDER_NON_SME_SRCS = glob(
@@ -90,6 +94,8 @@ HDRS = glob([
     "src/kernels/kernel_funcs.h",
     "src/kernels/matmul_jit/**/*.hpp",
     "src/kernels/reorder/**/*.hpp",
+    "src/kernels/**/*.h",
+    "src/sparse_gemm/kernel/*.c",
     "src/kernels/vml/**/*.h",
     "src/kernels/vml/**/*.hpp",
     "src/aarch64_codegen/**/*.hpp",
@@ -97,6 +103,7 @@ HDRS = glob([
     "src/sparse_gemm/**/*.h",
     "src/sparse_gemm/kernel/*.S",
     "src/sparse_gemm/kernel/gemm_csr_k1x1.c",
+    "src/kernels/unigemm/*.hpp",
 ])
 
 # === 6.1 只包含 C++ 源文件（不含 C / ASM）===
@@ -109,7 +116,8 @@ ALL_CPP_SRCS = select({
     "//conditions:default": (
         NON_SME_CPP_SRCS +
         MATMUL_JIT_NON_SME_SRCS +
-        REORDER_NON_SME_SRCS
+        REORDER_NON_SME_SRCS +
+        UNIGEMM_SRCS
     ),
 })
 
@@ -133,6 +141,7 @@ cc_library(
         "src/aarch64_codegen",
         "src/brgemm",
         "src/sparse_gemm",
+        "src/kernels/unigemm",
     ],
     linkopts = ["-lgomp"],
     copts = select({
@@ -145,6 +154,10 @@ cc_library(
             "-include", "cstdint",
         ],
     }),
+    defines = [
+        "KDNN_CPU_THREADING_RUNTIME=KDNN_RUNTIME_THREADPOOL",
+        "KDNN_USE_JIT",
+    ],
     visibility = ["//visibility:private"],
 )
 
@@ -158,11 +171,16 @@ cc_library(
         "src/aarch64_codegen",
         "src/brgemm",
         "src/sparse_gemm",
+        "src/kernels/unigemm",
     ],
     copts = select({
         ":platform_kp920f": ["-march=armv9.2-a+fp+simd+bf16+sve+sve2+sme"],
         "//conditions:default": ["-march=armv8.5-a+fp+simd+bf16+sve"],
     }),
+    defines = [
+        "KDNN_CPU_THREADING_RUNTIME=KDNN_RUNTIME_THREADPOOL",
+        "KDNN_USE_JIT",
+    ],
     visibility = ["//visibility:private"],
 )
 
@@ -175,10 +193,11 @@ cc_library(
     ],
     includes = [
         "include",
-        "src", 
+        "src",
         "src/aarch64_codegen",
         "src/brgemm",
         "src/sparse_gemm",
+        "src/kernels/unigemm",
     ],
     linkopts = ["-lgomp"],
     alwayslink = 1,
@@ -198,4 +217,4 @@ bzl_library(
     name = "build_defs_bzl",
     srcs = ["build_defs.bzl"],
     visibility = ["//visibility:public"],
-)
+)
