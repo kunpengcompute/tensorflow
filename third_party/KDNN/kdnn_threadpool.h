@@ -53,14 +53,10 @@ class KDNNThreadPool : public KDNN::Threading::ThreadpoolIface {
 
   int GetNumThreads() const override { return num_threads_; }
 
-  uint64_t GetFlags() const override {
-    return KDNN_ASYNCHRONOUS;
-  }
-
-  void ParallelFor(int n,
-                const std::function<void(int, int)>& fn) override {
-    thread_pool_->ParallelFor(n, cost_per_unit_, fn);
-  }
+  void ParallelFor(int n, int64_t cost_per_unit,
+                    const std::function<void(int, int)>& fn) override {
+      thread_pool_->ParallelFor(n, cost_per_unit, fn);
+    }
 
   bool IsInParallel() const override {
     return eigen_interface_->CurrentThreadId() != -1;
@@ -72,7 +68,6 @@ class KDNNThreadPool : public KDNN::Threading::ThreadpoolIface {
   ThreadPool* thread_pool_ = nullptr;
   Eigen::ThreadPoolInterface* eigen_interface_ = nullptr;
   int num_threads_ = 1;
-  int64_t cost_per_unit_ = 1000000;
   inline void set_num_and_max_threads(int num_threads) {
     int pool_threads = eigen_interface_->NumThreads();
 
@@ -92,4 +87,4 @@ class KDNNThreadPool : public KDNN::Threading::ThreadpoolIface {
 
 }  // namespace kdnn
 
-#endif  // THIRD_PARTY_KDNN_KDNN_THREADPOOL_H_
+#endif  // THIRD_PARTY_KDNN_KDNN_THREADPOOL_H_

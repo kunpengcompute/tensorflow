@@ -54,7 +54,7 @@ inline void kdnnParallelGemm(const OpKernelContext* ctx, const Tensor& a, const 
   }
   KDNN::Threading::DeactivateThreadpool();
 }
-
+/*
 inline void kdnnFusedGemm(OpKernelContext* ctx, const Tensor& a, const Tensor& b, Tensor* out,
                     bool fusion_relu, bool trans_x, bool trans_y) {
   int m = a.dim_size(0);
@@ -92,7 +92,7 @@ inline void kdnnFusedGemm(OpKernelContext* ctx, const Tensor& a, const Tensor& b
   gemm.Run(A, B, C, Bias, po_ptrs); 
   KDNN::Threading::DeactivateThreadpool();
 }
-
+*/
 template<typename Tindices>
 inline void kdnnSparseMatmul(const std::size_t nnz,
                       const std::size_t rhs_right, const std::size_t lhs_right,
@@ -128,4 +128,4 @@ inline void kdnnSparseMatmul(const std::size_t nnz,
 }
 
 }// namespace tensorflow
-#endif
+#endif

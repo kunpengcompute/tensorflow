@@ -395,7 +395,7 @@ class KPFusedEmbeddingPaddingFastRewriter : public PatternRewriter {
     graph_ = graph;
     indexes_ = &node_indexes;
     CHECK_NODE_OK(IsStridedSlice(*node) && node->input_size() == 4)
-    CHECK_NODE_OK(check_const_shape(get_mutable_node(node->input(1)), {0}))
+    // CHECK_NODE_OK(check_const_shape(get_mutable_node(node->input(1)), {0}))
     CHECK_NODE_OK(check_const_shape(get_mutable_node(node->input(2)), {1}))
     CHECK_NODE_OK(check_const_shape(get_mutable_node(node->input(3)), {1}))
     CHECK_NODE_OK(check_int_attr(node, "shrink_axis_mask", 1))
@@ -1089,7 +1089,7 @@ bool enabled_aarch64_rewriters() {
   int part = (arch_id >> 4) & 0xFFF;
   bool flag = false;
   if (implementer == 0x48) {
-    if (part == 0xd01 || part == 0xd02 || part == 0xd03) flag = true;
+    if (part == 0xd01 || part == 0xd02 || part == 0xd03 || part == 0xd06) flag = true;
   }
   return flag;
 }
