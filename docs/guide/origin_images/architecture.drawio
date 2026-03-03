@@ -7,7 +7,7 @@
         <mxCell id="Yd4KFgKOZMevjhXt4D6N-13" value="ANNC" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;" parent="1" vertex="1">
           <mxGeometry x="414" y="317.5" width="276" height="75" as="geometry" />
         </mxCell>
-        <mxCell id="Yd4KFgKOZMevjhXt4D6N-1" value="Tensorflow" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;" parent="1" vertex="1">
+        <mxCell id="Yd4KFgKOZMevjhXt4D6N-1" value="TensorFlow" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;" parent="1" vertex="1">
           <mxGeometry x="70" y="110" width="300" height="280" as="geometry" />
         </mxCell>
         <mxCell id="Yd4KFgKOZMevjhXt4D6N-2" value="Executor" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;" parent="1" vertex="1">
