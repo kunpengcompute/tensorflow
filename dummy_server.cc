@@ -35,7 +35,16 @@ DEFINE_int32(idle_timeout_s, -1, "Connection will be closed if there is no "
 DEFINE_bool(enable_checksum, false, "Enable checksum or not");
 DEFINE_string(model_path, "", "tf SavedModel path");
 DEFINE_int32(batch_size, 1, "Batch size for model inference (used for dynamic dimensions)");
+DEFINE_int32(thread_num, 16, "Number of worker threads for brpc server");
 DEFINE_bool(debug, false, "Enable debug logs");
+
+DEFINE_bool(enable_tf_timeline, false, "Enable TensorFlow timeline dump on server side");
+DEFINE_string(tf_timeline_dir, "/tmp/tf_timeline", "Directory to dump TensorFlow timeline files");
+DEFINE_uint64(tf_timeline_max_dumps, 1, "Maximum timeline dump files");
+DEFINE_bool(tf_timeline_dump_warmup, false, "Allow timeline dump for warmup(first request)");
+DEFINE_uint64(tf_timeline_every_n, 1, "Dump one timeline every N requests");
+DEFINE_bool(tf_timeline_include_runmeta_pb, false, "Whether to dump RunMetadata protobuf binary");
+DEFINE_bool(tf_timeline_log_each_dump, true, "Log each timeline dump result");
 
 // Your implementation of example::EchoService
 // Notice that implementing brpc::Describable grants the ability to put
@@ -43,7 +52,7 @@ DEFINE_bool(debug, false, "Enable debug logs");
 namespace example {
 class EchoServiceImpl : public EchoService {
 public:
-    EchoServiceImpl() : tf_model(FLAGS_model_path, FLAGS_batch_size) {}
+    EchoServiceImpl() : tf_model(FLAGS_model_path, FLAGS_batch_size, BuildTimelineConfig()) {}
     virtual ~EchoServiceImpl() {}
     virtual void Echo(google::protobuf::RpcController* cntl_base,
                       const EchoRequest* request,
@@ -115,6 +124,19 @@ public:
     }
 
 private:
+    static Tf_Model::TimelineConfig BuildTimelineConfig() {
+        Tf_Model::TimelineConfig cfg;
+        cfg.enable = FLAGS_enable_tf_timeline;
+        cfg.dir = FLAGS_tf_timeline_dir.empty() ? "/tmp/tf_timeline" : FLAGS_tf_timeline_dir;
+        cfg.max_dumps = FLAGS_tf_timeline_max_dumps;
+        cfg.dump_warmup = FLAGS_tf_timeline_dump_warmup;
+        cfg.every_n = FLAGS_tf_timeline_every_n;
+        cfg.include_runmeta_pb = FLAGS_tf_timeline_include_runmeta_pb;
+        cfg.log_each_dump = FLAGS_tf_timeline_log_each_dump;
+        return cfg;
+    }
+
+private:
     Tf_Model tf_model;
 };
 }  // namespace example
@@ -162,6 +184,7 @@ while (0);
 
     // Start the server.
     brpc::ServerOptions options;
+    options.num_threads = FLAGS_thread_num;
     options.idle_timeout_sec = FLAGS_idle_timeout_s;
     if (server.Start(point, &options) != 0) {
         LOG(ERROR) << "Fail to start EchoServer";
