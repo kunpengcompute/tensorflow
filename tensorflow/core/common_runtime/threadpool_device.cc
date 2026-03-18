@@ -61,6 +61,11 @@ ThreadPoolDevice::ThreadPoolDevice(const SessionOptions& options,
                                name, DEVICE_CPU, memory_limit, locality)),
       allocator_(allocator),
       scoped_allocator_mgr_(new ScopedAllocatorMgr(name)) {
+  const auto* worker_threads = tensorflow_cpu_worker_threads();
+  LOG(INFO) << "[TFDBG] ThreadPoolDevice final intra threads="
+            << (worker_threads ? worker_threads->num_threads : -1)
+            << " numa_node=" << attributes().locality().numa_node()
+            << " device=" << name;
   auto s = NodeFileWriter::GetNodeFileWriterIfEnabled(name, env());
   if (!s.ok()) {
     LOG(ERROR) << s.status();

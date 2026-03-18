@@ -96,6 +96,10 @@ struct LocalDevice::EigenThreadPoolInfo {
     }
     eigen_device_.reset(new Eigen::ThreadPoolDevice(
         threadpool, eigen_worker_threads_.num_threads, eigen_allocator_.get()));
+    LOG(INFO) << "[TFDBG] ThreadPoolDevice final intra threads="
+              << eigen_worker_threads_.num_threads
+              << " numa_node=" << numa_node
+              << " device=CPU";
   }
 
   ~EigenThreadPoolInfo() {
