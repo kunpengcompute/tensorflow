@@ -177,11 +177,13 @@ class ConcatBaseOp : public OpKernel {
         return;
       }
 #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
+#if defined(ENABLE_KDNN)
       KDNN::Element::TypeT kdnnType = KDNN::Element::TypeAdapter<T>::value;
       if(IsKDNNEnabled() && kdnnType != KDNN::Element::TypeT::UNDEFINED) {
         KDNNConcatImpl<T>(c, inputs_flat, &output_flat);
         return;
       }
+#endif
       ConcatCPU<T>(c->device(), inputs_flat, &output_flat);
     }
   }
