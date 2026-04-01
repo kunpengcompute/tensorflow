@@ -218,6 +218,8 @@ class DeviceBase {
 
   virtual const Eigen::ThreadPoolDevice* eigen_cpu_device();
 
+  virtual const Eigen::ThreadPoolDevice* eigen_simple_device();
+
   // Caller owns the return value. The OpKernelContext calls this even
   // for devices that do not implement an eigen_gpu_device. Overridden
   // by GPU devices to return a derived type.

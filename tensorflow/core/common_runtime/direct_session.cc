@@ -712,6 +712,10 @@ absl::Status DirectSession::RunInternal(
   }
   args.cancellation_manager = &step_cancellation_manager;
 
+  if (pool != nullptr) {
+    args.enable_parallel = pool->NumThreads() != 1;
+  }
+
   absl::Status run_status;
 
   auto set_threadpool_args_for_item =

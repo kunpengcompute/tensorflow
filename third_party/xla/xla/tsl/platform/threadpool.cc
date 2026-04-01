@@ -156,7 +156,11 @@ ThreadPool::~ThreadPool() {}
 
 void ThreadPool::Schedule(std::function<void()> fn) {
   CHECK(fn != nullptr);
-  underlying_threadpool_->Schedule(std::move(fn));
+  if (underlying_threadpool_->NumThreads() <= 1) {
+    fn();
+  } else {
+    underlying_threadpool_->Schedule(std::move(fn));
+  }
 }
 
 int ThreadPool::NumShardsUsedByFixedBlockSizeScheduling(

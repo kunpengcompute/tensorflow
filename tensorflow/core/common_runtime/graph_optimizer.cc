@@ -36,7 +36,7 @@ GraphOptimizer::GraphOptimizer(const OptimizerOptions& opts) : opts_(opts) {
 GraphOptimizer::~GraphOptimizer() {}
 
 void GraphOptimizer::Optimize(FunctionLibraryRuntime* runtime, Env* env,
-                              const Device* device,
+                              Device* device,
                               std::unique_ptr<Graph>* graph,
                               const Options& options) {
   static const char* kGraphOptimizerCategory = "GraphOptimizerPass";

@@ -367,6 +367,7 @@ class ExecutorState {
   const bool log_memory_;
 
   int64_t step_id_;
+  bool enable_parallel_ = true;
   int64_t trace_id_;  // for profiler.
   int64_t start_time_usecs_ = 0;
   // The deadline for the session to complete by. Empty if unspecified.
@@ -430,6 +431,7 @@ ExecutorState<PropagatorStateType>::ExecutorState(
     : vlog_(VLOG_IS_ON(1)),
       log_memory_(LogMemory::IsEnabled()),
       step_id_(args.step_id),
+      enable_parallel_(args.enable_parallel),
       trace_id_(args.function_trace_id ? *args.function_trace_id : step_id_),
       start_time_usecs_(args.start_time_usecs),
       deadline_(args.deadline),
@@ -757,6 +759,7 @@ void ExecutorState<PropagatorStateType>::ProcessInline(
   auto params = std::make_unique<OpKernelContext::Params>();
 
   params->step_id = step_id_;
+  params->enable_parallel = enable_parallel_;
   // Override device's threadpool if user provides an intra_op_threadpool
   Device* device = immutable_state_.params().device;
   if (user_device_) {
