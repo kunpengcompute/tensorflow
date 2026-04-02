@@ -25,6 +25,7 @@
 #include <butil/logging.h>
 #include <butil/time.h>
 #include <brpc/channel.h>
+#include <mutex>
 #include <numeric>
 #include <thread>
 #include <vector>
@@ -44,11 +45,45 @@ DEFINE_double(max_qps, 0, "Max target QPS (0 means unlimited)");
 DEFINE_int32(warmup_duration_s, 1, "Warmup duration in seconds before actual test"); 
 
 struct ThreadStats {
-    uint64_t total = 0;
-    uint64_t success = 0;
-    uint64_t failure = 0;
+    std::atomic<uint64_t> total{0};
+    std::atomic<uint64_t> success{0};
+    std::atomic<uint64_t> failure{0};
     std::vector<int64_t> latencies_us;
+    mutable std::mutex latencies_mutex;  // 保护 latencies_us 的并发访问
+
+    // 禁用拷贝，允许移动
+    ThreadStats() = default;
+    ThreadStats(const ThreadStats&) = delete;
+    ThreadStats& operator=(const ThreadStats&) = delete;
+    ThreadStats(ThreadStats&&) = default;
+    ThreadStats& operator=(ThreadStats&&) = default;
 };
+
+// Real-time stats for monitoring (updated periodically by workers)
+struct RealtimeStats {
+    std::atomic<uint64_t> total{0};
+    std::atomic<uint64_t> success{0};
+    std::atomic<uint64_t> failure{0};
+    std::atomic<uint64_t> latency_sum_us{0};  // For calculating avg latency
+};
+
+// Helper to calculate P99 from thread stats
+int64_t CalculateP99(const std::vector<ThreadStats>& stats) {
+    std::vector<int64_t> all_latencies;
+    for (const auto& stat : stats) {
+        std::lock_guard<std::mutex> lock(stat.latencies_mutex);
+        all_latencies.insert(all_latencies.end(),
+                             stat.latencies_us.begin(),
+                             stat.latencies_us.end());
+    }
+    if (all_latencies.empty()) {
+        return 0;
+    }
+    std::sort(all_latencies.begin(), all_latencies.end());
+    const size_t p99_index = static_cast<size_t>(
+        std::ceil(all_latencies.size() * 0.99)) - 1;
+    return all_latencies[std::min(p99_index, all_latencies.size() - 1)];
+}
 
 // Benchmark report
 struct BenchmarkSummary {
@@ -64,9 +99,10 @@ BenchmarkSummary BuildBenchmarkSummary(const std::vector<ThreadStats>& stats) {
     std::vector<int64_t> all_latencies;
 
     for (const auto& stat : stats) {
-        summary.total_requests += stat.total;
-        summary.total_success += stat.success;
-        summary.total_failure += stat.failure;
+        summary.total_requests += stat.total.load(std::memory_order_relaxed);
+        summary.total_success += stat.success.load(std::memory_order_relaxed);
+        summary.total_failure += stat.failure.load(std::memory_order_relaxed);
+        std::lock_guard<std::mutex> lock(stat.latencies_mutex);
         all_latencies.insert(all_latencies.end(),
                              stat.latencies_us.begin(),
                              stat.latencies_us.end());
@@ -122,11 +158,12 @@ void RunEchoPhase(example::EchoService_Stub* stub,
     }
 
     std::atomic<int> log_id{0};
+    RealtimeStats rt_stats;
     std::vector<std::thread> workers;
     workers.reserve(static_cast<size_t>(thread_num));
 
-    const auto end_time = std::chrono::steady_clock::now() +
-                          std::chrono::seconds(duration_s);
+    const auto start_time = std::chrono::steady_clock::now();
+    const auto end_time = start_time + std::chrono::seconds(duration_s);
     const double per_thread_qps = (max_qps > 0)
         ? max_qps / static_cast<double>(thread_num)
         : 0.0;
@@ -134,6 +171,70 @@ void RunEchoPhase(example::EchoService_Stub* stub,
         ? std::chrono::duration_cast<std::chrono::steady_clock::duration>(
             std::chrono::duration<double>(1.0 / per_thread_qps))
         : std::chrono::steady_clock::duration::zero();
+
+    // Start monitor thread for progress reporting
+    std::thread monitor_thread;
+    if (record_stats) {
+        monitor_thread = std::thread([&, start_time, end_time, duration_s]() {
+            uint64_t last_total = 0;
+            auto last_time = start_time;
+            bool first_output = true;
+            const int num_lines = 8;  // Number of lines in progress output
+
+            while (!brpc::IsAskedToQuit() && std::chrono::steady_clock::now() < end_time) {
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+
+                const auto now = std::chrono::steady_clock::now();
+                const auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - start_time).count();
+                const uint64_t current_total = rt_stats.total.load(std::memory_order_relaxed);
+                const uint64_t current_success = rt_stats.success.load(std::memory_order_relaxed);
+                const uint64_t current_failure = rt_stats.failure.load(std::memory_order_relaxed);
+                const uint64_t latency_sum = rt_stats.latency_sum_us.load(std::memory_order_relaxed);
+
+                // Calculate QPS (based on last second)
+                const auto time_diff = std::chrono::duration<double>(now - last_time).count();
+                const uint64_t req_diff = current_total - last_total;
+                const double qps = (time_diff > 0) ? static_cast<double>(req_diff) / time_diff : 0.0;
+
+                // Calculate avg latency
+                const double avg_latency = (current_total > 0)
+                    ? static_cast<double>(latency_sum) / static_cast<double>(current_total)
+                    : 0.0;
+
+                // Calculate P99 (snapshot from stats)
+                const int64_t p99_latency = CalculateP99(*stats);
+
+                // Calculate remaining time
+                const int remaining = duration_s - static_cast<int>(elapsed);
+                const int display_elapsed = std::min(static_cast<int>(elapsed), duration_s);
+                const int display_remaining = std::max(remaining, 0);
+
+                // Move cursor up to overwrite previous output (except first time)
+                if (!first_output) {
+                    // Move cursor up num_lines lines and to beginning of line
+                    std::fprintf(stderr, "\033[%dA\033[0G", num_lines);
+                }
+                first_output = false;
+
+                // Print progress with multiple lines (overwrite mode)
+                std::fprintf(stderr, "========== Progress [%d/%d seconds] ==========\n", display_elapsed, duration_s);
+                std::fprintf(stderr, "Requests:     %lu   \n", current_total);
+                std::fprintf(stderr, "QPS:          %.1f   \n", qps);
+                std::fprintf(stderr, "Success:      %lu   \n", current_success);
+                std::fprintf(stderr, "Failure:      %lu   \n", current_failure);
+                std::fprintf(stderr, "Avg Latency:  %.1f us   \n", avg_latency);
+                std::fprintf(stderr, "P99 Latency:  %ld us   \n", p99_latency);
+                std::fprintf(stderr, "Remaining:    %d seconds   \n", display_remaining);
+                std::fflush(stderr);
+
+                last_total = current_total;
+                last_time = now;
+            }
+
+            // Move cursor down one line after final update to avoid overwriting
+            std::fprintf(stderr, "\n");
+        });
+    }
 
     for (int i = 0; i < thread_num; ++i) {
         workers.emplace_back([&, i]() {
@@ -165,12 +266,20 @@ void RunEchoPhase(example::EchoService_Stub* stub,
                     continue;
                 }
 
-                (*stats)[i].total += 1;
-                (*stats)[i].latencies_us.push_back(cntl.latency_us());
+                const int64_t latency_us = cntl.latency_us();
+                rt_stats.total.fetch_add(1, std::memory_order_relaxed);
+                rt_stats.latency_sum_us.fetch_add(latency_us, std::memory_order_relaxed);
+                (*stats)[i].total.fetch_add(1, std::memory_order_relaxed);
+                {
+                    std::lock_guard<std::mutex> lock((*stats)[i].latencies_mutex);
+                    (*stats)[i].latencies_us.push_back(latency_us);
+                }
                 if (!cntl.Failed()) {
-                    (*stats)[i].success += 1;
+                    rt_stats.success.fetch_add(1, std::memory_order_relaxed);
+                    (*stats)[i].success.fetch_add(1, std::memory_order_relaxed);
                 } else {
-                    (*stats)[i].failure += 1;
+                    rt_stats.failure.fetch_add(1, std::memory_order_relaxed);
+                    (*stats)[i].failure.fetch_add(1, std::memory_order_relaxed);
                 }
             }
         });
@@ -178,6 +287,10 @@ void RunEchoPhase(example::EchoService_Stub* stub,
 
     for (auto& worker : workers) {
         worker.join();
+    }
+
+    if (record_stats && monitor_thread.joinable()) {
+        monitor_thread.join();
     }
 }
 
