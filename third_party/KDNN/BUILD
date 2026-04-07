@@ -95,6 +95,7 @@ HDRS = glob([
     "src/kernels/matmul_jit/**/*.hpp",
     "src/kernels/reorder/**/*.hpp",
     "src/kernels/**/*.h",
+    "src/kernels/**/*.hpp",
     "src/sparse_gemm/kernel/*.c",
     "src/kernels/vml/**/*.h",
     "src/kernels/vml/**/*.hpp",
