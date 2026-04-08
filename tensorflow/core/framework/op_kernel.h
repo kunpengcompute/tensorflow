@@ -583,6 +583,9 @@ class OpKernelContext {
     // The step being executed.
     int64_t step_id = 0;
 
+    // The config of parallelism
+    bool enable_parallel = true;
+
     // Timestamp for the start of graph execution. Used for latency metrics.
     int64_t start_time_usecs = 0;
 
@@ -1140,7 +1143,11 @@ class OpKernelContext {
   // OpKernels can use these eigen devices to carry out their
   // numerical computation.
   const Eigen::ThreadPoolDevice& eigen_cpu_device() const {
-    return *device()->eigen_cpu_device();
+    if (params_->enable_parallel) {
+      return *device()->eigen_cpu_device();
+    } else {
+      return *device()->eigen_simple_device();
+    }
   }
   const Eigen::GpuDevice& eigen_gpu_device() const {
     return params_->eigen_gpu_device->device();

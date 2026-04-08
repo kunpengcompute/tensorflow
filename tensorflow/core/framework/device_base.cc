@@ -106,6 +106,10 @@ const Eigen::ThreadPoolDevice* DeviceBase::eigen_cpu_device() {
   return eigen_cpu_devices_[parallelism - 1];
 }
 
+const Eigen::ThreadPoolDevice* DeviceBase::eigen_simple_device() {
+  return eigen_cpu_devices_[0];
+}
+
 namespace {
 
 absl::flat_hash_set<std::string>* GetSymbolicDeviceList() {

@@ -94,6 +94,7 @@ class Executor {
   // execution. Used for system-wide latency metrics.
   struct Args {
     int64_t step_id = 0;
+    bool enable_parallel = true;
     // Used only by tracer/profiler, applicable only when running under
     // FunctionRuntimeLibrary, unique per invocation.
     std::optional<int64_t> function_trace_id;
