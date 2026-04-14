@@ -1,7 +1,7 @@
 # 鲲鹏TensorFlow介绍
 
 ## 最新消息
-
+- \[2026.03.30\]：新增TensorFlow KDNN线程直通特性, 支持batchmatmul、concat、softmax等算子对接KDNN。
 - \[2025.09.30\]：新增TensorFlow ANNC图编译优化特性，提供计算图优化，高性能融合算子生成与对接等优化技术。
 - \[2025.06.30\]：TensorFlow Serving线程调度优化特性首次发布。
 
@@ -9,13 +9,9 @@
 
 鲲鹏TensorFlow是基于开源TensorFlow的高性能推理加速扩展，聚焦于搜推广推理场景下的高效执行。通过在图优化、算子、Runtime等方面进行了深度的性能增强，显著提升了模型推理的吞吐量和时延表现，为AI应用提供基于鲲鹏CPU的极致性能。
 
-主要特性包括：
+**图 1**  项目架构<a name="fig1326111445508"></a>
 
-- ANNC图编译优化：采用鲲鹏硬件亲和的算子、TensorFlow图融合等技术，加速模型推理性能。
-- 线程调度优化：采用鲲鹏亲和的算子调度、线程池管理等技术，提供高并发场景下TensorFlow算子调度优化。
-
-**图 1**  项目架构<a name="fig1326111445508"></a>  
-![](./docs/figures/项目架构.png "项目架构")
+![](./docs/figures/项目架构.png)
 
 - Executor层：运行时优化。
 - Kernel层：自定义算子，基于KDNN提供鲲鹏高性能DNN算子。
@@ -38,6 +34,10 @@
 <tr id="row179181137112015">
 <td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710208">ANNC图编译优化</p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">ANNC是专注于加速神经网络计算的编译器，聚焦于通过计算图优化，高性能融合算子生成和对接技术，高效代码生成和优化能力，加速推荐的推理性能。</p></td>
+</tr>
+<tr id="row179181137112015">
+<td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710208">KDNN线程直通</p></td>
+<td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">KDNN线程直通支持将上层框架线程池透传到KDNN算子库，通过复用框架线程池优化KDNN算子的线程调度，最终达到了提升算子性能的目的。</p></td>
 </tr>
 </tbody>
 </table>

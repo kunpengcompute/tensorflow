@@ -488,3 +488,180 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
     cd /path/to/serving
     sh compile_serving.sh --tensorflow_dir /path/to/tensorflow --features gcc12,kdnn
     ```
+
+## TensorFlow KDNN线程直通
+
+### 已验证环境<a name="ZH-CN_TOPIC_0000002517302402"></a>
+
+**硬件要求<a name="section230mcpsimp"></a>**
+
+已验证的硬件环境如[项目](#p241mcpsimp)[表1](#_table38928044)所示。
+
+**表 1**  硬件要求
+
+<a name="_table38928044"></a>
+<table><thead align="left"><tr id="row239mcpsimp"><th class="cellrowborder" valign="top" width="25%" id="mcps1.2.3.1.1"><p id="p241mcpsimp"><a name="p241mcpsimp"></a><a name="p241mcpsimp"></a>项目</p>
+</th>
+<th class="cellrowborder" valign="top" width="75%" id="mcps1.2.3.1.2"><p id="p243mcpsimp"><a name="p243mcpsimp"></a><a name="p243mcpsimp"></a>说明</p>
+</th>
+</tr>
+</thead>
+<tbody><tr id="row245mcpsimp"><td class="cellrowborder" valign="top" width="25%" headers="mcps1.2.3.1.1 "><p id="p247mcpsimp"><a name="p247mcpsimp"></a><a name="p247mcpsimp"></a>CPU</p>
+</td>
+<td class="cellrowborder" valign="top" width="75%" headers="mcps1.2.3.1.2 "><p id="p249mcpsimp"><a name="p249mcpsimp"></a><a name="p249mcpsimp"></a>鲲鹏920 7285Z处理器（80核）</p>
+</td>
+</tr>
+</tbody>
+</table>
+
+**操作系统要求<a name="section250mcpsimp"></a>**
+
+已验证的操作系统如[表2](#_d0e164)所示。
+
+**表 2**  操作系统
+
+<a name="_d0e164"></a>
+<table><thead align="left"><tr id="row261mcpsimp"><th class="cellrowborder" valign="top" width="15%" id="mcps1.2.5.1.1"><p id="p263mcpsimp"><a name="p263mcpsimp"></a><a name="p263mcpsimp"></a>项目</p>
+</th>
+<th class="cellrowborder" valign="top" width="16%" id="mcps1.2.5.1.2"><p id="p265mcpsimp"><a name="p265mcpsimp"></a><a name="p265mcpsimp"></a>版本</p>
+</th>
+<th class="cellrowborder" valign="top" width="35%" id="mcps1.2.5.1.3"><p id="p267mcpsimp"><a name="p267mcpsimp"></a><a name="p267mcpsimp"></a>说明</p>
+</th>
+<th class="cellrowborder" valign="top" width="34%" id="mcps1.2.5.1.4"><p id="p269mcpsimp"><a name="p269mcpsimp"></a><a name="p269mcpsimp"></a>下载地址</p>
+</th>
+</tr>
+</thead>
+<tbody><tr id="row271mcpsimp"><td class="cellrowborder" valign="top" width="15%" headers="mcps1.2.5.1.1 "><p id="p273mcpsimp"><a name="p273mcpsimp"></a><a name="p273mcpsimp"></a>OS</p>
+</td>
+<td class="cellrowborder" valign="top" width="16%" headers="mcps1.2.5.1.2 "><p id="p275mcpsimp"><a name="p275mcpsimp"></a><a name="p275mcpsimp"></a>openEuler 24.03 LTS SP3</p>
+</td>
+<td class="cellrowborder" valign="top" width="35%" headers="mcps1.2.5.1.3 "><p id="p277mcpsimp"><a name="p277mcpsimp"></a><a name="p277mcpsimp"></a>如果是全新安装操作系统，可选择“Minimal Install”安装方式并勾选Development Tools套件，否则很多软件包需要手动安装。</p>
+</td>
+<td class="cellrowborder" valign="top" width="34%" headers="mcps1.2.5.1.4 "><p id="p279mcpsimp"><a name="p279mcpsimp"></a><a name="p279mcpsimp"></a><a href="https://repo.openeuler.org/openEuler-24.03-LTS-SP3/ISO/aarch64/" target="_blank" rel="noopener noreferrer">获取链接</a></p>
+</td>
+</tr>
+<tr id="row281mcpsimp"><td class="cellrowborder" valign="top" width="15%" headers="mcps1.2.5.1.1 "><p id="p283mcpsimp"><a name="p283mcpsimp"></a><a name="p283mcpsimp"></a>Kernel</p>
+</td>
+<td class="cellrowborder" valign="top" width="16%" headers="mcps1.2.5.1.2 "><p id="p285mcpsimp"><a name="p285mcpsimp"></a><a name="p285mcpsimp"></a>6.6.0</p>
+</td>
+<td class="cellrowborder" valign="top" width="35%" headers="mcps1.2.5.1.3 "><p id="p287mcpsimp"><a name="p287mcpsimp"></a><a name="p287mcpsimp"></a>-</p>
+</td>
+<td class="cellrowborder" valign="top" width="34%" headers="mcps1.2.5.1.4 "><p id="p289mcpsimp"><a name="p289mcpsimp"></a><a name="p289mcpsimp"></a>包含在操作系统镜像中。</p>
+</td>
+</tr>
+</tbody>
+</table>
+
+**软件要求<a name="section290mcpsimp"></a>**
+
+已验证的软件依赖环境如[表3](#_table237115053311)所示。
+
+**表 3**  软件要求
+
+<a name="_table237115053311"></a>
+<table><thead align="left"><tr id="row301mcpsimp"><th class="cellrowborder" valign="top" width="15%" id="mcps1.2.5.1.1"><p id="p303mcpsimp"><a name="p303mcpsimp"></a><a name="p303mcpsimp"></a>项目</p>
+</th>
+<th class="cellrowborder" valign="top" width="15.98%" id="mcps1.2.5.1.2"><p id="p305mcpsimp"><a name="p305mcpsimp"></a><a name="p305mcpsimp"></a>版本</p>
+</th>
+<th class="cellrowborder" valign="top" width="35.02%" id="mcps1.2.5.1.3"><p id="p307mcpsimp"><a name="p307mcpsimp"></a><a name="p307mcpsimp"></a>说明</p>
+</th>
+<th class="cellrowborder" valign="top" width="34%" id="mcps1.2.5.1.4"><p id="p309mcpsimp"><a name="p309mcpsimp"></a><a name="p309mcpsimp"></a>下载地址</p>
+</th>
+</tr>
+</thead>
+<tbody><tr id="row321mcpsimp"><td class="cellrowborder" valign="top" width="15%" headers="mcps1.2.5.1.1 "><p id="p323mcpsimp"><a name="p323mcpsimp"></a><a name="p323mcpsimp"></a>Python</p>
+</td>
+<td class="cellrowborder" valign="top" width="15.98%" headers="mcps1.2.5.1.2 "><p id="p325mcpsimp"><a name="p325mcpsimp"></a><a name="p325mcpsimp"></a>3.11.x</p>
+</td>
+<td class="cellrowborder" valign="top" width="35.02%" headers="mcps1.2.5.1.3 "><p id="p327mcpsimp"><a name="p327mcpsimp"></a><a name="p327mcpsimp"></a>Python是TF Serving的构建过程中的辅助工具，起到自动下载依赖、配置环境等作用。</p>
+</td>
+<td class="cellrowborder" valign="top" width="34%" headers="mcps1.2.5.1.4 "><p id="p329mcpsimp"><a name="p329mcpsimp"></a><a name="p329mcpsimp"></a>通过Yum源方式安装。</p>
+</td>
+</tr>
+<tr id="row330mcpsimp"><td class="cellrowborder" valign="top" width="15%" headers="mcps1.2.5.1.1 "><p id="p332mcpsimp"><a name="p332mcpsimp"></a><a name="p332mcpsimp"></a>CMake</p>
+</td>
+<td class="cellrowborder" valign="top" width="15.98%" headers="mcps1.2.5.1.2 "><p id="p1890631664615"><a name="p1890631664615"></a><a name="p1890631664615"></a>3.27.9</p>
+</td>
+<td class="cellrowborder" valign="top" width="35.02%" headers="mcps1.2.5.1.3 "><p id="p336mcpsimp"><a name="p336mcpsimp"></a><a name="p336mcpsimp"></a>CMake是TF Serving的构建工具，要求CMake版本为3.22.0及以上。</p>
+</td>
+<td class="cellrowborder" valign="top" width="34%" headers="mcps1.2.5.1.4 "><p id="p338mcpsimp"><a name="p338mcpsimp"></a><a name="p338mcpsimp"></a>通过Yum源方式安装。</p>
+</td>
+</tr>
+<tr id="row339mcpsimp"><td class="cellrowborder" valign="top" width="15%" headers="mcps1.2.5.1.1 "><p id="p341mcpsimp"><a name="p341mcpsimp"></a><a name="p341mcpsimp"></a>GCC/G++</p>
+</td>
+<td class="cellrowborder" valign="top" width="15.98%" headers="mcps1.2.5.1.2 "><p id="p343mcpsimp"><a name="p343mcpsimp"></a><a name="p343mcpsimp"></a>12.3.1</p>
+</td>
+<td class="cellrowborder" valign="top" width="35.02%" headers="mcps1.2.5.1.3 "><p id="p345mcpsimp"><a name="p345mcpsimp"></a><a name="p345mcpsimp"></a>GCC（GNU Compiler Collection）是一种编程语言编译器，用于将TF Serving编译为可执行文件。</p>
+</td>
+<td class="cellrowborder" valign="top" width="34%" headers="mcps1.2.5.1.4 "><p id="p347mcpsimp"><a name="p347mcpsimp"></a><a name="p347mcpsimp"></a>通过Yum源方式安装。</p>
+</td>
+</tr>
+<tr id="row348mcpsimp"><td class="cellrowborder" valign="top" width="15%" headers="mcps1.2.5.1.1 "><p id="p8254102818211"><a name="p8254102818211"></a><a name="p8254102818211"></a>Bazel</p>
+</td>
+<td class="cellrowborder" valign="top" width="15.98%" headers="mcps1.2.5.1.2 "><p id="p525314288218"><a name="p525314288218"></a><a name="p525314288218"></a>6.5.0</p>
+</td>
+<td class="cellrowborder" valign="top" width="35.02%" headers="mcps1.2.5.1.3 "><p id="p10253172810219"><a name="p10253172810219"></a><a name="p10253172810219"></a>Bazel是一个强大的构建系统，可实现快速、可扩展构建，要求Bazel版本为6.4.0以上。</p>
+</td>
+<td class="cellrowborder" valign="top" width="34%" headers="mcps1.2.5.1.4 "><p id="p823317281218"><a name="p823317281218"></a><a name="p823317281218"></a><a href="https://releases.bazel.build/6.5.0/release/bazel-6.5.0-dist.zip" target="_blank" rel="noopener noreferrer"><u id="u267219169913"><a name="u267219169913"></a><a name="u267219169913"></a>获取链接</u></a></p>
+</td>
+</tr>
+</tbody>
+</table>
+
+### 编译环境安装<a name="ZH-CN_TOPIC_0000002548902199"></a>
+
+**获取KDNN软件包<a name="section1273403710218"></a>**
+
+安装KAIL之前请先从官网地址获取软件包，再进行软件包校验，确保与网站上的原始软件包一致。
+
+1.  从鲲鹏社区获取对应的软件数字证书和软件安装包，用户解压zip文件后可获取RPM安装包。
+
+    **表 1**  KDNN软件包获取列表
+
+    <a name="table11869142203110"></a>
+    <table><thead align="left"><tr id="row10869112123117"><th class="cellrowborder" valign="top" width="28.96%" id="mcps1.2.4.1.1"><p id="p158691228313"><a name="p158691228313"></a><a name="p158691228313"></a>名称</p>
+    </th>
+    <th class="cellrowborder" valign="top" width="32.04%" id="mcps1.2.4.1.2"><p id="p686911218312"><a name="p686911218312"></a><a name="p686911218312"></a>包名</p>
+    </th>
+    <th class="cellrowborder" valign="top" width="39%" id="mcps1.2.4.1.3"><p id="p14869182193115"><a name="p14869182193115"></a><a name="p14869182193115"></a>获取地址</p>
+    </th>
+    </tr>
+    </thead>
+    <tbody><tr id="row10869182193113"><td class="cellrowborder" valign="top" width="28.96%" headers="mcps1.2.4.1.1 "><p id="p486942123119"><a name="p486942123119"></a><a name="p486942123119"></a>KDNN软件包（GCC版本）</p>
+    </td>
+    <td class="cellrowborder" valign="top" width="32.04%" headers="mcps1.2.4.1.2 "><p id="p186932193120"><a name="p186932193120"></a><a name="p186932193120"></a>BoostKit-boostcore-kdnn.3.1.0.zip<sup id="sup0869625313"><a name="sup0869625313"></a><a name="sup0869625313"></a>a</sup></p>
+    </td>
+    <td class="cellrowborder" valign="top" width="39%" headers="mcps1.2.4.1.3 "><p id="p15869827313"><a name="p15869827313"></a><a name="p15869827313"></a>获取链接请联系华为技术支持获取。</p>
+    </td>
+    </tr>
+    <tr id="row198691423315"><td class="cellrowborder" valign="top" width="28.96%" headers="mcps1.2.4.1.1 "><p id="p387010263112"><a name="p387010263112"></a><a name="p387010263112"></a>KDNN软件包（毕昇编译器版本）</p>
+    </td>
+    <td class="cellrowborder" valign="top" width="32.04%" headers="mcps1.2.4.1.2 "><p id="p12870142103113"><a name="p12870142103113"></a><a name="p12870142103113"></a>BoostKit-boostcore-kdnn.3.1.0_bisheng.zip<sup id="sup38701211313"><a name="sup38701211313"></a><a name="sup38701211313"></a>a</sup></p>
+    </td>
+    <td class="cellrowborder" valign="top" width="39%" headers="mcps1.2.4.1.3 "><p id="p188701427313"><a name="p188701427313"></a><a name="p188701427313"></a>获取链接请联系华为技术支持获取。</p>
+    </td>
+    </tr>
+    <tr id="row18870620311"><td class="cellrowborder" colspan="3" valign="top" headers="mcps1.2.4.1.1 mcps1.2.4.1.2 mcps1.2.4.1.3 "><p id="p587082113117"><a name="p587082113117"></a><a name="p587082113117"></a>a：<span id="ph118701123315"><a name="ph118701123315"></a><a name="ph118701123315"></a>使用软件包前请先阅读<span id="ph118701229315"><a name="ph118701229315"></a><a name="ph118701229315"></a>《<a href="https://www.hikunpeng.com/zh/legal/developer/boostkit/software/protocol" target="_blank" rel="noopener noreferrer">鲲鹏应用使能套件BoostKit用户许可协议 2.0</a>》</span>，如确认继续使用，则默认同意协议的条款和条件。</span></p>
+    </td>
+    </tr>
+    </tbody>
+    </table>
+
+2.  <a name="li687012113112"></a>从[华为企业业务网站](https://support.huawei.com/enterprise/zh/tool/pgp-verify-TL1000000054)获取校验工具和校验方法。
+3.  参见[2](#li687012113112)中下载的《OpenPGP签名验证指南》进行软件包完整性检查。
+4.  将获取到的KDNN软件包，解压后得到二进制RPM包。
+5.  安装KDNN的RPM包。
+
+    ```
+    rpm -ivh boostcore-kdnn-xxxx.aarch64.rpm
+    ```
+
+    安装结束后，头文件和静态库、动态库文件目录分别为“/usr/local/kdnn/include”和“/usr/local/kdnn/lib/threadpool”、“/usr/local/kdnn/lib/omp”。
+
+    上述命令中涉及的_xxxx_代表版本号。
+
+### 编译安装<a name="ZH-CN_TOPIC_0000002517462328"></a>
+
+**适配TensorFlow<a name="section163685710283"></a>**
+
+参考[《鲲鹏AI算子库》](https://www.hikunpeng.com/document/detail/zh/SRA/accelFeatures/kail/kunpengaccel_kail_16_0082.html)文档“适配TensorFlow”章节，其中patch补丁需要替换为0001-tensorflow\_2.15.0-optimize.patch。

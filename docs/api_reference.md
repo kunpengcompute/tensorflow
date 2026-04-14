@@ -290,3 +290,43 @@ XLA图融合接口如[**表 2** XLA图融合接口](#XLA图融合接口)所示�
 >```
 >
 >**numactl -C 0-79 -m 0**是限定TF Serving服务运行在NUMA 0对应的核上，以该方式启动可以充分利用CPU资源，-C指定NUMA 0对应的核，-m指的是使用NUMA 0对应的内存。
+
+
+## TensorFlow KDNN线程直通特性使用说明
+
+
+**TensorFlow KDNN线程直通<a name="section1912343520617"></a>**
+
+TensorFlow KDNN线程直通特性开关通过KDNN特性开关控制，具体说明如[表1 KDNN特性开关](#table473618378218)所示
+
+**表 1**  KDNN特性开关
+
+<a name="table473618378218"></a>
+<table><tbody><tr id="row273612371926"><th class="firstcol" valign="top" width="17.11%" id="mcps1.2.3.1.1"><p id="p37361437223"><a name="p37361437223"></a><a name="p37361437223"></a>KDNN特性开关</p>
+</th>
+<td class="cellrowborder" valign="top" width="82.89%" headers="mcps1.2.3.1.1 "><p id="p147351257418"><a name="p147351257418"></a><a name="p147351257418"></a>TF_ENABLE_KDNN_OPTS</p>
+</td>
+</tr>
+<tr id="row2736637329"><th class="firstcol" valign="top" width="17.11%" id="mcps1.2.3.2.1"><p id="p17544180133510"><a name="p17544180133510"></a><a name="p17544180133510"></a>类型</p>
+</th>
+<td class="cellrowborder" valign="top" width="82.89%" headers="mcps1.2.3.2.1 "><p id="p135441705354"><a name="p135441705354"></a><a name="p135441705354"></a>进程环境变量</p>
+</td>
+</tr>
+<tr id="row1373713374215"><th class="firstcol" valign="top" width="17.11%" id="mcps1.2.3.3.1"><p id="p173719376217"><a name="p173719376217"></a><a name="p173719376217"></a>功能</p>
+</th>
+<td class="cellrowborder" valign="top" width="82.89%" headers="mcps1.2.3.3.1 "><p id="p15737237026"><a name="p15737237026"></a><a name="p15737237026"></a>控制开启KDNN优化特性</p>
+</td>
+</tr>
+<tr id="row17371371026"><th class="firstcol" valign="top" width="17.11%" id="mcps1.2.3.4.1"><p id="p187371371426"><a name="p187371371426"></a><a name="p187371371426"></a>变量取值</p>
+</th>
+<td class="cellrowborder" valign="top" width="82.89%" headers="mcps1.2.3.4.1 "><p id="p139187124325"><a name="p139187124325"></a><a name="p139187124325"></a>0：KDNN关闭</p>
+<p id="p18324912320"><a name="p18324912320"></a><a name="p18324912320"></a>1：KDNN开启</p>
+</td>
+</tr>
+<tr id="row17372371123"><th class="firstcol" valign="top" width="17.11%" id="mcps1.2.3.5.1"><p id="p14737103710220"><a name="p14737103710220"></a><a name="p14737103710220"></a>使用示例</p>
+</th>
+<td class="cellrowborder" valign="top" width="82.89%" headers="mcps1.2.3.5.1 "><p id="p1926119477390"><a name="p1926119477390"></a><a name="p1926119477390"></a>首次调用KDNN算子前设置进程环境变量TF_ENABLE_KDNN_OPTS，例如python内可以通过命令<strong id="b166491125328"><a name="b166491125328"></a><a name="b166491125328"></a>os.environ['TF_ENABLE_KDNN_OPTS'] = str(1)</strong>设置进程环境变量。</p>
+</td>
+</tr>
+</tbody>
+</table>
