@@ -218,3 +218,121 @@ TF Serving用于推理的线程大致分为两类：通信线程和计算线程�
 - 支持线程亲和性隔离，通过--task\_affinity\_isolation配置，可以将通信线程和计算线程绑定在不同的CPU核心上。
 
 功能配置的详细说明请见<a href="./quick_start.md">快速入门</a>
+
+# TensorFlow KDNN线程直通<a name="ZH-CN_TOPIC_0000002517462322"></a>
+
+
+
+### 简介<a name="ZH-CN_TOPIC_0000002517302400"></a>
+
+本章节介绍了TensorFlow KDNN线程池直通优化特性的基本概念和实现原理，并详细指导用户基于鲲鹏920新型号处理器在openEuler 24.03 LTS SP3操作系统中安装并使用TensorFlow KDNN线程池直通优化特性。
+
+为提升TensorFlow推理性能，鲲鹏BoostKit提出了TensorFlow KDNN线程池直通优化方案。KDNN提供了推理核心算子基于鲲鹏CPU硬件的高性能实现，在原有的kernels实现层使用dispatch组件将支持KDNN的算子分发到KDNN后端。KDNN线程池直通是通过KDNN将计算任务提交到框架线程池统一调度方式，复用框架线程池，减少线程创建销毁的时间损耗。
+
+优化特性通过编译选项和代码补丁的方式接入TensorFlow，基于TensorFlow 2.15版本增加KDNN特性开关：
+
+**KDNN线程直通**：开启KDNN优化特性条件下，如果算子输入输出满足约束会调用KDNN库，KDNN将计算任务提交到框架线程池统一调度，复用框架线程池。
+
+### 软件架构<a name="ZH-CN_TOPIC_0000002548902197"></a>
+
+KDNN对接TensorFlow软件架构图如[图1](#fig4919356464)所示。
+
+**图 1**  KDNN对接TensorFlow软件架构图<a name="fig4919356464"></a>  
+![](figures/KDNN对接TensorFlow软件架构图.png "KDNN对接TensorFlow软件架构图")
+
+### 规格<a name="ZH-CN_TOPIC_0000002517309530"></a>
+
+本节介绍当前已经支持KDNN线程直通特性的算子及使用规格
+
+已经支持KDNN线程直通特性的算子约束如[表1](#table8731173784819)所示。
+
+**表 1**  KDNN线程直通特性支持范围
+
+<a name="table8731173784819"></a>
+<table><thead align="left"><tr id="row573183720488"><th class="cellrowborder" colspan="2" valign="top" id="mcps1.2.9.1.1"><p id="p06021725181316"><a name="p06021725181316"></a><a name="p06021725181316"></a>算子名称</p>
+</th>
+<th class="cellrowborder" colspan="4" valign="top" id="mcps1.2.9.1.2"><p id="p106022025191315"><a name="p106022025191315"></a><a name="p106022025191315"></a>数据类型约束</p>
+</th>
+<th class="cellrowborder" valign="top" id="mcps1.2.9.1.3"><p id="p16011255131"><a name="p16011255131"></a><a name="p16011255131"></a>维度约束</p>
+</th>
+<th class="cellrowborder" valign="top" id="mcps1.2.9.1.4"><p id="p55991325131312"><a name="p55991325131312"></a><a name="p55991325131312"></a>其他约束</p>
+</th>
+</tr>
+</thead>
+<tbody><tr id="row273812420184"><td class="cellrowborder" colspan="2" valign="top" headers="mcps1.2.9.1.1 "><p id="p1902143641316"><a name="p1902143641316"></a><a name="p1902143641316"></a>ConcatV2</p>
+</td>
+<td class="cellrowborder" colspan="4" valign="top" headers="mcps1.2.9.1.2 "><p id="p89021636161316"><a name="p89021636161316"></a><a name="p89021636161316"></a>fp32、fp16、bf16、int32、int8、uint8</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.3 "><p id="p109011236121313"><a name="p109011236121313"></a><a name="p109011236121313"></a>无</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.4 "><p id="p76311158114918"><a name="p76311158114918"></a><a name="p76311158114918"></a>无</p>
+</td>
+</tr>
+<tr id="row19133202192018"><td class="cellrowborder" colspan="2" valign="top" headers="mcps1.2.9.1.1 "><p id="p1033714554132"><a name="p1033714554132"></a><a name="p1033714554132"></a>BatchMatMul</p>
+</td>
+<td class="cellrowborder" colspan="4" valign="top" headers="mcps1.2.9.1.2 "><p id="p15337165511132"><a name="p15337165511132"></a><a name="p15337165511132"></a>fp32</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.3 "><p id="p1833785511316"><a name="p1833785511316"></a><a name="p1833785511316"></a><span>2D-5D</span></p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.4 "><p id="p26461358164910"><a name="p26461358164910"></a><a name="p26461358164910"></a>无</p>
+</td>
+</tr>
+<tr id="row171941117162015"><td class="cellrowborder" colspan="2" valign="top" headers="mcps1.2.9.1.1 "><p id="p5431181116145"><a name="p5431181116145"></a><a name="p5431181116145"></a>Einsum</p>
+</td>
+<td class="cellrowborder" colspan="4" valign="top" headers="mcps1.2.9.1.2 "><p id="p1943016119149"><a name="p1943016119149"></a><a name="p1943016119149"></a>fp32</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.3 "><p id="p1043051115143"><a name="p1043051115143"></a><a name="p1043051115143"></a>无</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.4 "><p id="p3659558154917"><a name="p3659558154917"></a><a name="p3659558154917"></a>无</p>
+</td>
+</tr>
+<tr id="row4303415132016"><td class="cellrowborder" colspan="2" valign="top" headers="mcps1.2.9.1.1 "><p id="p5429101117142"><a name="p5429101117142"></a><a name="p5429101117142"></a>Sigmoid</p>
+</td>
+<td class="cellrowborder" colspan="4" valign="top" headers="mcps1.2.9.1.2 "><p id="p84291211151415"><a name="p84291211151415"></a><a name="p84291211151415"></a>fp32</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.3 "><p id="p1342841171412"><a name="p1342841171412"></a><a name="p1342841171412"></a>非空的任意维度</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.4 "><p id="p1260874031514"><a name="p1260874031514"></a><a name="p1260874031514"></a>无</p>
+</td>
+</tr>
+<tr id="row1235520136201"><td class="cellrowborder" colspan="2" valign="top" headers="mcps1.2.9.1.1 "><p id="p4427171131419"><a name="p4427171131419"></a><a name="p4427171131419"></a>FloorMod</p>
+</td>
+<td class="cellrowborder" colspan="4" valign="top" headers="mcps1.2.9.1.2 "><p id="p1042761151418"><a name="p1042761151418"></a><a name="p1042761151418"></a>int64、fp32</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.3 "><p id="p154271711181411"><a name="p154271711181411"></a><a name="p154271711181411"></a>非空的任意维度</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.4 "><p id="p74261611151414"><a name="p74261611151414"></a><a name="p74261611151414"></a>无</p>
+</td>
+</tr>
+<tr id="row204255116209"><td class="cellrowborder" colspan="2" valign="top" headers="mcps1.2.9.1.1 "><p id="p16426141116147"><a name="p16426141116147"></a><a name="p16426141116147"></a>Softmax</p>
+</td>
+<td class="cellrowborder" colspan="4" valign="top" headers="mcps1.2.9.1.2 "><p id="p14425141171412"><a name="p14425141171412"></a><a name="p14425141171412"></a>fp32</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.3 "><p id="p9425101111146"><a name="p9425101111146"></a><a name="p9425101111146"></a>2D</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.4 "><p id="p144231611121419"><a name="p144231611121419"></a><a name="p144231611121419"></a>仅支持沿第二维度(行)执行softmax运算</p>
+</td>
+</tr>
+</tbody>
+</table>
+
+>![](public_sys-resources/icon-note.gif) **说明：** 
+>开启KDNN优化特性条件下，如果算子输入输出满足约束会调用KDNN，否则使用tensorflow原生接口。
+
+### 应用场景<a name="ZH-CN_TOPIC_0000002517462324"></a>
+
+TensorFlow KDNN线程直通优化特性主要在高并发推理场景中使用，表现在吞吐量的提升和推理时延大幅下降。
+
+### 原理描述<a name="ZH-CN_TOPIC_0000002549022203"></a>
+
+本节针对KDNN Threadpool线程直通的优化特性进行描述，以帮助用户更好地使用。
+
+**图 1**  OMP并行<a name="fig19954351104320"></a>  
+![](figures/OMP并行.png "OMP并行")
+
+OMP版本的KDNN中，每个算子将创建N个OMP线程计算，M个Kernel并发则会创建M*N个OMP线程。
+
+**图 2**  Threadpool线程直通<a name="fig1203165984517"></a>  
+![](figures/Threadpool线程直通.png "Threadpool线程直通")
+
+使能线程直通后，会复用框架线程池，KDNN将计算任务提交到框架线程池统一调度，降低了线程创建的损耗同时避免了线程数爆炸的问题。
