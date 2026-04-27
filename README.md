@@ -45,19 +45,26 @@
 
 关于鲲鹏TensorFlow的特性详细介绍请参见《[特性介绍](./docs/zh/feature_introduction.md)》。
 
-## 版本说明
-
-关于鲲鹏TensorFlow的版本更新情况请参见《[版本说明书](./docs/zh/release_notes.md)》。
-
 ## 目录结构
 
  ```bash
 tensorflow
-├── 0001-tensorflow_2.15.0-optimize.patch     // TensorFlow补丁文件
-├── LICENSE                                   // License文件
-├── README.md                                 // 开源仓介绍
-└── docs                                      // 文档
- ```
+├── 0001-tensorflow_2.15.0-optimize.patch     # TensorFlow补丁文件
+├── LICENSE                                   # License文件
+├── README.md                                 # 项目介绍文件
+└── docs                                      # 文档
+│   └── zh                                    # 中文文档目录
+│       ├── figures                           # 图片资源目录
+│       ├── api_reference.md                  # API参考
+│       ├── quick_start.md                    # 快速入门
+│       ├── release_notes.md                  # 版本说明书
+│       ├── installation_guide.md             # 安装指导
+│       ├── feature_introduction.md           # 特性介绍  
+```
+
+## 版本说明
+
+关于鲲鹏TensorFlow的版本更新情况请参见《[版本说明书](./docs/zh/release_notes.md)》。
 
 ## 学习文档
 
