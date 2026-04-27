@@ -18,7 +18,6 @@ ANNC优化特性通过编译选项和代码补丁的方式接入TensorFlow推理
 >OpenXLA是一个由高性能、可移植、可扩展的机器学习基础架构组件组成的开放生态系统。
 >XLA是一种开源机器学习编译器。XLA编译器从TensorFlow框架获取模型，并优化模型以便在不同硬件平台（包括GPU、CPU和机器学习加速器）上实现高性能执行。
 
-
 ### 软件架构
 
 TF Serving软件架构如[**图 1** TF Serving软件架构](#TF-Serving软件架构)所示，组件功能如[**表 1** TF Serving软件组件功能介绍](#TF-Serving软件组件功能介绍)所示。
@@ -107,7 +106,7 @@ XLA自身提供了多种与硬件无关的图融合优化策略，但是优化�
 
 本功能包含各阶段的算子优化，包括将MatMul（Matrix Multiplication）算子下发至XLA，调用OpenBLAS（Open Basic Linear Algebra Subprograms）所提供的GEMM（General Matrix Multiplication）运算接口，包括将Softmax函数替换为更高效的实现；同时本功能通过识别特定的操作模式，减少其中的冗余操作，进一步提升模型的推理性能，例如：针对多个切片后进行拼接的模式，删除其中冗余的切片操作。
 
-功能配置的详细说明请见<a href="./quick_start.md">快速入门</a>
+功能配置的详细说明请参见《<a href="./quick_start.md">快速入门</a>》。
 
 ## TensorFlow Serving 线程调度优化特性
 
@@ -121,6 +120,7 @@ TensorFlow Serving线程调度优化特性以Patch的方式实现，并合入了
 
 - 算子批量调度（--batch\_op\_scheduling）：使能算子调度优化和XLA线程池管理优化特性。如果单核推理时延可满足业务要求，可配置该选项提升推理并发能力和吞吐量。
 - 线程亲和性隔离（--task\_affinity\_isolation）提供以下两种隔离方式。使用TensorFlow调度方式运行时，推荐设置为顺序绑核；与--batch\_op\_scheduling选项同时使能，并开启超线程时，推荐设置为交叉绑核。
+
     - 顺序绑核，TensorFlow计算线程绑定到前K个核，TF Serving通信线程绑定到其余核。
     - 交叉绑核，适用于开启超线程的场景，将TensorFlow线程绑定到物理核，TF Serving通信线程绑定到虚拟核。
 
@@ -169,7 +169,7 @@ TensorFlow Serving线程调度优化特性对不同推理场景提供了灵活�
 - 对于高并发粗排模型推理场景优化效果明显，表现在吞吐量的提升和推理时延大幅下降。
 - 对于并发不高且时延敏感的场景，合理配置线程管理参数也能达到优化效果。
 
-### 原理描述<a name="ZH-CN_TOPIC_0000002518448414"></a>
+### 原理描述
 
 首先介绍TF Serving推理时使用的线程池，以更好理解本特性的工作原理，从而根据实际场景决定特性的开关和设置。
 
@@ -217,13 +217,11 @@ TF Serving用于推理的线程大致分为两类：通信线程和计算线程�
 - 优化XLA线程池管理，与算子批量调度功能同步使能，将XLA算子调度到当前线程，减少线程上下文切换开销。
 - 支持线程亲和性隔离，通过--task\_affinity\_isolation配置，可以将通信线程和计算线程绑定在不同的CPU核心上。
 
-功能配置的详细说明请见<a href="./quick_start.md">快速入门</a>
+功能配置的详细说明请参见《<a href="./quick_start.md">快速入门</a>》。
 
-# TensorFlow KDNN线程直通<a name="ZH-CN_TOPIC_0000002517462322"></a>
+## TensorFlow KDNN线程直通
 
-
-
-### 简介<a name="ZH-CN_TOPIC_0000002517302400"></a>
+### 简介
 
 本章节介绍了TensorFlow KDNN线程池直通优化特性的基本概念和实现原理，并详细指导用户基于鲲鹏920新型号处理器在openEuler 24.03 LTS SP3操作系统中安装并使用TensorFlow KDNN线程池直通优化特性。
 
@@ -233,7 +231,7 @@ TF Serving用于推理的线程大致分为两类：通信线程和计算线程�
 
 **KDNN线程直通**：开启KDNN优化特性条件下，如果算子输入输出满足约束会调用KDNN库，KDNN将计算任务提交到框架线程池统一调度，复用框架线程池。
 
-### 软件架构<a name="ZH-CN_TOPIC_0000002548902197"></a>
+### 软件架构
 
 KDNN对接TensorFlow软件架构图如[图1](#fig4919356464)所示。
 
@@ -244,7 +242,7 @@ KDNN对接TensorFlow软件架构图如[图1](#fig4919356464)所示。
 
 本节介绍当前已经支持KDNN线程直通特性的算子及使用规格
 
-已经支持KDNN线程直通特性的算子约束如[表1](#table8731173784819)所示。
+已经支持KDNN线程直通特性的算子约束如[表1 KDNN线程直通特性支持范围](#table8731173784819)所示。
 
 **表 1**  KDNN线程直通特性支持范围
 

@@ -1,6 +1,7 @@
 # 鲲鹏TensorFlow介绍
 
 ## 最新消息
+
 - \[2026.03.30\]：新增TensorFlow KDNN线程直通特性, 支持batchmatmul、concat、softmax等算子对接KDNN。
 - \[2025.09.30\]：新增TensorFlow ANNC图编译优化特性，提供计算图优化，高性能融合算子生成与对接等优化技术。
 - \[2025.06.30\]：TensorFlow Serving线程调度优化特性首次发布。
@@ -11,7 +12,7 @@
 
 **图 1**  项目架构<a name="fig1326111445508"></a>
 
-![](./docs/figures/项目架构.png)
+![](./docs/zh/figures/项目架构.png)
 
 - Executor层：运行时优化。
 - Kernel层：自定义算子，基于KDNN提供鲲鹏高性能DNN算子。
@@ -42,11 +43,11 @@
 </tbody>
 </table>
 
-关于鲲鹏TensorFlow的特性详细介绍请参见[《鲲鹏TensorFlow 特性介绍》](./docs/feature_introduction.md)。
+关于鲲鹏TensorFlow的特性详细介绍请参见《[特性介绍](./docs/zh/feature_introduction.md)》。
 
 ## 版本说明
 
-关于鲲鹏TensorFlow的版本更新情况请参见[《鲲鹏TensorFlow 版本说明书》](./docs/release_notes.md)。
+关于鲲鹏TensorFlow的版本更新情况请参见《[版本说明书](./docs/zh/release_notes.md)》。
 
 ## 目录结构
 
@@ -71,27 +72,27 @@ tensorflow
 <tbody>
 <tr id="row179181137112015">
 <td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710208">文档</p></td>
-<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p2091893722011"><a href="./docs/release_notes.md">版本说明书</a></p></td>
+<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p2091893722011"><a href="./docs/zh/release_notes.md">版本说明书</a></p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">提供鲲鹏TensorFlow每个发布版本的基础信息和特性更新信息。</p></td>
 </tr>
 <tr id="row179181137112015">
 <td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710208">文档</p></td>
-<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p2091893722011"><a href="./docs/feature_introduction.md">特性介绍</a></p></td>
+<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p2091893722011"><a href="./docs/zh/feature_introduction.md">特性介绍</a></p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">提供鲲鹏TensorFlow特性介绍。</p></td>
 </tr>
 <tr id="row939116371143">
 <td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1039163711413">文档</p></td>
-<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p03913372046"><a href="./docs/quick_start.md">快速入门</a></p></td>
+<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p03913372046"><a href="./docs/zh/quick_start.md">快速入门</a></p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p1139217371746">提供鲲鹏TensorFlow快速入门指导。</p></td>
 </tr>
 <tr id="row2918153732017">
 <td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p598512211214">文档</p></td>
-<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p17918337172020"><a href="./docs/installation_guide.md">安装指南</a></p></td>
+<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p17918337172020"><a href="./docs/zh/installation_guide.md">安装指南</a></p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p15918183742018">提供鲲鹏TensorFlow编译安装方法指导。</p></td>
 </tr>
 <tr id="row2918153732017">
 <td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p598512211214">文档</p></td>
-<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p17918337172020"><a href="./docs/installation_guide.md">API参考</a></p></td>
+<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p17918337172020"><a href="./docs/zh/installation_guide.md">API参考</a></p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p15918183742018">提供鲲鹏TensorFlow API使用参考。</p></td>
 </tr>
 </tbody>
@@ -112,7 +113,7 @@ tensorflow
 欢迎大家为社区做贡献，如果使用过程中有任何问题/建议，或者需要反馈特性需求和bug报告，可以提交[Issues](https://gitcode.com/boostkit/community/blob/master/docs/contributor/issue-submit.md)联系我们，具体贡献方法可参考[这里](https://gitcode.com/boostkit/community/blob/master/docs/contributor/contributing.md)。同时也欢迎大家在[讨论专区](https://gitcode.com/boostkit/community/discussions)展开讨论交流。感谢您的支持。
 
 ## 致谢
- 
+
 鲲鹏TensorFlow由华为公司的下列部门联合贡献：
 
 - 鲲鹏计算Boostkit开发部

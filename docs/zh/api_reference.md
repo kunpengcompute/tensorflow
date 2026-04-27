@@ -4,7 +4,7 @@
 
 TensorFlow ANNC图编译优化特性提供了TensorFlow图融合、XLA图融合、算子优化三种优化特性，本章节提供各特性的使能步骤。
 
-**TensorFlow图融合<a name="section788964518814"></a>**
+### TensorFlow图融合
 
 TensorFlow图融合接口使用如[**表 1** TensorFlow图融合接口](#TensorFlow图融合接口)所示。
 
@@ -35,7 +35,7 @@ cp -r /base_model/wide_and_deep/1/variables /optimized_model/wide_and_deep/1/</p
 </tbody>
 </table>
 
-**XLA图融合<a name="section14991842122818"></a>**
+### XLA图融合
 
 XLA图融合接口如[**表 2** XLA图融合接口](#XLA图融合接口)所示。
 
@@ -65,7 +65,7 @@ XLA图融合接口如[**表 2** XLA图融合接口](#XLA图融合接口)所示�
 </tbody>
 </table>
 
-**算子优化<a name="section56815743116"></a>**
+### 算子优化
 
 算子优化接口如[**表 3** 冗余算子优化接口](#冗余算子优化接口)，[**表 4** 矩阵算子优化接口](#矩阵算子优化接口)，[**表 5** Softmax算子优化接口](#Softmax算子优化接口)所示。
 
@@ -149,7 +149,8 @@ XLA图融合接口如[**表 2** XLA图融合接口](#XLA图融合接口)所示�
 
 ## TensorFlow Serving线程调度特性使用说明
 
-**算子批量调度<a name="section788964518814"></a>**
+### 算子批量调度
+
 鲲鹏TensorFlow Serving线程调度优化通过命令行提供了算子批量调度和线程亲和性隔离两个特性开关，用户可根据实际场景自行配置。
 
 使用TF Serving启动推理压测指导请参见《TensorFlow Serving推理部署框架 移植指南》的“[启动服务并压测](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlowServing/kunpengtfserving_02_0012.html)”章节。
@@ -193,7 +194,7 @@ XLA图融合接口如[**表 2** XLA图融合接口](#XLA图融合接口)所示�
 </tbody>
 </table>
 
-**线程亲和性隔离<a name="section106451202096"></a>**
+### 线程亲和性隔离
 
 <a name="table103198278154"></a>
 <table><tbody><tr id="row231920279158"><th class="firstcol" valign="top" width="26.89%" id="mcps1.1.3.1.1"><p id="p631912272155"><a name="p631912272155"></a><a name="p631912272155"></a>TF Serving命令行接口</p>
@@ -291,11 +292,7 @@ XLA图融合接口如[**表 2** XLA图融合接口](#XLA图融合接口)所示�
 >
 >**numactl -C 0-79 -m 0**是限定TF Serving服务运行在NUMA 0对应的核上，以该方式启动可以充分利用CPU资源，-C指定NUMA 0对应的核，-m指的是使用NUMA 0对应的内存。
 
-
 ## TensorFlow KDNN线程直通特性使用说明
-
-
-**TensorFlow KDNN线程直通<a name="section1912343520617"></a>**
 
 TensorFlow KDNN线程直通特性开关通过KDNN特性开关控制，具体说明如[表1 KDNN特性开关](#table473618378218)所示
 

@@ -29,9 +29,9 @@
 
 **操作系统要求<a name="section250mcpsimp"></a>**
 
-已验证的操作系统如[**表 2** 操作系统](#操作系统)所示。
+已验证的操作系统如[**表 2** 操作系统要求](#操作系统)所示。
 
-**表 2** 操作系统<a id="操作系统"></a>
+**表 2** 操作系统要求<a id="操作系统"></a>
 
 <a name="_d0e164"></a>
 <table><thead align="left"><tr id="row261mcpsimp"><th class="cellrowborder" valign="top" width="10.24%" id="mcps1.2.5.1.1"><p id="p263mcpsimp"><a name="p263mcpsimp"></a><a name="p263mcpsimp"></a>项目</p>
@@ -200,7 +200,7 @@ TensorFlow ANNC图编译优化特性后端已合入TensorFlow和TF Serving开源
     **图 1** 使能补丁成功示意图<a name="fig5303357205213"></a><a id="使能补丁成功示意图"></a>
     ![](figures/补丁成功示意图.png "使能补丁成功示意图")
 
-4. 进入“tensorflow-serving“目录。
+4. 进入“tensorflow-serving”目录。
 
     ```bash
     cd /path/to/tensorflow-serving/
@@ -249,10 +249,6 @@ TensorFlow ANNC图编译优化特性后端已合入TensorFlow和TF Serving开源
     - --distdir：TF Serving编译依赖存放目录，用来解决第三方依赖包下载失败问题。
     - --override\_repository：指定使用本地TensorFlow构建，使用tensorflow\_dir指定目录作为本地TensorFlow。
 
-### 构建问题
-
-构建常见报错及解决指导请参考[《常见问题》](./faq.md)。
-
 ## TensorFlow Serving线程调度优化
 
 ### 已验证环境
@@ -280,9 +276,9 @@ TensorFlow ANNC图编译优化特性后端已合入TensorFlow和TF Serving开源
 
 **操作系统要求<a name="section250mcpsimp"></a>**
 
-已验证的操作系统如[**表 2** 操作系统](#操作系统_1)所示。
+已验证的操作系统如[**表 2** 操作系统要求](#操作系统_1)所示。
 
-**表 2** 操作系统<a id="操作系统_1"></a>
+**表 2** 操作系统要求<a id="操作系统_1"></a>
 
 <a name="_d0e164"></a>
 <table><thead align="left"><tr id="row261mcpsimp"><th class="cellrowborder" valign="top" width="15%" id="mcps1.2.5.1.1"><p id="p263mcpsimp"><a name="p263mcpsimp"></a><a name="p263mcpsimp"></a>项目</p>
@@ -374,7 +370,7 @@ TensorFlow ANNC图编译优化特性后端已合入TensorFlow和TF Serving开源
 
 ### 准备环境
 
-请参见《[TensorFlow Serving推理部署框架 移植指南](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlowServing/kunpengtfserving_02_0005.html)》中的“配置编译环境”章节，准备TF Serving编译环境。
+请参见《TensorFlow Serving推理部署框架 移植指南》中的“[配置编译环境](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlowServing/kunpengtfserving_02_0005.html)”章节，准备TF Serving编译环境。
 
 ### 编译安装
 
@@ -449,10 +445,6 @@ TensorFlow Serving线程调度优化特性相关Patch已合入TensorFlow和TF Se
     - distdir：TF Serving编译依赖存放目录，用来解决第三方依赖包下载失败问题。
     - override\_repository：指定使用本地TensorFlow构建，将自动识别“/path/to/sra\_tensorflow\_adapter/tensorflow”目录作为构建依赖。
 
-### 构建问题
-
-构建常见报错及解决指导请参考[《常见问题》](./faq.md)。
-
 ## TensorFlow集成KDNN
 
 KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的基于鲲鹏平台优化的高性能AI算子库，其中MatMul、FusedMatMul、SparseMatMul算子已经适配TensorFlow。集成KDNN可以降低NN类算子的时延，大幅增强模型推理性能。
@@ -491,13 +483,13 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 
 ## TensorFlow KDNN线程直通
 
-### 已验证环境<a name="ZH-CN_TOPIC_0000002517302402"></a>
+### 已验证环境
 
 **硬件要求<a name="section230mcpsimp"></a>**
 
-已验证的硬件环境如[项目](#p241mcpsimp)[表1](#_table38928044)所示。
+已验证的硬件环境如[表1 硬件要求](#硬件要求_2)所示。
 
-**表 1**  硬件要求
+**表 1** 硬件要求<a id="硬件要求_2"></a>
 
 <a name="_table38928044"></a>
 <table><thead align="left"><tr id="row239mcpsimp"><th class="cellrowborder" valign="top" width="25%" id="mcps1.2.3.1.1"><p id="p241mcpsimp"><a name="p241mcpsimp"></a><a name="p241mcpsimp"></a>项目</p>
@@ -516,9 +508,9 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 
 **操作系统要求<a name="section250mcpsimp"></a>**
 
-已验证的操作系统如[表2](#_d0e164)所示。
+已验证的操作系统如[表2 操作系统要求](#操作系统要求_2)所示。
 
-**表 2**  操作系统
+**表 2** 操作系统要求<a id="操作系统要求_2"></a>
 
 <a name="_d0e164"></a>
 <table><thead align="left"><tr id="row261mcpsimp"><th class="cellrowborder" valign="top" width="15%" id="mcps1.2.5.1.1"><p id="p263mcpsimp"><a name="p263mcpsimp"></a><a name="p263mcpsimp"></a>项目</p>
@@ -554,9 +546,9 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 
 **软件要求<a name="section290mcpsimp"></a>**
 
-已验证的软件依赖环境如[表3](#_table237115053311)所示。
+已验证的软件依赖环境如[表3 软件要求](#软件要求_2)所示。
 
-**表 3**  软件要求
+**表 3** 软件要求<a id="软件要求_2"></a>
 
 <a name="_table237115053311"></a>
 <table><thead align="left"><tr id="row301mcpsimp"><th class="cellrowborder" valign="top" width="15%" id="mcps1.2.5.1.1"><p id="p303mcpsimp"><a name="p303mcpsimp"></a><a name="p303mcpsimp"></a>项目</p>
@@ -602,19 +594,17 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 </td>
 <td class="cellrowborder" valign="top" width="35.02%" headers="mcps1.2.5.1.3 "><p id="p10253172810219"><a name="p10253172810219"></a><a name="p10253172810219"></a>Bazel是一个强大的构建系统，可实现快速、可扩展构建，要求Bazel版本为6.4.0以上。</p>
 </td>
-<td class="cellrowborder" valign="top" width="34%" headers="mcps1.2.5.1.4 "><p id="p823317281218"><a name="p823317281218"></a><a name="p823317281218"></a><a href="https://releases.bazel.build/6.5.0/release/bazel-6.5.0-dist.zip" target="_blank" rel="noopener noreferrer"><u id="u267219169913"><a name="u267219169913"></a><a name="u267219169913"></a>获取链接</u></a></p>
+<td class="cellrowborder" valign="top" width="34%" headers="mcps1.2.5.1.4 "><p id="p823317281218"><a name="p823317281218"></a><a name="p823317281218"></a><a href="https://releases.bazel.build/6.5.0/release/bazel-6.5.0-dist.zip" target="_blank" rel="noopener noreferrer">获取链接</a></p>
 </td>
 </tr>
 </tbody>
 </table>
 
-### 编译环境安装<a name="ZH-CN_TOPIC_0000002548902199"></a>
+### 编译环境安装
 
 **获取KDNN软件包<a name="section1273403710218"></a>**
 
-安装KAIL之前请先从官网地址获取软件包，再进行软件包校验，确保与网站上的原始软件包一致。
-
-1.  从鲲鹏社区获取对应的软件数字证书和软件安装包，用户解压zip文件后可获取RPM安装包。
+1. 请从GitCode上获取对应的件安装包。
 
     **表 1**  KDNN软件包获取列表
 
@@ -629,39 +619,50 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
     </thead>
     <tbody><tr id="row10869182193113"><td class="cellrowborder" valign="top" width="28.96%" headers="mcps1.2.4.1.1 "><p id="p486942123119"><a name="p486942123119"></a><a name="p486942123119"></a>KDNN软件包（GCC版本）</p>
     </td>
-    <td class="cellrowborder" valign="top" width="32.04%" headers="mcps1.2.4.1.2 "><p id="p186932193120"><a name="p186932193120"></a><a name="p186932193120"></a>BoostKit-boostcore-kdnn.3.1.0.zip<sup id="sup0869625313"><a name="sup0869625313"></a><a name="sup0869625313"></a>a</sup></p>
+    <td class="cellrowborder" valign="top" width="32.04%" headers="mcps1.2.4.1.2 "><p id="p186932193120"><a name="p186932193120"></a><a name="p186932193120"></a>BoostKit-boostcore-kdnn.3.1.0.zip</p>
     </td>
-    <td class="cellrowborder" valign="top" width="39%" headers="mcps1.2.4.1.3 "><p id="p15869827313"><a name="p15869827313"></a><a name="p15869827313"></a>获取链接请联系华为技术支持获取。</p>
+    <td class="cellrowborder" valign="top" width="39%" headers="mcps1.2.4.1.3 "><p id="p15869827313"><a name="p15869827313"></a><a name="p15869827313"></a><a href="https://gitcode.com/boostkit/boostsra/releases/download/v1.2.0/BoostKit-boostcore-kdnn_3.1.0.zip" target="_blank" rel="noopener noreferrer">获取链接</a></p>
     </td>
     </tr>
     <tr id="row198691423315"><td class="cellrowborder" valign="top" width="28.96%" headers="mcps1.2.4.1.1 "><p id="p387010263112"><a name="p387010263112"></a><a name="p387010263112"></a>KDNN软件包（毕昇编译器版本）</p>
     </td>
-    <td class="cellrowborder" valign="top" width="32.04%" headers="mcps1.2.4.1.2 "><p id="p12870142103113"><a name="p12870142103113"></a><a name="p12870142103113"></a>BoostKit-boostcore-kdnn.3.1.0_bisheng.zip<sup id="sup38701211313"><a name="sup38701211313"></a><a name="sup38701211313"></a>a</sup></p>
+    <td class="cellrowborder" valign="top" width="32.04%" headers="mcps1.2.4.1.2 "><p id="p12870142103113"><a name="p12870142103113"></a><a name="p12870142103113"></a>BoostKit-boostcore-kdnn.3.1.0_bisheng.zip</p>
     </td>
-    <td class="cellrowborder" valign="top" width="39%" headers="mcps1.2.4.1.3 "><p id="p188701427313"><a name="p188701427313"></a><a name="p188701427313"></a>获取链接请联系华为技术支持获取。</p>
-    </td>
-    </tr>
-    <tr id="row18870620311"><td class="cellrowborder" colspan="3" valign="top" headers="mcps1.2.4.1.1 mcps1.2.4.1.2 mcps1.2.4.1.3 "><p id="p587082113117"><a name="p587082113117"></a><a name="p587082113117"></a>a：<span id="ph118701123315"><a name="ph118701123315"></a><a name="ph118701123315"></a>使用软件包前请先阅读<span id="ph118701229315"><a name="ph118701229315"></a><a name="ph118701229315"></a>《<a href="https://www.hikunpeng.com/zh/legal/developer/boostkit/software/protocol" target="_blank" rel="noopener noreferrer">鲲鹏应用使能套件BoostKit用户许可协议 2.0</a>》</span>，如确认继续使用，则默认同意协议的条款和条件。</span></p>
+    <td class="cellrowborder" valign="top" width="39%" headers="mcps1.2.4.1.3 "><p id="p188701427313"><a name="p188701427313"></a><a name="p188701427313"></a><a href="https://gitcode.com/boostkit/boostsra/releases/download/v1.1.0/BoostKit-boostcore-kdnn_3.0.0_bisheng.zip" target="_blank" rel="noopener noreferrer">获取链接</a></p>
     </td>
     </tr>
     </tbody>
     </table>
 
-2.  <a name="li687012113112"></a>从[华为企业业务网站](https://support.huawei.com/enterprise/zh/tool/pgp-verify-TL1000000054)获取校验工具和校验方法。
-3.  参见[2](#li687012113112)中下载的《OpenPGP签名验证指南》进行软件包完整性检查。
-4.  将获取到的KDNN软件包，解压后得到二进制RPM包。
-5.  安装KDNN的RPM包。
+2. 将获取到的KDNN软件包，解压，解压后得到二进制RPM包。
 
-    ```
+3. 装KDNN的RPM包。
+
+    ```shell
     rpm -ivh boostcore-kdnn-xxxx.aarch64.rpm
     ```
 
     安装结束后，头文件和静态库、动态库文件目录分别为“/usr/local/kdnn/include”和“/usr/local/kdnn/lib/threadpool”、“/usr/local/kdnn/lib/omp”。
 
-    上述命令中涉及的_xxxx_代表版本号。
+    上述命令中涉及的xxxx代表版本号。
 
-### 编译安装<a name="ZH-CN_TOPIC_0000002517462328"></a>
+### 编译安装
 
 **适配TensorFlow<a name="section163685710283"></a>**
 
-参考[《鲲鹏AI算子库》](https://www.hikunpeng.com/document/detail/zh/SRA/accelFeatures/kail/kunpengaccel_kail_16_0082.html)文档“适配TensorFlow”章节，其中patch补丁需要替换为0001-tensorflow\_2.15.0-optimize.patch。
+请参见《KDNN 最佳实践》文档中的“[适配TensorFlow](https://www.hikunpeng.com/document/detail/zh/kunpengaccel/kail/kaiOperl/docs/zh/kdnn/best_practices.md#适配tensorflow)”章节执行TensorFlow适配步骤，其中patch补丁需要替换为0001-tensorflow\_2.15.0-optimize.patch。
+
+## 常见问题
+
+编译构建TensorFlow和TensorFlow Serving过程中若出现问题，请参见以下内容进行解决。
+
+- 提示“unable to find valid certification path to requested target”证书校验失败，解决办法请参见《TensorFlow 移植指南》的“[编译TensorFlow 2.13.0源码时证书校验失败的解决办法](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0012.html)”章节。
+- 提示“Error in download\_and\_extract”，解决办法请参见《TensorFlow Serving推理部署框架 移植指南》的“[下载TF-Serving源码依赖失败的解决办法](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlowServing/kunpengtfserving_02_0014.html)”章节，其中提及的--distdir指定的目录为“/path/to/tensorflow-serving/download“。
+
+- 提示拉取org\_boost依赖库失败，解决办法请参见《TensorFlow Serving推理部署框架 移植指南》的“[获取org\_boost子仓依赖时失败的解决办法](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlowServing/kunpengtfserving_02_0015.html)”章节。
+
+- 提示没有golang网站证书，解决办法请参见《TensorFlow Serving推理部署框架 移植指南》的“[没有golang网站证书问题的解决办法](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlowServing/kunpengtfserving_02_0016.html)”章节。
+
+- 编译ANNC时提示golang下载失败，解决办法请参见《TensorFlow Serving推理部署框架 移植指南》的“[下载TF-Serving源码依赖失败的解决办法](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlowServing/kunpengtfserving_02_0014.html)”章节，其中提及的--distdir可在build.sh脚本里指定。
+
+- 提示编译upb.c文件错误，解决办法请参见《TensorFlow Serving推理部署框架 移植指南》的“[upb.c编译语法报错](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlowServing/kunpengtfserving_02_0017.html)”章节。
