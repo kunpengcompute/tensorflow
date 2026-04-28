@@ -3,19 +3,19 @@
 ## 鲲鹏TensorFlow安装
 
 1. 获取TensorFlow开源代码。
-   
+
    ```bash
    git clone -b v2.15.0 <https://github.com/tensorflow/tensorflow.git> open-tensorflow
    ```
 
 2. 获取鲲鹏TensorFlow优化补丁。
-   
+
    ```bash
    git clone -b master <https://gitcode.com/BoostKit/tensorflow.git> sra-tensorflow
    ```  
 
 3. 使能优化补丁。
-   
+
    ```bash
    cp sra-tensorflow/0001-boostsra-tensorflow.patch open-tensorflow
    cd open-tensorflow
@@ -23,22 +23,19 @@
    ```  
 
 4. 编译pip包。
-   
+
    ```bash
    bazel build --config=opt //tensorflow/tools/pip_package:build_pip_package
    ```  
 
 5. 编译libtensorflow\_cc.so。
-   
+
    ```bash
    bazel build --config=opt //tensorflow/libtensorflow_cc.so
    ```  
 
-如果在编译过程中遇到任何问题，可参考以下文档：
-
-[TensorFlow 移植指南](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0001.html)
-
-[TensorFlow 安装](https://tensorflow.google.cn/install/source?hl=zh-cn)
+如果在编译过程中遇到任何问题，请参见《
+[TensorFlow 移植指南](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0001.html)》、《[TensorFlow 安装指南](https://tensorflow.google.cn/install/source?hl=zh-cn)》。
 
 ## 运行样例
 
@@ -46,7 +43,7 @@
 
 ### TensorFlow ANNC图编译优化特性
 
-鲲鹏TensorFlow ANNC图编译优化特性提供了TensorFlow图融合、XLA图融合、算子优化三种优化特性，具体使用说明参见[《鲲鹏TensorFlow API参考》](./api_reference.md)。
+鲲鹏TensorFlow ANNC图编译优化特性提供了TensorFlow图融合、XLA图融合、算子优化三种优化特性，具体使用说明请参见《[API参考](./)》。
 
 1. 执行TensorFlow图融合。
 
@@ -72,7 +69,7 @@
     ```
 
     >![](public_sys-resources/icon-note.gif) **说明：** 
-    >“--model\_base\_path“所指定的模型不在此限制，用户可自行下载或使用其他模型。
+    >“--model\_base\_path”所指定的模型不在此限制，用户可自行下载或使用其他模型。
 
 4. 启动客户端压测。
 
@@ -82,9 +79,9 @@
 
 ### TensorFlow Serving线程调度优化特性
 
-鲲鹏TensorFlow Serving线程调度优化特性提供了算子批量调度和线程亲和性隔离两个特性，具体使用说明参见[《鲲鹏TensorFlow API参考》](./api_reference.md)。
+鲲鹏TensorFlow Serving线程调度优化特性提供了算子批量调度和线程亲和性隔离两个特性，具体使用说明参见《[API参考](./api_reference.md)》。
 
-### TensorFlow 集成KDNN
+### TensorFlow集成KDNN
 
 KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的基于鲲鹏平台优化的高性能AI算子库，其中MatMul、FusedMatMul、SparseMatMul算子已经适配TensorFlow。集成KDNN可以降低NN类算子的时延，大幅增强模型推理性能。
 
