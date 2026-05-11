@@ -673,7 +673,13 @@ cc_library(
     ]) + if_tensorrt([
         "//tensorflow/compiler/tf2tensorrt:trt_engine_resource_op_kernels",
         "//tensorflow/compiler/tf2tensorrt:trt_op_kernels",
-    ]) + tf_tpu_dependencies() + tf_dtensor_tpu_dependencies(),
+    ]) + tf_tpu_dependencies() + tf_dtensor_tpu_dependencies()
+    + select({
+        "@platforms//cpu:aarch64": [
+            "//tensorflow/core/kernels:embedding_fused_ops"
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 cc_library(
@@ -920,6 +926,7 @@ filegroup(
         "candidate_sampling_ops_op_lib",
         "checkpoint_ops_op_lib",
         "clustering_ops_op_lib",
+        "embedding_fused_ops_op_lib",
         "collective_ops_op_lib",
         "control_flow_ops_op_lib",
         "count_ops_op_lib",
