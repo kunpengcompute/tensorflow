@@ -314,7 +314,12 @@ py_strict_library(
         "//tensorflow/python/util:tf_decorator_export",
         "//tensorflow/python/util:tf_export",
         "//third_party/py/numpy",
-    ],
+    ] + select({
+        "@platforms//cpu:aarch64": [
+            "//tensorflow/python/ops:embedding_fused_ops_gen",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 py_strict_library(
@@ -450,7 +455,12 @@ py_strict_library(
         "//tensorflow/python/util:tf_decorator",
         "//tensorflow/python/util:tf_decorator_export",
         "//tensorflow/python/util:tf_export",
-    ],
+    ] + select({
+        "@platforms//cpu:aarch64": [
+            "//tensorflow/python/ops:embedding_fused_ops_gen",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 # Necessary for the pywrap inclusion below.

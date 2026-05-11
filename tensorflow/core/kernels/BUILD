@@ -3665,6 +3665,97 @@ tf_kernel_library(
 )
 
 tf_kernel_library(
+    name = "embedding_fused_action_id_gather_op",
+    srcs = ["embedding_fused_action_id_gather.cc"],
+    deps = MATH_DEPS,
+)
+
+tf_kernel_library(
+    name = "embedding_fused_gather_op",
+    srcs = ["embedding_fused_gather.cc"],
+    deps = MATH_DEPS,
+)
+
+tf_kernel_library(
+    name = "embedding_fused_padding_op",
+    srcs = ["embedding_fused_padding.cc"],
+    deps = MATH_DEPS,
+)
+
+tf_kernel_library(
+    name = "embedding_fused_sparse_dynamic_stitch_op",
+    srcs = ["embedding_fused_sparse_dynamic_stitch.cc"],
+    deps = MATH_DEPS,
+)
+
+tf_kernel_library(
+    name = "embedding_fused_reshape_op",
+    srcs = ["embedding_fused_sparse_reshape.cc"],
+    deps = MATH_DEPS + [
+        ":reshape_util",
+    ],
+)
+
+tf_kernel_library(
+    name = "embedding_fused_sparse_segment_reduce_op",
+    srcs = ["embedding_fused_sparse_segment_reduce.cc"],
+    deps = MATH_DEPS,
+)
+
+tf_kernel_library(
+    name = "embedding_fused_sparse_segment_reduce_nonzero_op",
+    srcs = ["embedding_fused_sparse_segment_reduce_nonzero.cc"],
+    deps = MATH_DEPS + ["@com_google_absl//absl/container:flat_hash_map"],
+)
+
+tf_kernel_library(
+    name = "embedding_fused_sparse_select_op",
+    srcs = ["embedding_fused_sparse_select.cc"],
+    deps = MATH_DEPS,
+)
+
+cc_library(
+    name = "embedding_fused_ops",
+    deps = [
+        ":embedding_fused_action_id_gather_op",
+        ":embedding_fused_gather_op",
+        ":embedding_fused_padding_op",
+        ":embedding_fused_sparse_dynamic_stitch_op",
+        ":embedding_fused_reshape_op",
+        ":embedding_fused_sparse_segment_reduce_op",
+        ":embedding_fused_sparse_segment_reduce_nonzero_op",
+        ":embedding_fused_sparse_select_op",
+    ],
+)
+
+tf_cc_test(
+    name = "embedding_fused_ops_test",
+    size = "small",
+    srcs = [
+        "embedding_fused_action_id_gather_test.cc",
+        "embedding_fused_sparse_dynamic_stitch_test.cc",
+        "embedding_fused_sparse_segment_reduce_test.cc",
+        "embedding_fused_sparse_segment_reduce_nonzero_test.cc",
+        "embedding_fused_padding_test.cc",
+        "embedding_fused_sparse_select_test.cc",
+        "embedding_fused_gather_test.cc",
+        "embedding_fused_sparse_reshape_test.cc",
+    ],
+    deps = [
+        ":ops_testutil",
+        ":ops_util",
+        ":embedding_fused_ops",
+        "//tensorflow/core:core_cpu",
+        "//tensorflow/core:framework",
+        "//tensorflow/core:lib",
+        "//tensorflow/core:protos_all_cc",
+        "//tensorflow/core:test",
+        "//tensorflow/core:test_main",
+        "//tensorflow/core:testlib",
+    ],
+)
+
+tf_kernel_library(
     name = "reduction_ops",
     gpu_srcs = ["reduction_gpu_kernels.cu.h"],
     prefix = "reduction_ops",

@@ -229,6 +229,14 @@ tf_gen_op_strict_wrapper_private_py(
 )
 
 tf_gen_op_strict_wrapper_private_py(
+    name = "embedding_fused_ops_gen",
+    visibility = ["//tensorflow:internal"],
+    deps = [
+        "//tensorflow/core:embedding_fused_ops_op_lib",
+    ],
+)
+
+tf_gen_op_strict_wrapper_private_py(
     name = "collective_ops_gen",
     visibility = ["//tensorflow:internal"],
     deps = [

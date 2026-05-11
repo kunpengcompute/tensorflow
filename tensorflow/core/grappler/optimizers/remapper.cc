@@ -43,6 +43,9 @@ limitations under the License.
 #include "tensorflow/core/util/env_var.h"
 #include "tensorflow/core/util/use_cudnn.h"
 #include "tsl/platform/errors.h"
+#if defined(__aarch64__)
+#include "tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.h"
+#endif  // __aarch64__
 #ifdef INTEL_MKL
 #include "tensorflow/core/util/mkl_heuristics.h"
 #endif  // INTEL_MKL
@@ -4940,6 +4943,19 @@ Status Remapper::Optimize(Cluster* cluster, const GrapplerItem& item,
     }
   }
   TF_RETURN_IF_ERROR(mutation->Apply());
+
+#if defined(__aarch64__)
+  // ==========  infer shape  ==========
+  tensorflow::grappler::GraphProperties graph_props(mutable_item);
+  bool assume_valid_feeds = (opt_level_ == RewriterConfig::AGGRESSIVE);
+  TF_RETURN_IF_ERROR(graph_props.InferStatically(
+      assume_valid_feeds,
+      /*aggressive_shape_inference=*/false,
+      /*include_input_tensor_values=*/true,
+      /*include_output_tensor_values=*/true));
+
+  annc::run_graph_optimization(&mutable_item.graph, graph_props);
+#endif  // __aarch64__
 
   *optimized_graph = std::move(mutable_item.graph);
 
