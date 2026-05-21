@@ -16,7 +16,7 @@
 
 **图 1**  项目架构<a name="fig1326111445508"></a>
 
-![](./docs/zh/figures/项目架构.png)
+![](./docs/zh/figures/Tensorflow2.png)
 
 ## 特性介绍
 
