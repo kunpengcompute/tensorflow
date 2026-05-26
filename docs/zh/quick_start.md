@@ -5,13 +5,13 @@
 1. 获取TensorFlow开源代码。
 
    ```bash
-   git clone -b v2.15.0 <https://github.com/tensorflow/tensorflow.git> open-tensorflow
+   git clone -b v2.15.0 https://github.com/tensorflow/tensorflow.git open-tensorflow
    ```
 
 2. 获取鲲鹏TensorFlow优化补丁。
 
    ```bash
-   git clone -b master <https://gitcode.com/BoostKit/tensorflow.git> sra-tensorflow
+   git clone -b master https://gitcode.com/BoostKit/tensorflow.git sra-tensorflow
    ```  
 
 3. 使能优化补丁。
@@ -34,8 +34,7 @@
    bazel build --config=opt //tensorflow/libtensorflow_cc.so
    ```  
 
-如果在编译过程中遇到任何问题，请参见《
-[TensorFlow 移植指南](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0001.html)》、《[TensorFlow 安装指南](https://tensorflow.google.cn/install/source?hl=zh-cn)》。
+如果在编译过程中遇到任何问题，请参见《[TensorFlow 移植指南](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0001.html)》、《[TensorFlow 安装指南](https://tensorflow.google.cn/install/source?hl=zh-cn)》。
 
 ## 运行样例
 
@@ -43,7 +42,7 @@
 
 ### TensorFlow ANNC图编译优化特性
 
-鲲鹏TensorFlow ANNC图编译优化特性提供了TensorFlow图融合、XLA图融合、算子优化三种优化特性，具体使用说明请参见《[API参考](./)》。
+鲲鹏TensorFlow ANNC图编译优化特性提供了TensorFlow图融合、XLA图融合、算子优化三种优化特性，具体使用说明请参见《[API参考](./api_reference.md)》。
 
 1. 执行TensorFlow图融合。
 

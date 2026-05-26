@@ -10,13 +10,13 @@
 
 鲲鹏TensorFlow是基于开源TensorFlow的高性能推理加速扩展，聚焦于搜推广推理场景下的高效执行。通过在图优化、算子、Runtime等方面进行了深度的性能增强，显著提升了模型推理的吞吐量和时延表现，为AI应用提供基于鲲鹏CPU的极致性能。
 
-**图 1**  项目架构<a name="fig1326111445508"></a>
-
-![](./docs/zh/figures/项目架构.png)
-
 - Executor层：运行时优化。
 - Kernel层：自定义算子，基于KDNN提供鲲鹏高性能DNN算子。
 - XLA层：基于ANNC提供鲲鹏图编译器。
+
+**图 1**  项目架构<a name="fig1326111445508"></a>
+
+![](./docs/zh/figures/Tensorflow2.png)
 
 ## 特性介绍
 
