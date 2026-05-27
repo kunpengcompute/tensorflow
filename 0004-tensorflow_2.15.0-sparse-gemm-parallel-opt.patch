@@ -1,0 +1,87 @@
+diff --git a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc
+index 86a2be9f7..85309714f 100644
+--- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc
++++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc
+@@ -140,14 +140,14 @@ class SparseTensorDenseMatMulOp : public OpKernel {
+     }
+ 
+ #if defined(ENABLE_KDNN)
+-#define KDNN_ADJOINT(ADJ_A, ADJ_B)                                             \
+-  if (adjoint_a_ == ADJ_A && adjoint_b_ == ADJ_B) {                            \
+-    Status functor_status = functor::KDNNSparseMatMulFunctor<                  \
+-        CPUDevice, float, Tindices, ADJ_A,                                     \
+-        ADJ_B>::Compute(ctx->eigen_device<Device>(), out->matrix<float>(),     \
+-                        a_indices->matrix<Tindices>(), a_values->vec<float>(), \
+-                        b->matrix<float>());                                   \
+-    OP_REQUIRES_OK(ctx, functor_status);                                       \
++#define KDNN_ADJOINT(ADJ_A, ADJ_B)                                              \
++  if (adjoint_a_ == ADJ_A && adjoint_b_ == ADJ_B) {                             \
++    Status functor_status = functor::KDNNSparseMatMulFunctor<                   \
++        CPUDevice, float, Tindices, ADJ_A,                                      \
++        ADJ_B>::Compute(ctx, ctx->eigen_device<Device>(), out->matrix<float>(), \
++                        a_indices->matrix<Tindices>(), a_values->vec<float>(),  \
++                        b->matrix<float>());                                    \
++    OP_REQUIRES_OK(ctx, functor_status);                                        \
+   }
+     const int int32max = std::numeric_limits<int>::max();
+     if (IsKDNNEnabled() && std::is_same<T, float>::value && adjoint_a_ == false &&
+@@ -389,7 +389,8 @@ template <typename Tindices, bool ADJ_A, bool ADJ_B>
+ struct KDNNSparseMatMulFunctor<CPUDevice, float, Tindices, ADJ_A, ADJ_B> {
+   static const std::size_t kNumVectorize = 32;
+ 
+-  static Status Compute(const CPUDevice& d, typename TTypes<float>::Matrix out,
++  static Status Compute(OpKernelContext* ctx, const CPUDevice& d,
++                        typename TTypes<float>::Matrix out,
+                         typename TTypes<Tindices>::ConstMatrix a_indices,
+                         typename TTypes<float>::ConstVec a_values,
+                         typename TTypes<float>::ConstMatrix b) {
+@@ -428,7 +429,7 @@ struct KDNNSparseMatMulFunctor<CPUDevice, float, Tindices, ADJ_A, ADJ_B> {
+         col_major_conj_b = b.swap_layout().shuffle(shuffle).conjugate().eval();
+         b_data = col_major_conj_b.data();
+       }
+-      kdnnSparseMatmul<Tindices>(nnz, rhs_right, lhs_right, lhs_index_a, rhs_index_a, out, a_indices, a_values, b_data);
++      kdnnSparseMatmul<Tindices>(ctx, nnz, rhs_right, lhs_right, lhs_index_a, rhs_index_a, out, a_indices, a_values, b_data);
+     }
+     return OkStatus();
+   }
+diff --git a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h
+index 153083db1..66bf885f9 100644
+--- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h
++++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h
+@@ -43,7 +43,7 @@ template <typename Device, typename T, typename Tindices, bool ADJ_A,
+           bool ADJ_B>
+ struct KDNNSparseMatMulFunctor {
+   static EIGEN_ALWAYS_INLINE Status Compute(
+-      const Device& d, typename TTypes<T>::Matrix out,
++      OpKernelContext* ctx, const Device& d, typename TTypes<T>::Matrix out,
+       typename TTypes<Tindices>::ConstMatrix a_indices,
+       typename TTypes<T>::ConstVec a_values, typename TTypes<T>::ConstMatrix b);
+ };
+diff --git a/third_party/KDNN/kdnn_adapter.h b/third_party/KDNN/kdnn_adapter.h
+index 0ac799561..2e44bfb23 100644
+--- a/third_party/KDNN/kdnn_adapter.h
++++ b/third_party/KDNN/kdnn_adapter.h
+@@ -94,7 +94,8 @@ inline void kdnnFusedGemm(OpKernelContext* ctx, const Tensor& a, const Tensor& b
+ }
+ */
+ template<typename Tindices>
+-inline void kdnnSparseMatmul(const std::size_t nnz,
++inline void kdnnSparseMatmul(OpKernelContext* ctx,
++                      const std::size_t nnz,
+                       const std::size_t rhs_right, const std::size_t lhs_right,
+                       const int lhs_index_a, const int rhs_index_a,
+                       typename TTypes<float>::Matrix out,
+@@ -123,8 +124,13 @@ inline void kdnnSparseMatmul(const std::size_t nnz,
+         KDNN::Element::TypeT::F32, KDNN::Layout::AB};
+     const KDNN::TensorInfo dstInfo = {{lhs_left, rhs_right},
+         KDNN::Element::TypeT::F32, KDNN::Layout::AB};
++    // intra_op thread_pool
++    thread::ThreadPool* thread_pool = ctx->device()->tensorflow_cpu_worker_threads()->workers;
++    kdnn::KDNNThreadPool kdnn_tp(thread_pool);
++    KDNN::Threading::ActivateThreadpool(&kdnn_tp);
+     KDNN::SparseGemm sparse_csr(aInfo, bInfo, dstInfo);
+     sparse_csr.Run(a_values.data(), b_data, out.data());
++    KDNN::Threading::DeactivateThreadpool();
+ }
+ 
+ }// namespace tensorflow

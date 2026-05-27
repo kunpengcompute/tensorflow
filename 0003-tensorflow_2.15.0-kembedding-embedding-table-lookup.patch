@@ -1,0 +1,1912 @@
+diff --git a/experiment_scripts/01_modify_ref_impl.sh b/experiment_scripts/01_modify_ref_impl.sh
+new file mode 100755
+index 000000000..089327b55
+--- /dev/null
++++ b/experiment_scripts/01_modify_ref_impl.sh
+@@ -0,0 +1,23 @@
++#!/usr/bin/env bash
++# 修改 force_ref_impl 属性的脚本（embedding_lookup 通过函数参数控制，无需修改源码）
++# 保留此脚本用于兼容 run_full_experiment 流程；实际上 embedding_lookup 的
++# force_ref_impl 已在 benchmark 中通过函数参数传递，此步骤为 no-op。
++
++set -euo pipefail
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++source "${SCRIPT_DIR}/common.sh"
++
++VALUE="${1:-false}"
++
++if [ "$VALUE" != "true" ] && [ "$VALUE" != "false" ]; then
++    echo "Usage: $0 [true|false]"
++    echo "  true  - 使用原生实现 (未优化)"
++    echo "  false - 使用 ARM 优化实现"
++    exit 1
++fi
++
++# embedding_lookup 的 force_ref_impl 通过 benchmark 函数参数控制，无需修改文件
++echo "embedding_lookup 的 force_ref_impl 通过 benchmark 函数参数控制，无需修改源码"
++echo "当前设定: force_ref_impl=${VALUE}"
++echo "✓ 完成"
+diff --git a/experiment_scripts/02_compile_benchmark.sh b/experiment_scripts/02_compile_benchmark.sh
+new file mode 100755
+index 000000000..5075c5d52
+--- /dev/null
++++ b/experiment_scripts/02_compile_benchmark.sh
+@@ -0,0 +1,47 @@
++#!/usr/bin/env bash
++# 编译 embedding_table_lookup benchmark
++
++set -euo pipefail
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++source "${SCRIPT_DIR}/common.sh"
++
++cd "${TF_ROOT}"
++
++echo "=========================================="
++echo "开始编译 ${TARGET_NAME}"
++echo "目标: ${TARGET}"
++echo "=========================================="
++
++# Bazel 配置（可通过环境变量覆盖）
++BAZEL_BIN="${BAZEL_BIN:-bazel}"
++BAZEL_DISTDIR="${BAZEL_DISTDIR:-}"
++HTTP_PROXY="${HTTP_PROXY:-}"
++HTTPS_PROXY="${HTTPS_PROXY:-}"
++
++DISTDIR_ARGS=()
++if [[ -n "${BAZEL_DISTDIR}" ]]; then
++    DISTDIR_ARGS+=(--distdir="${BAZEL_DISTDIR}")
++fi
++
++export http_proxy="${HTTP_PROXY}"
++export https_proxy="${HTTPS_PROXY}"
++
++"${BAZEL_BIN}" --batch --output_user_root="${BAZEL_OUTPUT_ROOT}" build \
++    --experimental_repo_remote_exec \
++    "${DISTDIR_ARGS[@]}" \
++    "$TARGET"
++
++echo ""
++echo "=========================================="
++echo "编译完成"
++echo "=========================================="
++
++BENCHMARK_BIN="$(find_benchmark_binary)"
++
++if [ -n "${BENCHMARK_BIN}" ] && [ -f "$BENCHMARK_BIN" ]; then
++    echo "✓ 可执行文件已生成: $BENCHMARK_BIN"
++else
++    echo "✗ 可执行文件未找到: $TARGET_NAME"
++    exit 1
++fi
+diff --git a/experiment_scripts/03_run_benchmark_with_monitoring.sh b/experiment_scripts/03_run_benchmark_with_monitoring.sh
+new file mode 100755
+index 000000000..6ff81a5be
+--- /dev/null
++++ b/experiment_scripts/03_run_benchmark_with_monitoring.sh
+@@ -0,0 +1,102 @@
++#!/usr/bin/env bash
++# 运行 embedding_table_lookup benchmark 并监控 CPU
++
++set -euo pipefail
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++source "${SCRIPT_DIR}/common.sh"
++
++VERSION_NAME="${1:-native}"
++RUN_COUNT="${2:-10}"
++CORE_RANGE="${3:-0-15}"
++RUN_TAG="${4:-manual_$(date '+%Y%m%d_%H%M%S')}"
++
++if [ -z "$VERSION_NAME" ]; then
++    echo "Usage: $0 <native|arm_optimized> [run_count] [core_range] [run_tag]"
++    echo "Example: $0 native 10 0-15"
++    echo "Example: $0 arm_optimized 10 0-15 embedding_lookup_20260419_120000"
++    exit 1
++fi
++
++BENCHMARK_BIN="$(find_benchmark_binary)"
++if [[ -z "${BENCHMARK_BIN}" || ! -f "${BENCHMARK_BIN}" ]]; then
++    echo "错误：找不到 benchmark 可执行文件 ${TARGET_NAME}" >&2
++    echo "请先运行: ${SCRIPT_DIR}/02_compile_benchmark.sh" >&2
++    exit 1
++fi
++
++BENCHMARK_FILTER="$(benchmark_filter_for_version "${VERSION_NAME}")"
++
++RUN_DIR="${RESULTS_OP_ROOT}/${RUN_TAG}"
++mkdir -p "$RUN_DIR"
++
++export TF_NUM_INTEROP_THREADS=16
++export TF_NUM_INTRAOP_THREADS=16
++
++RESULT_FILE="$RUN_DIR/${VERSION_NAME}_results.txt"
++CPU_LOG_FILE="$RUN_DIR/${VERSION_NAME}_cpu_log.txt"
++: > "$RESULT_FILE"
++: > "$CPU_LOG_FILE"
++
++{
++    echo "=========================================="
++    echo "算子: embedding_table_lookup"
++    echo "版本: $VERSION_NAME"
++    echo "实验批次: $RUN_TAG"
++    echo "运行次数: $RUN_COUNT"
++    echo "核心范围: $CORE_RANGE"
++    echo "Benchmark 过滤器: $BENCHMARK_FILTER"
++    echo "Benchmark 二进制: $BENCHMARK_BIN"
++    echo "开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
++    echo "=========================================="
++} | tee "$RESULT_FILE"
++
++# 后台 CPU 监控
++echo "启动 CPU 监控..."
++(
++    echo "# CPU 监控数据 - $VERSION_NAME" >> "$CPU_LOG_FILE"
++    echo "# 格式: 时间戳,CPU使用率%,负载1,负载5,负载15" >> "$CPU_LOG_FILE"
++    while true; do
++        timestamp=$(date '+%Y-%m-%d %H:%M:%S')
++        cpu_usage=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)
++        load_avg=$(uptime | awk -F'load average:' '{print $2}' | tr -d ' ')
++        echo "$timestamp,$cpu_usage,$load_avg" >> "$CPU_LOG_FILE"
++        sleep 1
++    done
++) &
++CPU_MONITOR_PID=$!
++
++trap "kill $CPU_MONITOR_PID 2>/dev/null; exit" INT TERM EXIT
++
++BENCHMARK_TMPDIR="${TEST_TMPDIR:-${OUTPUT_USER_ROOT}/tmp/${TARGET_NAME}}"
++mkdir -p "${BENCHMARK_TMPDIR}"
++echo "临时目录: ${BENCHMARK_TMPDIR}" | tee -a "$RESULT_FILE"
++
++for i in $(seq 1 "$RUN_COUNT"); do
++    echo "" | tee -a "$RESULT_FILE"
++    echo "========== 第 $i 次运行 ==========" | tee -a "$RESULT_FILE"
++    echo "$(date '+%Y-%m-%dT%H:%M:%S%z')" | tee -a "$RESULT_FILE"
++    echo "" | tee -a "$RESULT_FILE"
++
++    TEST_TMPDIR="${BENCHMARK_TMPDIR}" \
++    TMPDIR="${BENCHMARK_TMPDIR}" \
++    taskset -c "$CORE_RANGE" "$BENCHMARK_BIN" \
++        --benchmark_filter="$BENCHMARK_FILTER" 2>&1 | tee -a "$RESULT_FILE"
++done
++
++kill $CPU_MONITOR_PID 2>/dev/null
++trap - INT TERM EXIT
++
++echo "" | tee -a "$RESULT_FILE"
++echo "==========================================" | tee -a "$RESULT_FILE"
++echo "全部运行完成" | tee -a "$RESULT_FILE"
++echo "结束时间: $(date '+%Y-%m-%d %H:%M:%S')" | tee -a "$RESULT_FILE"
++echo "结果文件: $RESULT_FILE" | tee -a "$RESULT_FILE"
++echo "CPU 日志: $CPU_LOG_FILE" | tee -a "$RESULT_FILE"
++echo "==========================================" | tee -a "$RESULT_FILE"
++
++echo ""
++echo "✓ 测试完成，结果已保存到:"
++echo "  - 输出结果: $RESULT_FILE"
++echo "  - CPU 日志: $CPU_LOG_FILE"
++echo "  - 实验目录: $RUN_DIR"
+diff --git a/experiment_scripts/04_parse_results.py b/experiment_scripts/04_parse_results.py
+new file mode 100755
+index 000000000..c499f7f61
+--- /dev/null
++++ b/experiment_scripts/04_parse_results.py
+@@ -0,0 +1,209 @@
++#!/usr/bin/env python3
++"""解析 embedding_table_lookup benchmark 结果并生成 CSV 报告。"""
++
++from __future__ import annotations
++
++import csv
++import re
++import statistics
++import sys
++from collections import defaultdict
++from dataclasses import dataclass
++from datetime import datetime
++from pathlib import Path
++
++
++SCRIPT_DIR = Path(__file__).resolve().parent
++TF_ROOT = SCRIPT_DIR.parent
++RESULTS_ROOT = TF_ROOT / "experiment_results_by_op"
++RUN_SPLIT_RE = re.compile(r"={10} 第 (\d+) 次运行 ={10}")
++BENCHMARK_LINE_RE = re.compile(r"^(BM_[A-Za-z0-9_]+)\s+(\d+)\s+ns\s+(\d+)\s+ns\s+(\d+)")
++
++
++@dataclass(frozen=True)
++class BenchmarkPair:
++    native_name: str
++    optimized_name: str
++    display_name: str
++
++
++BENCHMARK_PAIRS = [
++    BenchmarkPair(
++        "BM_EmbeddingTableLookup_SmallSingleThread_true",
++        "BM_EmbeddingTableLookup_SmallSingleThread_false",
++        "4KKeys_Dim16_4Values_1Thread_Hit100",
++    ),
++    BenchmarkPair(
++        "BM_EmbeddingTableLookup_MediumParallel_true",
++        "BM_EmbeddingTableLookup_MediumParallel_false",
++        "16KKeys_Dim32_8Values_8Threads_Hit100",
++    ),
++    BenchmarkPair(
++        "BM_EmbeddingTableLookup_MediumParallelMiss_true",
++        "BM_EmbeddingTableLookup_MediumParallelMiss_false",
++        "16KKeys_Dim32_8Values_8Threads_Hit75",
++    ),
++    BenchmarkPair(
++        "BM_EmbeddingTableLookup_LargeParallel_true",
++        "BM_EmbeddingTableLookup_LargeParallel_false",
++        "64KKeys_Dim64_16Values_16Threads_Hit100",
++    ),
++]
++
++
++def parse_benchmark_output(file_path: Path, expected_names: set[str]) -> dict[str, list[int]]:
++    content = file_path.read_text(encoding="utf-8")
++    runs = RUN_SPLIT_RE.split(content)
++    results: dict[str, list[int]] = defaultdict(list)
++
++    for index in range(1, len(runs), 2):
++        run_content = runs[index + 1]
++        seen_in_run: set[str] = set()
++
++        for raw_line in run_content.splitlines():
++            match = BENCHMARK_LINE_RE.match(raw_line.strip())
++            if not match:
++                continue
++            benchmark_name = match.group(1)
++            if benchmark_name not in expected_names or benchmark_name in seen_in_run:
++                continue
++            results[benchmark_name].append(int(match.group(2)))
++            seen_in_run.add(benchmark_name)
++
++    return results
++
++
++def calculate_stats(values: list[int]) -> dict[str, float]:
++    if not values:
++        return {"mean": 0, "min": 0, "max": 0, "stdev": 0, "count": 0}
++    return {
++        "mean": statistics.mean(values),
++        "min": min(values),
++        "max": max(values),
++        "stdev": statistics.stdev(values) if len(values) > 1 else 0,
++        "count": len(values),
++    }
++
++
++def generate_csv(
++    native_results: dict[str, list[int]],
++    arm_results: dict[str, list[int]],
++    output_file: Path,
++) -> None:
++    with output_file.open("w", newline="", encoding="utf-8") as handle:
++        writer = csv.writer(handle)
++        writer.writerow(["Benchmark Comparison Report"])
++        writer.writerow(["Generated at", datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
++        writer.writerow([])
++        writer.writerow([
++            "Benchmark Name", "Native Mean (ns)", "Native Min (ns)",
++            "Native Max (ns)", "Native Stdev (ns)", "Native Runs",
++            "ARM Opt Mean (ns)", "ARM Opt Min (ns)", "ARM Opt Max (ns)",
++            "ARM Opt Stdev (ns)", "ARM Opt Runs",
++            "Speedup Ratio", "Improvement %",
++        ])
++
++        for pair in BENCHMARK_PAIRS:
++            native_vals = native_results.get(pair.native_name, [])
++            arm_vals = arm_results.get(pair.optimized_name, [])
++            native_stats = calculate_stats(native_vals)
++            arm_stats = calculate_stats(arm_vals)
++            speedup = native_stats["mean"] / arm_stats["mean"] if arm_stats["mean"] > 0 else 0
++            improvement = (
++                (1 - arm_stats["mean"] / native_stats["mean"]) * 100
++                if native_stats["mean"] > 0 else 0
++            )
++            writer.writerow([
++                pair.display_name,
++                f"{native_stats['mean']:.0f}", f"{native_stats['min']:.0f}",
++                f"{native_stats['max']:.0f}", f"{native_stats['stdev']:.0f}",
++                native_stats["count"],
++                f"{arm_stats['mean']:.0f}", f"{arm_stats['min']:.0f}",
++                f"{arm_stats['max']:.0f}", f"{arm_stats['stdev']:.0f}",
++                arm_stats["count"],
++                f"{speedup:.2f}x", f"{improvement:.2f}%",
++            ])
++
++        writer.writerow([])
++        writer.writerow(["=== Raw Data Details ==="])
++        writer.writerow([])
++        for pair in BENCHMARK_PAIRS:
++            writer.writerow([f"Benchmark: {pair.display_name}"])
++            writer.writerow(["Run #", f"Native ({pair.native_name})", f"ARM Opt ({pair.optimized_name})"])
++            native_vals = native_results.get(pair.native_name, [])
++            arm_vals = arm_results.get(pair.optimized_name, [])
++            for run_index in range(max(len(native_vals), len(arm_vals))):
++                writer.writerow([
++                    run_index + 1,
++                    native_vals[run_index] if run_index < len(native_vals) else "",
++                    arm_vals[run_index] if run_index < len(arm_vals) else "",
++                ])
++            writer.writerow([])
++
++
++def resolve_result_dir(result_arg: str | None) -> Path:
++    op_root = RESULTS_ROOT / "embedding_lookup"
++    if result_arg is None:
++        latest_dir = op_root / "latest"
++        if latest_dir.exists():
++            return latest_dir.resolve()
++        raise FileNotFoundError(
++            "未找到 embedding_lookup 的 latest 结果目录，请显式传入 run_tag 或目录路径"
++        )
++    candidate = Path(result_arg).expanduser()
++    if candidate.exists():
++        return candidate.resolve()
++    return (op_root / result_arg).resolve()
++
++
++def main() -> None:
++    if len(sys.argv) not in {1, 2}:
++        print("用法: python3 04_parse_results.py [run_tag|result_dir]")
++        print("      不带参数时使用 latest 符号链接")
++        sys.exit(1)
++
++    result_arg = sys.argv[1] if len(sys.argv) == 2 else None
++    try:
++        result_dir = resolve_result_dir(result_arg)
++    except FileNotFoundError as exc:
++        print(f"错误：{exc}")
++        sys.exit(1)
++
++    native_file = result_dir / "native_results.txt"
++    arm_file = result_dir / "arm_optimized_results.txt"
++    if not native_file.is_file() or not arm_file.is_file():
++        print(f"错误：结果目录不完整: {result_dir}")
++        print(f"  期望文件: {native_file}")
++        print(f"  期望文件: {arm_file}")
++        sys.exit(1)
++
++    expected_names = {p.native_name for p in BENCHMARK_PAIRS} | {p.optimized_name for p in BENCHMARK_PAIRS}
++
++    print(f"解析原生版本结果: {native_file}")
++    native_results = parse_benchmark_output(native_file, expected_names)
++    print(f"解析 ARM 优化版本结果: {arm_file}")
++    arm_results = parse_benchmark_output(arm_file, expected_names)
++
++    output_csv = result_dir / "benchmark_comparison.csv"
++    print(f"生成 CSV 报告: {output_csv}")
++    generate_csv(native_results, arm_results, output_csv)
++
++    print("\n" + "=" * 60)
++    print("实验结果摘要")
++    print("=" * 60)
++    for pair in BENCHMARK_PAIRS:
++        native_vals = native_results.get(pair.native_name, [])
++        arm_vals = arm_results.get(pair.optimized_name, [])
++        if not native_vals or not arm_vals:
++            print(f"\n{pair.display_name}: 数据不完整，无法计算")
++            continue
++        native_mean = statistics.mean(native_vals)
++        arm_mean = statistics.mean(arm_vals)
++        print(f"\n{pair.display_name}:")
++        print(f"  原生: {native_mean:.0f} ns  |  ARM优化: {arm_mean:.0f} ns")
++        print(f"  加速比: {native_mean / arm_mean:.2f}x  |  提升: {(1 - arm_mean / native_mean) * 100:.2f}%")
++    print(f"\n详细结果: {output_csv}")
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/experiment_scripts/common.sh b/experiment_scripts/common.sh
+new file mode 100755
+index 000000000..af30e7021
+--- /dev/null
++++ b/experiment_scripts/common.sh
+@@ -0,0 +1,30 @@
++#!/usr/bin/env bash
++# Common variables and helpers for embedding_table_lookup benchmark experiments.
++
++COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++TF_ROOT="$(cd "${COMMON_DIR}/.." && pwd)"
++RESULTS_ROOT="${TF_ROOT}/experiment_results_by_op"
++OUTPUT_USER_ROOT="${TF_ROOT}/output_bench"
++
++OP_KIND="embedding_lookup"
++TARGET="//third_party/kembedding:embedding_table_lookup_benchmark"
++TARGET_NAME="embedding_table_lookup_benchmark"
++BENCHMARK_PREFIX="BM_EmbeddingTableLookup_"
++NATIVE_BENCHMARK_FILTER="BM_EmbeddingTableLookup_.*_true$"
++OPTIMIZED_BENCHMARK_FILTER="BM_EmbeddingTableLookup_.*_false$"
++BAZEL_OUTPUT_ROOT="${TF_ROOT}/output_bench_${OP_KIND}"
++RESULTS_OP_ROOT="${RESULTS_ROOT}/${OP_KIND}"
++
++benchmark_filter_for_version() {
++    case "${1:-}" in
++        native)   echo "${NATIVE_BENCHMARK_FILTER}" ;;
++        arm_optimized) echo "${OPTIMIZED_BENCHMARK_FILTER}" ;;
++        *)        echo "${BENCHMARK_PREFIX}.*" ;;
++    esac
++}
++
++find_benchmark_binary() {
++    find "${BAZEL_OUTPUT_ROOT}" \
++        -path "*/execroot/_main/bazel-out/*/bin/third_party/kembedding/${TARGET_NAME}" \
++        -type f -print -quit
++}
+diff --git a/experiment_scripts/run_full_experiment.sh b/experiment_scripts/run_full_experiment.sh
+new file mode 100755
+index 000000000..6dda80afb
+--- /dev/null
++++ b/experiment_scripts/run_full_experiment.sh
+@@ -0,0 +1,98 @@
++#!/usr/bin/env bash
++# embedding_table_lookup 一键 benchmark 对比实验
++# 对比原生实现 vs ARM 优化实现
++
++set -euo pipefail
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
++EXPERIMENT_DIR="${SCRIPT_DIR}/experiment_scripts"
++source "$EXPERIMENT_DIR/common.sh"
++
++usage() {
++    cat <<'EOF'
++Usage: run_full_experiment.sh [run_count] [core_range]
++
++Examples:
++  ./run_full_experiment.sh            # 默认 10 次, 核心 0-15
++  ./run_full_experiment.sh 5          # 5 次, 核心 0-15
++  ./run_full_experiment.sh 10 8-15    # 10 次, 核心 8-15
++EOF
++}
++
++RUN_COUNT="${1:-10}"
++CORE_RANGE="${2:-0-15}"
++
++if [[ "$1" == "-h" || "$1" == "--help" ]]; then
++    usage
++    exit 0
++fi
++
++chmod +x "$EXPERIMENT_DIR"/*.sh
++
++RUN_TAG="${OP_KIND}_$(date '+%Y%m%d_%H%M%S')"
++RUN_DIR="${RESULTS_OP_ROOT}/${RUN_TAG}"
++mkdir -p "${RUN_DIR}"
++
++echo "=========================================="
++echo "EmbeddingTableLookup Benchmark 性能对比"
++echo "=========================================="
++echo "运行次数: ${RUN_COUNT}"
++echo "核心范围: ${CORE_RANGE}"
++echo "实验批次: ${RUN_TAG}"
++echo "结果目录: ${RUN_DIR}"
++echo ""
++
++# 步骤 1: 编译原生版本 (force_ref_impl=true 的 benchmark 过滤)
++echo ""
++echo "=========================================="
++echo "步骤 1/4: 编译 benchmark"
++echo "=========================================="
++"${EXPERIMENT_DIR}/01_modify_ref_impl.sh" true
++"${EXPERIMENT_DIR}/02_compile_benchmark.sh"
++
++# 步骤 2: 运行原生版本
++echo ""
++echo "=========================================="
++echo "步骤 2/4: 运行原生版本 (force_ref_impl=true)"
++echo "=========================================="
++"${EXPERIMENT_DIR}/03_run_benchmark_with_monitoring.sh" "native" "${RUN_COUNT}" "${CORE_RANGE}" "${RUN_TAG}"
++
++# 步骤 3: 编译优化版本（共用同一份 benchmark 二进制，但过滤不同的测试用例）
++echo ""
++echo "=========================================="
++echo "步骤 3/4: 切换为 ARM 优化版本 (force_ref_impl=false)"
++echo "=========================================="
++"${EXPERIMENT_DIR}/01_modify_ref_impl.sh" false
++
++# 步骤 4: 运行 ARM 优化版本
++echo ""
++echo "=========================================="
++echo "步骤 4/4: 运行 ARM 优化版本 (force_ref_impl=false)"
++echo "=========================================="
++"${EXPERIMENT_DIR}/03_run_benchmark_with_monitoring.sh" "arm_optimized" "${RUN_COUNT}" "${CORE_RANGE}" "${RUN_TAG}"
++
++# 生成对比报告
++echo ""
++echo "=========================================="
++echo "生成对比报告"
++echo "=========================================="
++python3 "${EXPERIMENT_DIR}/04_parse_results.py" "${RUN_TAG}"
++
++ln -sfn "${RUN_DIR}" "${RESULTS_OP_ROOT}/latest"
++
++echo ""
++echo "=========================================="
++echo "实验完成！"
++echo "=========================================="
++echo ""
++echo "结果文件:"
++echo "  原生版本:  ${RUN_DIR}/native_results.txt"
++echo "  ARM优化:   ${RUN_DIR}/arm_optimized_results.txt"
++echo "  原生CPU:   ${RUN_DIR}/native_cpu_log.txt"
++echo "  ARM CPU:   ${RUN_DIR}/arm_optimized_cpu_log.txt"
++echo "  CSV报告:   ${RUN_DIR}/benchmark_comparison.csv"
++echo "  latest ->  ${RUN_DIR}"
++echo ""
++echo "CSV 报告预览:"
++head -20 "${RUN_DIR}/benchmark_comparison.csv"
++echo ""
+diff --git a/tensorflow/BUILD b/tensorflow/BUILD
+index f72931217..61be9128d 100644
+--- a/tensorflow/BUILD
++++ b/tensorflow/BUILD
+@@ -1048,6 +1048,7 @@ package_group(
+         "//smartass/brain/configure/...",
+         "//tensorflow/...",
+         "//tensorflow_decision_forests/...",
++        "//third_party/kembedding/...",
+         "//tensorflow_federated/...",
+         "//third_party/cloud_tpu/convergence_tools/sdc_monitoring/...",
+         "//third_party/cloud_tpu/inference_converter/...",
+diff --git a/third_party/kembedding/BUILD b/third_party/kembedding/BUILD
+new file mode 100644
+index 000000000..ac68325e8
+--- /dev/null
++++ b/third_party/kembedding/BUILD
+@@ -0,0 +1,84 @@
++# Kembedding: Embedding Table Lookup Custom TensorFlow Operator
++# Minimal build targets for embedding table lookup only.
++
++package(default_visibility = ["//visibility:public"])
++
++load("//tensorflow:tensorflow.bzl", "tf_cc_shared_object", "tf_cc_test")
++
++# Proto: embedding table serialization format
++proto_library(
++    name = "kembedding_embedding_index_to_value_table_proto",
++    srcs = ["proto/custom/embedding_index_to_value_table.proto"],
++)
++
++cc_proto_library(
++    name = "kembedding_embedding_index_to_value_table_cc_proto",
++    deps = [":kembedding_embedding_index_to_value_table_proto"],
++)
++
++# Core: EmbeddingIndexToValueTable — sharded hash table for sparse embedding lookup
++cc_library(
++    name = "embedding_index_to_value_table",
++    srcs = ["src/core/embedding_index_to_value_table.cc"],
++    hdrs = ["kembedding/core/embedding_index_to_value_table.h"],
++    includes = ["."],
++    deps = [
++        ":kembedding_embedding_index_to_value_table_cc_proto",
++        "//tensorflow/core:framework",
++        "//tensorflow/core:lib",
++    ],
++)
++
++# Op kernel: EmbeddingTableLookup + InitializeEmbeddingIndexToValueTableFromTextFile
++cc_library(
++    name = "embedding_table_lookup_op",
++    srcs = ["src/kernels/embedding_table_lookup_op.cc"],
++    hdrs = ["kembedding/core/resource_hash_map.h"],
++    includes = ["."],
++    deps = [
++        ":embedding_index_to_value_table",
++        "//tensorflow/core:framework",
++        "//tensorflow/core:lib",
++    ],
++    alwayslink = 1,
++)
++
++# Shared object for dynamic loading
++tf_cc_shared_object(
++    name = "kembedding_embedding_table_lookup.so",
++    deps = [
++        ":embedding_table_lookup_op",
++    ],
++)
++
++# Unit tests
++tf_cc_test(
++    name = "embedding_table_lookup_op_test",
++    srcs = ["tests/embedding_table_lookup/embedding_table_lookup_op_test.cc"],
++    deps = [
++        ":embedding_index_to_value_table",
++        ":embedding_table_lookup_op",
++        "//tensorflow/core/framework:fake_input",
++        "//tensorflow/core:framework",
++        "//tensorflow/core:lib",
++        "//tensorflow/core/kernels:ops_testutil",
++        "//tensorflow/core/platform:test_main",
++        "//tensorflow/core:test",
++    ],
++)
++
++# Benchmark
++tf_cc_test(
++    name = "embedding_table_lookup_benchmark",
++    srcs = ["tests/embedding_table_lookup/embedding_table_lookup_benchmark.cc"],
++    deps = [
++        ":embedding_index_to_value_table",
++        ":embedding_table_lookup_op",
++        "//tensorflow/core/framework:fake_input",
++        "//tensorflow/core:framework",
++        "//tensorflow/core:lib",
++        "//tensorflow/core/kernels:ops_testutil",
++        "//tensorflow/core/platform:test_main",
++        "//tensorflow/core:test",
++    ],
++)
+diff --git a/third_party/kembedding/kembedding/core/embedding_index_to_value_table.h b/third_party/kembedding/kembedding/core/embedding_index_to_value_table.h
+new file mode 100644
+index 000000000..d04044584
+--- /dev/null
++++ b/third_party/kembedding/kembedding/core/embedding_index_to_value_table.h
+@@ -0,0 +1,181 @@
++#ifndef KEMBEDDING_CORE_EMBEDDING_INDEX_TO_VALUE_TABLE_H_
++#define KEMBEDDING_CORE_EMBEDDING_INDEX_TO_VALUE_TABLE_H_
++
++#include <atomic>
++#include <cstdint>
++#include <memory>
++#include <string>
++#include <vector>
++
++#include "absl/container/flat_hash_map.h"
++#include "tensorflow/core/framework/resource_mgr.h"
++#include "tensorflow/core/framework/tensor.h"
++#include "tensorflow/core/lib/core/status.h"
++#include "tensorflow/core/lib/io/inputbuffer.h"
++#include "tensorflow/core/lib/strings/strcat.h"
++#include "tensorflow/core/platform/file_system.h"
++#include "tensorflow/core/platform/macros.h"
++
++#include "proto/custom/embedding_index_to_value_table.pb.h"
++
++namespace tensorflow {
++namespace kembedding {
++
++// A single (index, value) pair stored in the embedding table.
++struct ValidIndexValuePair {
++  uint16_t index;
++  float value;
++} __attribute__((packed));
++
++// A lookup result entry: key and its associated index/value pairs.
++struct TableEntry {
++  uint64_t key = 0;
++  std::vector<ValidIndexValuePair> pairs;
++};
++
++using EmbeddingRow = std::vector<ValidIndexValuePair>;
++
++// Reads a serialized embedding table from a binary file.
++//
++// File format:
++//   [4 bytes: header_size] [header_size bytes: TableInfo protobuf]
++//   For each entry:
++//     [8 bytes: key] [2 bytes: pair_count]
++//     [pair_count * 2 bytes: indices] [pair_count * 4 bytes: values]
++class EmbeddingTableReader {
++ public:
++  EmbeddingTableReader(const std::string& file_path, Env* env);
++  ~EmbeddingTableReader() = default;
++
++  Status status() const { return status_; }
++
++  const sparse_embedding_table::TableInfo& metadata() const {
++    return metadata_;
++  }
++
++  Status ReadNext(TableEntry* entry);
++
++ private:
++  Status ReadHeader(sparse_embedding_table::TableInfo* info);
++
++  std::string file_path_;
++  Status status_;
++  std::unique_ptr<RandomAccessFile> file_;
++  std::unique_ptr<io::InputBuffer> input_buffer_;
++  sparse_embedding_table::TableInfo metadata_;
++};
++
++// Iterator over a serialized embedding table file.
++class EmbeddingTableIterator {
++ public:
++  EmbeddingTableIterator()
++      : valid_(false),
++        rows_read_(0),
++        total_rows_(0),
++        status_(errors::FailedPrecondition("Iterator not initialized")) {}
++
++  Status Init(const std::string& filename, Env* env) {
++    filename_ = filename;
++    reader_ = std::make_unique<EmbeddingTableReader>(filename, env);
++    status_ = reader_->status();
++    if (!status_.ok()) return status_;
++
++    total_rows_ = reader_->metadata().total_key_size();
++    valid_ = true;
++    rows_read_ = 0;
++    Advance();
++    return status_;
++  }
++
++  void Advance();
++
++  bool Valid() const { return valid_; }
++
++  const TableEntry& entry() const { return entry_; }
++  TableEntry& entry() { return entry_; }
++
++  Status status() const { return status_; }
++  uint64_t total_rows() const { return total_rows_; }
++
++ private:
++  std::unique_ptr<EmbeddingTableReader> reader_;
++  TableEntry entry_;
++  bool valid_;
++  uint64_t rows_read_;
++  uint64_t total_rows_;
++  std::string filename_;
++  Status status_;
++
++  TF_DISALLOW_COPY_AND_ASSIGN(EmbeddingTableIterator);
++};
++
++// A sharded hash table mapping uint64 keys to sparse embedding rows.
++//
++// Thread-safe: reads (Find) may happen concurrently with each other.
++// Initialization and insertion must be serialized.
++class EmbeddingIndexToValueTable : public ResourceBase {
++ public:
++  EmbeddingIndexToValueTable() = default;
++  ~EmbeddingIndexToValueTable() override = default;
++
++  // ResourceBase implementation.
++  std::string DebugString() const override {
++    return strings::StrCat("EmbeddingIndexToValueTable{size=", num_entries_, "}");
++  }
++
++  int64_t MemoryUsed() const override {
++    if (!is_initialized()) return 0;
++    mutex_lock l(mu_);
++    int64_t total = 0;
++    for (const auto& shard : shards_) {
++      total += shard.size() * (sizeof(uint64_t) + sizeof(EmbeddingRow));
++      for (const auto& [key, row] : shard) {
++        total += row.size() * sizeof(ValidIndexValuePair);
++      }
++    }
++    return total;
++  }
++
++  bool is_initialized() const {
++    return is_initialized_.load(std::memory_order_acquire);
++  }
++
++  size_t num_entries() const { return num_entries_; }
++
++  // Populates the table from an iterator over a serialized file.
++  Status Initialize(EmbeddingTableIterator& iter);
++
++  // Lookup keys and return (row_index, value_index) pairs and values.
++  //
++  // Returns:
++  //   indices: [N, 2] int64 tensor of (key_index, value_index) pairs
++  //   values:  [N] float tensor of embedding values
++  //   dense_shape: [2] int64 tensor of (num_keys, embedding_dim)
++  Status Find(OpKernelContext* ctx, const Tensor& keys,
++              int embedding_dim, int max_parallelism,
++              Tensor** indices, Tensor** values, Tensor** dense_shape);
++
++  // Optimized variant of Find that pre-allocates output tensors.
++  Status FindOpt(OpKernelContext* ctx, const Tensor& keys,
++                 int embedding_dim, int max_parallelism,
++                 Tensor** indices, Tensor** values, Tensor** dense_shape);
++
++ private:
++  Status Insert(uint64_t key, TableEntry& entry);
++  void InitializeBuckets(size_t expected_rows);
++
++  static constexpr int kDefaultBucketCount = 128;
++
++  using Bucket = absl::flat_hash_map<uint64_t, EmbeddingRow>;
++
++  mutable mutex mu_;
++  std::atomic<bool> is_initialized_{false};
++  std::vector<Bucket> shards_;
++  size_t bucket_count_ = kDefaultBucketCount;
++  size_t num_entries_ = 0;
++};
++
++}  // namespace kembedding
++}  // namespace tensorflow
++
++#endif  // KEMBEDDING_CORE_EMBEDDING_INDEX_TO_VALUE_TABLE_H_
+diff --git a/third_party/kembedding/kembedding/core/resource_hash_map.h b/third_party/kembedding/kembedding/core/resource_hash_map.h
+new file mode 100644
+index 000000000..b493e3546
+--- /dev/null
++++ b/third_party/kembedding/kembedding/core/resource_hash_map.h
+@@ -0,0 +1,36 @@
++#ifndef KEMBEDDING_CORE_RESOURCE_HASH_MAP_H_
++#define KEMBEDDING_CORE_RESOURCE_HASH_MAP_H_
++
++#include "tensorflow/core/framework/resource_mgr.h"
++#include "tensorflow/core/framework/tensor.h"
++#include "tensorflow/core/lib/core/status.h"
++#include "tensorflow/core/platform/errors.h"
++
++namespace tensorflow {
++namespace kembedding {
++
++template <typename ResourceType>
++Status LookupResource(absl::string_view input_name,
++                      OpKernelContext* ctx,
++                      ResourceType** resource) {
++  *resource = nullptr;
++
++  ResourceHandle handle;
++  TF_RETURN_IF_ERROR(HandleFromInput(ctx, input_name, &handle));
++
++  ResourceType* raw = nullptr;
++  TF_RETURN_IF_ERROR(LookupResource(ctx, handle, &raw));
++  if (raw == nullptr) {
++    return errors::NotFound(
++        "Resource '", handle.name(), "' in container '",
++        handle.container(), "' has not been initialized.");
++  }
++
++  *resource = raw;
++  return absl::OkStatus();
++}
++
++}  // namespace kembedding
++}  // namespace tensorflow
++
++#endif  // KEMBEDDING_CORE_RESOURCE_HASH_MAP_H_
+diff --git a/third_party/kembedding/proto/custom/embedding_index_to_value_table.proto b/third_party/kembedding/proto/custom/embedding_index_to_value_table.proto
+new file mode 100644
+index 000000000..a90a5b957
+--- /dev/null
++++ b/third_party/kembedding/proto/custom/embedding_index_to_value_table.proto
+@@ -0,0 +1,19 @@
++syntax = "proto3";
++package sparse_embedding_table;
++option cc_enable_arenas = true;
++
++message TableInfo {
++  fixed64 total_key_size = 2;
++  enum Endianness {
++    LITTLE = 0;
++    BIG = 1;
++  }
++  Endianness endianness = 3;
++  // 删除 key 的数量，data 中删除 key 位于新 key 之前
++  sfixed64 delete_key_size = 5;
++  // 新 key 数量，data 中 key 的排列在更新 key 之前
++  sfixed64 insert_key_size = 6;
++  // 更新 key 数量
++  sfixed64 update_key_size = 7;
++  bool is_inc = 8;
++}
+\ No newline at end of file
+diff --git a/third_party/kembedding/src/core/embedding_index_to_value_table.cc b/third_party/kembedding/src/core/embedding_index_to_value_table.cc
+new file mode 100644
+index 000000000..44029153b
+--- /dev/null
++++ b/third_party/kembedding/src/core/embedding_index_to_value_table.cc
+@@ -0,0 +1,286 @@
++#include "kembedding/core/embedding_index_to_value_table.h"
++
++#include <algorithm>
++
++#include "tensorflow/core/framework/op_requires.h"
++#include "tensorflow/core/platform/env.h"
++#include "tensorflow/core/util/work_sharder.h"
++
++namespace tensorflow {
++namespace kembedding {
++
++// =============================================================================
++// EmbeddingTableReader
++// =============================================================================
++
++EmbeddingTableReader::EmbeddingTableReader(const std::string& file_path,
++                                           Env* env)
++    : file_path_(file_path) {
++  FileStatistics stat;
++  status_ = env->Stat(file_path, &stat);
++  if (!status_.ok()) return;
++
++  status_ = env->NewRandomAccessFile(file_path, &file_);
++  if (!status_.ok()) return;
++
++  input_buffer_ = std::make_unique<io::InputBuffer>(file_.get(), 1024 * 1024);
++  status_ = ReadHeader(&metadata_);
++}
++
++Status EmbeddingTableReader::ReadHeader(
++    sparse_embedding_table::TableInfo* info) {
++  uint32_t header_size = 0;
++  size_t bytes_read = 0;
++
++  Status s = input_buffer_->ReadNBytes(
++      sizeof(header_size), reinterpret_cast<char*>(&header_size), &bytes_read);
++  if (!s.ok()) {
++    LOG(ERROR) << "Failed to read header size from " << file_path_
++               << ": " << s.message();
++    return s;
++  }
++
++  std::string header_bytes;
++  s = input_buffer_->ReadNBytes(header_size, &header_bytes);
++  if (!s.ok()) {
++    LOG(ERROR) << "Failed to read header (" << header_size << " bytes) from "
++               << file_path_ << ": " << s.message();
++    return s;
++  }
++
++  if (!info->ParseFromString(header_bytes)) {
++    LOG(ERROR) << "Failed to parse TableInfo protobuf from " << file_path_;
++    return errors::DataLoss("Corrupted embedding table header in ", file_path_);
++  }
++
++  return absl::OkStatus();
++}
++
++Status EmbeddingTableReader::ReadNext(TableEntry* entry) {
++  size_t bytes_read = 0;
++
++  TF_RETURN_IF_ERROR(input_buffer_->ReadNBytes(
++      sizeof(uint64_t), reinterpret_cast<char*>(&entry->key), &bytes_read));
++
++  uint16_t pair_count = 0;
++  TF_RETURN_IF_ERROR(input_buffer_->ReadNBytes(
++      sizeof(uint16_t), reinterpret_cast<char*>(&pair_count), &bytes_read));
++
++  entry->pairs.resize(pair_count);
++
++  for (int i = 0; i < pair_count; ++i) {
++    TF_RETURN_IF_ERROR(input_buffer_->ReadNBytes(
++        sizeof(uint16_t),
++        reinterpret_cast<char*>(&entry->pairs[i].index), &bytes_read));
++  }
++
++  for (int i = 0; i < pair_count; ++i) {
++    TF_RETURN_IF_ERROR(input_buffer_->ReadNBytes(
++        sizeof(float),
++        reinterpret_cast<char*>(&entry->pairs[i].value), &bytes_read));
++  }
++
++  return absl::OkStatus();
++}
++
++// =============================================================================
++// EmbeddingTableIterator
++// =============================================================================
++
++void EmbeddingTableIterator::Advance() {
++  if (!valid_) return;
++
++  status_ = reader_->ReadNext(&entry_);
++
++  if (!status_.ok()) {
++    if (errors::IsOutOfRange(status_) && rows_read_ != total_rows_) {
++      LOG(WARNING) << filename_ << ": expected " << total_rows_
++                   << " entries but only read " << rows_read_;
++    }
++    valid_ = false;
++    return;
++  }
++
++  ++rows_read_;
++}
++
++// =============================================================================
++// EmbeddingIndexToValueTable
++// =============================================================================
++
++void EmbeddingIndexToValueTable::InitializeBuckets(size_t expected_rows) {
++  shards_.resize(bucket_count_);
++  if (expected_rows > 0) {
++    size_t per_shard = (expected_rows + bucket_count_ - 1) / bucket_count_;
++    for (auto& shard : shards_) {
++      shard.reserve(per_shard);
++    }
++  }
++}
++
++Status EmbeddingIndexToValueTable::Insert(uint64_t key, TableEntry& entry) {
++  size_t bucket = key & (bucket_count_ - 1);
++  shards_[bucket].emplace(key, std::move(entry.pairs));
++  ++num_entries_;
++  return absl::OkStatus();
++}
++
++Status EmbeddingIndexToValueTable::Initialize(
++    EmbeddingTableIterator& iter) {
++  if (!iter.Valid()) {
++    return iter.status();
++  }
++
++  mutex_lock l(mu_);
++  if (is_initialized()) {
++    return errors::FailedPrecondition(
++        "EmbeddingIndexToValueTable is already initialized.");
++  }
++
++  InitializeBuckets(static_cast<size_t>(iter.total_rows()));
++
++  while (iter.Valid()) {
++    TF_RETURN_IF_ERROR(Insert(iter.entry().key, iter.entry()));
++    iter.Advance();
++  }
++
++  if (!errors::IsOutOfRange(iter.status())) {
++    return iter.status();
++  }
++
++  is_initialized_.store(true, std::memory_order_release);
++  return absl::OkStatus();
++}
++
++Status EmbeddingIndexToValueTable::Find(
++    OpKernelContext* ctx, const Tensor& keys,
++    int embedding_dim, int max_parallelism,
++    Tensor** output_indices, Tensor** output_values,
++    Tensor** output_dense_shape) {
++  if (!is_initialized()) {
++    return errors::FailedPrecondition(
++        "EmbeddingIndexToValueTable has not been initialized.");
++  }
++
++  const auto key_values = keys.tensor<int64, 1>();
++  const int64 num_keys = keys.NumElements();
++
++  // Collect results from each shard in parallel.
++  std::vector<const EmbeddingRow*> shard_results(num_keys, nullptr);
++
++  const DeviceBase::CpuWorkerThreads& worker_threads =
++      *ctx->device()->tensorflow_cpu_worker_threads();
++
++  Shard(max_parallelism, worker_threads.workers, num_keys, 10000,
++        [&](int64 start, int64 end) {
++          for (int64 i = start; i < end; ++i) {
++            size_t bucket = key_values(i) & (bucket_count_ - 1);
++            auto it = shards_[bucket].find(key_values(i));
++            if (it != shards_[bucket].end()) {
++              shard_results[i] = &it->second;
++            }
++          }
++        });
++
++  // Gather results into intermediate buffers, then copy to output tensors.
++  std::vector<int64_t> index_buf;
++  std::vector<float> value_buf;
++  index_buf.reserve(num_keys * embedding_dim * 2);
++  value_buf.reserve(num_keys * embedding_dim);
++
++  for (int64 i = 0; i < num_keys; ++i) {
++    const EmbeddingRow* row = shard_results[i];
++    if (row == nullptr) continue;
++
++    for (const auto& pair : *row) {
++      index_buf.push_back(i);
++      index_buf.push_back(pair.index);
++      value_buf.push_back(pair.value);
++    }
++  }
++
++  const int64 num_hits = value_buf.size();
++
++  TF_RETURN_IF_ERROR(
++      ctx->allocate_output(0, {num_hits, 2}, output_indices));
++  TF_RETURN_IF_ERROR(
++      ctx->allocate_output(1, {num_hits}, output_values));
++
++  std::copy(value_buf.begin(), value_buf.end(),
++            (*output_values)->vec<float>().data());
++  std::copy(index_buf.begin(), index_buf.end(),
++            (*output_indices)->flat<int64>().data());
++
++  TF_RETURN_IF_ERROR(ctx->allocate_output(2, {2}, output_dense_shape));
++  (*output_dense_shape)->vec<int64>()(0) = num_keys;
++  (*output_dense_shape)->vec<int64>()(1) = embedding_dim;
++
++  return absl::OkStatus();
++}
++
++Status EmbeddingIndexToValueTable::FindOpt(
++    OpKernelContext* ctx, const Tensor& keys,
++    int embedding_dim, int max_parallelism,
++    Tensor** output_indices, Tensor** output_values,
++    Tensor** output_dense_shape) {
++  if (!is_initialized()) {
++    return errors::FailedPrecondition(
++        "EmbeddingIndexToValueTable has not been initialized.");
++  }
++
++  const auto key_values = keys.tensor<int64, 1>();
++  const int64 num_keys = keys.NumElements();
++
++  std::vector<const EmbeddingRow*> shard_results(num_keys, nullptr);
++
++  const DeviceBase::CpuWorkerThreads& worker_threads =
++      *ctx->device()->tensorflow_cpu_worker_threads();
++
++  Shard(max_parallelism, worker_threads.workers, num_keys, 10000,
++        [&](int64 start, int64 end) {
++          for (int64 i = start; i < end; ++i) {
++            size_t bucket = key_values(i) & (bucket_count_ - 1);
++            auto it = shards_[bucket].find(key_values(i));
++            if (it != shards_[bucket].end()) {
++              shard_results[i] = &it->second;
++            }
++          }
++        });
++
++  int64 num_hits = 0;
++  for (int64 i = 0; i < num_keys; ++i) {
++    if (shard_results[i] != nullptr) {
++      num_hits += shard_results[i]->size();
++    }
++  }
++
++  TF_RETURN_IF_ERROR(
++      ctx->allocate_output(0, {num_hits, 2}, output_indices));
++  TF_RETURN_IF_ERROR(
++      ctx->allocate_output(1, {num_hits}, output_values));
++
++  int64* indices_ptr = (*output_indices)->flat<int64>().data();
++  float* values_ptr = (*output_values)->vec<float>().data();
++
++  int64 pos = 0;
++  for (int64 i = 0; i < num_keys; ++i) {
++    const EmbeddingRow* row = shard_results[i];
++    if (row == nullptr) continue;
++
++    for (const auto& pair : *row) {
++      indices_ptr[pos * 2] = i;
++      indices_ptr[pos * 2 + 1] = pair.index;
++      values_ptr[pos] = pair.value;
++      ++pos;
++    }
++  }
++
++  TF_RETURN_IF_ERROR(ctx->allocate_output(2, {2}, output_dense_shape));
++  (*output_dense_shape)->vec<int64>()(0) = num_keys;
++  (*output_dense_shape)->vec<int64>()(1) = embedding_dim;
++
++  return absl::OkStatus();
++}
++
++}  // namespace kembedding
++}  // namespace tensorflow
+diff --git a/third_party/kembedding/src/kernels/embedding_table_lookup_op.cc b/third_party/kembedding/src/kernels/embedding_table_lookup_op.cc
+new file mode 100644
+index 000000000..41e8bd621
+--- /dev/null
++++ b/third_party/kembedding/src/kernels/embedding_table_lookup_op.cc
+@@ -0,0 +1,271 @@
++#define EIGEN_USE_THREADS
++
++#include "tensorflow/core/framework/op.h"
++#include "tensorflow/core/framework/op_kernel.h"
++#include "tensorflow/core/framework/shape_inference.h"
++#include "tensorflow/core/framework/tensor_shape.h"
++#include "tensorflow/core/platform/mutex.h"
++
++#include "kembedding/core/embedding_index_to_value_table.h"
++#include "kembedding/core/resource_hash_map.h"
++
++namespace tensorflow {
++namespace kembedding {
++
++using shape_inference::InferenceContext;
++using shape_inference::ShapeHandle;
++
++// =============================================================================
++// InitializeEmbeddingIndexToValueTableFromTextFile
++// =============================================================================
++
++REGISTER_OP("InitializeEmbeddingIndexToValueTableFromTextFile")
++    .Input("table_handle: resource")
++    .Input("filename: string")
++    .SetShapeFn([](InferenceContext* c) {
++      ShapeHandle unused;
++      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 0, &unused));
++      TF_RETURN_IF_ERROR(c->WithRank(c->input(1), 0, &unused));
++      return absl::OkStatus();
++    });
++
++class InitializeEmbeddingIndexToValueTableFromTextFileOp : public OpKernel {
++ public:
++  explicit InitializeEmbeddingIndexToValueTableFromTextFileOp(
++      OpKernelConstruction* ctx)
++      : OpKernel(ctx) {}
++
++  void Compute(OpKernelContext* ctx) override {
++    mutex_lock l(mu_);
++
++    EmbeddingIndexToValueTable* table = nullptr;
++    OP_REQUIRES_OK(
++        ctx, LookupResource<EmbeddingIndexToValueTable>(
++                 "table_handle", ctx, &table));
++    core::ScopedUnref unref_me(table);
++
++    const Tensor& filename_tensor = ctx->input(1);
++    OP_REQUIRES(
++        ctx, TensorShapeUtils::IsScalar(filename_tensor.shape()),
++        errors::InvalidArgument(
++            "filename must be a scalar string, got shape ",
++            filename_tensor.shape().DebugString()));
++
++    const std::string filename = filename_tensor.scalar<tstring>()();
++    OP_REQUIRES(
++        ctx, !filename.empty(),
++        errors::InvalidArgument("filename must not be empty."));
++
++    int64_t memory_before = 0;
++    if (ctx->track_allocations()) {
++      memory_before = table->MemoryUsed();
++    }
++
++    OP_REQUIRES_OK(ctx, LoadTableFromFile(filename, ctx->env(), table));
++
++    if (ctx->track_allocations()) {
++      ctx->record_persistent_memory_allocation(
++          table->MemoryUsed() - memory_before);
++    }
++  }
++
++ private:
++  Status LoadTableFromFile(const std::string& filename, Env* env,
++                           EmbeddingIndexToValueTable* table) {
++    EmbeddingTableIterator iter;
++    TF_RETURN_IF_ERROR(iter.Init(filename, env));
++
++    Status s = table->Initialize(iter);
++    if (errors::IsFailedPrecondition(s) && table->is_initialized()) {
++      LOG(INFO) << "Embedding table is already initialized from file: "
++                << filename;
++      return absl::OkStatus();
++    }
++    return s;
++  }
++
++  mutex mu_;
++  TF_DISALLOW_COPY_AND_ASSIGN(
++      InitializeEmbeddingIndexToValueTableFromTextFileOp);
++};
++
++REGISTER_KERNEL_BUILDER(
++    Name("InitializeEmbeddingIndexToValueTableFromTextFile")
++        .Device(DEVICE_CPU),
++    InitializeEmbeddingIndexToValueTableFromTextFileOp);
++
++// =============================================================================
++// EmbeddingIndexToValueTable (resource handle op)
++// =============================================================================
++
++REGISTER_OP("EmbeddingIndexToValueTable")
++    .Output("table_handle: resource")
++    .Attr("container: string = ''")
++    .Attr("shared_name: string = ''")
++    .Attr("use_node_name_sharing: bool = false")
++    .SetIsStateful()
++    .SetShapeFn([](InferenceContext* c) {
++      c->set_output(0, c->Scalar());
++      return absl::OkStatus();
++    });
++
++class EmbeddingIndexToValueTableOp : public OpKernel {
++ public:
++  explicit EmbeddingIndexToValueTableOp(OpKernelConstruction* ctx)
++      : OpKernel(ctx), table_created_(false), use_node_name_sharing_(false) {
++    OP_REQUIRES_OK(
++        ctx, ctx->GetAttr("use_node_name_sharing", &use_node_name_sharing_));
++    OP_REQUIRES_OK(
++        ctx, ctx->allocate_temp(DT_RESOURCE, TensorShape({}), &handle_));
++  }
++
++  ~EmbeddingIndexToValueTableOp() override {
++    if (table_created_ && cinfo_.resource_is_private_to_kernel()) {
++      if (!cinfo_.resource_manager()
++               ->Delete<EmbeddingIndexToValueTable>(cinfo_.container(),
++                                                    cinfo_.name())
++               .ok()) {
++        LOG(WARNING) << "Failed to clean up EmbeddingIndexToValueTable in "
++                     << cinfo_.container() << "/" << cinfo_.name();
++      }
++    }
++  }
++
++  void Compute(OpKernelContext* ctx) override {
++    mutex_lock l(mu_);
++
++    if (!table_created_) {
++      OP_REQUIRES_OK(
++          ctx, cinfo_.Init(ctx->resource_manager(), def(),
++                           use_node_name_sharing_));
++    }
++
++    auto creator = [ctx, this](EmbeddingIndexToValueTable** ret)
++        TF_EXCLUSIVE_LOCKS_REQUIRED(mu_) -> Status {
++      auto* table = new EmbeddingIndexToValueTable();
++      if (!ctx->status().ok()) {
++        table->Unref();
++        return ctx->status();
++      }
++
++      if (ctx->track_allocations()) {
++        ctx->record_persistent_memory_allocation(
++            table->MemoryUsed() + handle_.AllocatedBytes());
++      }
++
++      *ret = table;
++      return absl::OkStatus();
++    };
++
++    EmbeddingIndexToValueTable* table = nullptr;
++    OP_REQUIRES_OK(
++        ctx, cinfo_.resource_manager()
++                 ->LookupOrCreate<EmbeddingIndexToValueTable>(
++                     cinfo_.container(), cinfo_.name(), &table, creator));
++    core::ScopedUnref unref_me(table);
++
++    auto h = handle_.scalar<ResourceHandle>();
++    h() = MakeResourceHandle<EmbeddingIndexToValueTable>(
++        ctx, cinfo_.container(), cinfo_.name());
++    ctx->set_output(0, handle_);
++
++    table_created_ = true;
++  }
++
++ private:
++  mutex mu_;
++  Tensor handle_ TF_GUARDED_BY(mu_);
++  bool table_created_ TF_GUARDED_BY(mu_);
++  ContainerInfo cinfo_;
++  bool use_node_name_sharing_;
++
++  TF_DISALLOW_COPY_AND_ASSIGN(EmbeddingIndexToValueTableOp);
++};
++
++REGISTER_KERNEL_BUILDER(
++    Name("EmbeddingIndexToValueTable").Device(DEVICE_CPU),
++    EmbeddingIndexToValueTableOp);
++
++// =============================================================================
++// EmbeddingTableLookup
++// =============================================================================
++
++REGISTER_OP("EmbeddingTableLookup")
++    .Attr("emb_dim: int = 4")
++    .Attr("max_parallelism: int = 8")
++    .Attr("force_ref_impl: bool = false")
++    .Input("table_handle: resource")
++    .Input("keys: int64")
++    .Output("indices: int64")
++    .Output("values: float")
++    .Output("dense_shape: int64")
++    .SetShapeFn([](InferenceContext* c) {
++      ShapeHandle keys;
++      TF_RETURN_IF_ERROR(c->WithRank(c->input(1), 1, &keys));
++      c->set_output(0, c->UnknownShape());
++      c->set_output(1, c->UnknownShape());
++      c->set_output(2, c->Vector(2));
++      return absl::OkStatus();
++    });
++
++class EmbeddingTableLookupOp : public OpKernel {
++ public:
++  explicit EmbeddingTableLookupOp(OpKernelConstruction* ctx)
++      : OpKernel(ctx),
++        embedding_dim_(4),
++        max_parallelism_(8),
++        force_ref_impl_(false) {
++    OP_REQUIRES_OK(ctx, ctx->GetAttr("emb_dim", &embedding_dim_));
++    OP_REQUIRES_OK(ctx, ctx->GetAttr("max_parallelism", &max_parallelism_));
++    OP_REQUIRES_OK(ctx, ctx->GetAttr("force_ref_impl", &force_ref_impl_));
++
++    OP_REQUIRES(ctx, embedding_dim_ > 0,
++                errors::InvalidArgument("emb_dim must be > 0, got ",
++                                        embedding_dim_));
++    OP_REQUIRES(ctx, max_parallelism_ > 0,
++                errors::InvalidArgument("max_parallelism must be > 0, got ",
++                                        max_parallelism_));
++  }
++
++  void Compute(OpKernelContext* ctx) override {
++    EmbeddingIndexToValueTable* table = nullptr;
++    OP_REQUIRES_OK(
++        ctx, LookupResource<EmbeddingIndexToValueTable>(
++                 "table_handle", ctx, &table));
++    core::ScopedUnref unref_me(table);
++
++    const Tensor& keys = ctx->input(1);
++    OP_REQUIRES(
++        ctx, TensorShapeUtils::IsVector(keys.shape()),
++        errors::InvalidArgument("keys must be a 1-D tensor, got shape ",
++                                keys.shape().DebugString()));
++
++    Tensor* indices = nullptr;
++    Tensor* values = nullptr;
++    Tensor* dense_shape = nullptr;
++
++    if (force_ref_impl_) {
++      OP_REQUIRES_OK(
++          ctx, table->Find(ctx, keys, embedding_dim_, max_parallelism_,
++                           &indices, &values, &dense_shape));
++    } else {
++      OP_REQUIRES_OK(
++          ctx, table->FindOpt(ctx, keys, embedding_dim_, max_parallelism_,
++                              &indices, &values, &dense_shape));
++    }
++  }
++
++ private:
++  int embedding_dim_;
++  int max_parallelism_;
++  bool force_ref_impl_;
++
++  TF_DISALLOW_COPY_AND_ASSIGN(EmbeddingTableLookupOp);
++};
++
++REGISTER_KERNEL_BUILDER(
++    Name("EmbeddingTableLookup").Device(DEVICE_CPU),
++    EmbeddingTableLookupOp);
++
++}  // namespace kembedding
++}  // namespace tensorflow
+diff --git a/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_benchmark.cc b/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_benchmark.cc
+new file mode 100644
+index 000000000..376bd435b
+--- /dev/null
++++ b/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_benchmark.cc
+@@ -0,0 +1,214 @@
++// Benchmark tests for EmbeddingTableLookup operator.
++#include <algorithm>
++#include <cstddef>
++#include <cstdint>
++#include <string>
++#include <utility>
++#include <vector>
++
++#include <gtest/gtest.h>
++
++#include "tensorflow/core/framework/fake_input.h"
++#include "tensorflow/core/framework/node_def_builder.h"
++#include "tensorflow/core/framework/resource_handle.h"
++#include "tensorflow/core/framework/tensor.h"
++#include "tensorflow/core/kernels/ops_testutil.h"
++#include "tensorflow/core/lib/core/status_test_util.h"
++#include "tensorflow/core/lib/io/path.h"
++#include "tensorflow/core/platform/env.h"
++#include "tensorflow/core/platform/test.h"
++#include "tensorflow/core/platform/test_benchmark.h"
++
++#include "kembedding/core/embedding_index_to_value_table.h"
++#include "proto/custom/embedding_index_to_value_table.pb.h"
++
++namespace tensorflow {
++namespace kembedding {
++namespace {
++
++using TableEntry = tensorflow::kembedding::TableEntry;
++
++struct BenchmarkConfig {
++  const char* name;
++  int num_lookup_keys;
++  int num_table_keys;
++  int emb_dim;
++  int values_per_key;
++  int max_parallelism;
++  bool include_misses;
++};
++
++void AppendRaw(std::string* output, const void* data, size_t size) {
++  output->append(static_cast<const char*>(data), size);
++}
++
++std::string WriteEmbeddingTableFile(const std::vector<TableEntry>& entries) {
++  sparse_embedding_table::TableInfo meta;
++  meta.set_total_key_size(entries.size());
++  meta.set_endianness(sparse_embedding_table::TableInfo::LITTLE);
++
++  std::string serialized_meta;
++  CHECK(meta.SerializeToString(&serialized_meta));
++
++  std::string contents;
++  const uint32_t meta_size = serialized_meta.size();
++  AppendRaw(&contents, &meta_size, sizeof(meta_size));
++  contents.append(serialized_meta);
++
++  for (const auto& entry : entries) {
++    AppendRaw(&contents, &entry.key, sizeof(entry.key));
++    const uint16_t value_count = entry.pairs.size();
++    AppendRaw(&contents, &value_count, sizeof(value_count));
++    for (const auto& pair : entry.pairs) {
++      AppendRaw(&contents, &pair.index, sizeof(pair.index));
++    }
++    for (const auto& pair : entry.pairs) {
++      AppendRaw(&contents, &pair.value, sizeof(pair.value));
++    }
++  }
++
++  std::string filename =
++      io::JoinPath(testing::TmpDir(), "embedding_table_lookup_benchmark.bin");
++  CHECK(Env::Default()->CreateUniqueFileName(&filename, ".bin"));
++  TF_CHECK_OK(WriteStringToFile(Env::Default(), filename, contents));
++  return filename;
++}
++
++Tensor CreateResourceHandleTensor(EmbeddingIndexToValueTable* table,
++                                  const std::string& device_name) {
++  Tensor handle(DT_RESOURCE, TensorShape({}));
++  handle.scalar<ResourceHandle>()() =
++      ResourceHandle::MakeRefCountingHandle(table, device_name, {}, {});
++  return handle;
++}
++
++std::vector<TableEntry> BuildTableEntries(int num_table_keys,
++                                          int emb_dim,
++                                          int values_per_key) {
++  std::vector<TableEntry> entries;
++  entries.reserve(num_table_keys);
++  for (int i = 0; i < num_table_keys; ++i) {
++    TableEntry entry;
++    entry.key = 100000 + static_cast<uint64_t>(i);
++    entry.pairs.reserve(values_per_key);
++    for (int j = 0; j < values_per_key; ++j) {
++      const int idx =
++          std::min((j * emb_dim) / values_per_key, emb_dim - 1);
++      entry.pairs.push_back(
++          {static_cast<uint16_t>(idx),
++           static_cast<float>((i % 97) + j + 1) / 10.0f});
++    }
++    entries.push_back(std::move(entry));
++  }
++  return entries;
++}
++
++Tensor BuildKeysTensor(int num_lookup_keys,
++                       int num_table_keys,
++                       bool include_misses) {
++  Tensor keys(DT_INT64, TensorShape({num_lookup_keys}));
++  auto flat = keys.vec<int64_t>();
++  for (int i = 0; i < num_lookup_keys; ++i) {
++    if (include_misses && (i % 4 == 0)) {
++      flat(i) = 900000 + i;
++      continue;
++    }
++    flat(i) = 100000 + (i % num_table_keys);
++  }
++  return keys;
++}
++
++class EmbeddingTableLookupBenchmark : public OpsTestBase {
++ public:
++  void TestBody() override {}
++
++  Status InitOpWithConfig(int emb_dim,
++                          int max_parallelism,
++                          bool force_ref_impl) {
++    TF_RETURN_IF_ERROR(NodeDefBuilder("embedding_lookup_benchmark",
++                                      "EmbeddingTableLookup")
++                           .Input(FakeInput(DT_RESOURCE))
++                           .Input(FakeInput(DT_INT64))
++                           .Attr("emb_dim", emb_dim)
++                           .Attr("max_parallelism", max_parallelism)
++                           .Attr("force_ref_impl", force_ref_impl)
++                           .Finalize(node_def()));
++    return InitOp();
++  }
++
++  void AddInputTensor(const Tensor& tensor) {
++    Tensor* input = AddInput(tensor.dtype(), tensor.shape());
++    *input = tensor;
++  }
++
++  const std::string& DeviceName() const { return device_->name(); }
++};
++
++void RunBenchmarkCase(benchmark::State& state,
++                      const BenchmarkConfig& config,
++                      bool force_ref_impl) {
++  ASSERT_GT(config.num_lookup_keys, 0);
++  ASSERT_GT(config.num_table_keys, 0);
++  ASSERT_GT(config.emb_dim, 0);
++  ASSERT_GT(config.values_per_key, 0);
++  ASSERT_LE(config.values_per_key, config.emb_dim);
++
++  EmbeddingTableLookupBenchmark benchmark;
++  TF_ASSERT_OK(benchmark.InitOpWithConfig(
++      config.emb_dim, config.max_parallelism, force_ref_impl));
++
++  const std::string filename = WriteEmbeddingTableFile(
++      BuildTableEntries(config.num_table_keys, config.emb_dim,
++                        config.values_per_key));
++  auto* table = new EmbeddingIndexToValueTable();
++  EmbeddingTableIterator iter;
++  TF_ASSERT_OK(iter.Init(filename, Env::Default()));
++  TF_ASSERT_OK(table->Initialize(iter));
++
++  benchmark.AddInputTensor(
++      CreateResourceHandleTensor(table, benchmark.DeviceName()));
++  benchmark.AddInputTensor(BuildKeysTensor(
++      config.num_lookup_keys, config.num_table_keys, config.include_misses));
++
++  TF_ASSERT_OK(benchmark.RunOpKernel());
++
++  for (auto _ : state) {
++    TF_ASSERT_OK(benchmark.RunOpKernel());
++  }
++
++  state.SetLabel(config.name);
++  state.SetItemsProcessed(state.iterations() *
++                          static_cast<int64_t>(config.num_lookup_keys));
++}
++
++constexpr BenchmarkConfig kSmallSingleThread = {
++    "4KKeys_Dim16_4Values_1Thread_Hit100", 4096, 4096, 16, 4, 1, false};
++constexpr BenchmarkConfig kMediumParallel = {
++    "16KKeys_Dim32_8Values_8Threads_Hit100", 16384, 16384, 32, 8, 8, false};
++constexpr BenchmarkConfig kMediumParallelMiss = {
++    "16KKeys_Dim32_8Values_8Threads_Hit75", 16384, 16384, 32, 8, 8, true};
++constexpr BenchmarkConfig kLargeParallel = {
++    "64KKeys_Dim64_16Values_16Threads_Hit100", 65536, 65536, 64, 16, 16,
++    false};
++
++#define DEFINE_EMBEDDING_TABLE_LOOKUP_BENCHMARK(config_name, force_ref_impl)   \
++  void BM_EmbeddingTableLookup_##config_name##_##force_ref_impl(               \
++      benchmark::State& state) {                                               \
++    RunBenchmarkCase(state, k##config_name, force_ref_impl);                   \
++  }                                                                            \
++  BENCHMARK(BM_EmbeddingTableLookup_##config_name##_##force_ref_impl)
++
++DEFINE_EMBEDDING_TABLE_LOOKUP_BENCHMARK(SmallSingleThread, false);
++DEFINE_EMBEDDING_TABLE_LOOKUP_BENCHMARK(SmallSingleThread, true);
++DEFINE_EMBEDDING_TABLE_LOOKUP_BENCHMARK(MediumParallel, false);
++DEFINE_EMBEDDING_TABLE_LOOKUP_BENCHMARK(MediumParallel, true);
++DEFINE_EMBEDDING_TABLE_LOOKUP_BENCHMARK(MediumParallelMiss, false);
++DEFINE_EMBEDDING_TABLE_LOOKUP_BENCHMARK(MediumParallelMiss, true);
++DEFINE_EMBEDDING_TABLE_LOOKUP_BENCHMARK(LargeParallel, false);
++DEFINE_EMBEDDING_TABLE_LOOKUP_BENCHMARK(LargeParallel, true);
++
++#undef DEFINE_EMBEDDING_TABLE_LOOKUP_BENCHMARK
++
++}  // namespace
++}  // namespace kembedding
++}  // namespace tensorflow
+diff --git a/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_op_test.cc b/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_op_test.cc
+new file mode 100644
+index 000000000..53accc6f5
+--- /dev/null
++++ b/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_op_test.cc
+@@ -0,0 +1,215 @@
++// Unit tests for EmbeddingTableLookup related ops.
++#include <cstdint>
++#include <string>
++#include <utility>
++#include <vector>
++
++#include "tensorflow/core/framework/fake_input.h"
++#include "tensorflow/core/framework/node_def_builder.h"
++#include "tensorflow/core/framework/op.h"
++#include "tensorflow/core/framework/resource_handle.h"
++#include "tensorflow/core/framework/tensor.h"
++#include "tensorflow/core/kernels/ops_testutil.h"
++#include "tensorflow/core/lib/core/status_test_util.h"
++#include "tensorflow/core/lib/io/path.h"
++#include "tensorflow/core/platform/env.h"
++#include "tensorflow/core/platform/test.h"
++
++#include "kembedding/core/embedding_index_to_value_table.h"
++#include "proto/custom/embedding_index_to_value_table.pb.h"
++
++namespace tensorflow {
++namespace kembedding {
++namespace {
++
++	using TableEntry = tensorflow::kembedding::TableEntry;
++
++void AppendRaw(std::string* output, const void* data, size_t size) {
++  output->append(static_cast<const char*>(data), size);
++}
++
++std::string WriteEmbeddingTableFile(const std::vector<TableEntry>& entries) {
++  sparse_embedding_table::TableInfo meta;
++  meta.set_total_key_size(entries.size());
++  meta.set_endianness(sparse_embedding_table::TableInfo::LITTLE);
++
++  std::string serialized_meta;
++  CHECK(meta.SerializeToString(&serialized_meta));
++
++  std::string contents;
++  const uint32_t meta_size = serialized_meta.size();
++  AppendRaw(&contents, &meta_size, sizeof(meta_size));
++  contents.append(serialized_meta);
++
++  for (const auto& entry : entries) {
++    AppendRaw(&contents, &entry.key, sizeof(entry.key));
++    const uint16_t value_count = entry.pairs.size();
++    AppendRaw(&contents, &value_count, sizeof(value_count));
++    for (const auto& pair : entry.pairs) {
++      AppendRaw(&contents, &pair.index, sizeof(pair.index));
++    }
++    for (const auto& pair : entry.pairs) {
++      AppendRaw(&contents, &pair.value, sizeof(pair.value));
++    }
++  }
++
++  std::string filename =
++      io::JoinPath(testing::TmpDir(), "embedding_table_lookup_test.bin");
++  CHECK(Env::Default()->CreateUniqueFileName(&filename, ".bin"));
++  TF_CHECK_OK(WriteStringToFile(Env::Default(), filename, contents));
++  return filename;
++}
++
++Tensor CreateResourceHandleTensor(EmbeddingIndexToValueTable* table,
++                                  const std::string& device_name) {
++  Tensor handle(DT_RESOURCE, TensorShape({}));
++  handle.scalar<ResourceHandle>()() =
++      ResourceHandle::MakeRefCountingHandle(table, device_name, {}, {});
++  return handle;
++}
++
++class InitializeEmbeddingIndexToValueTableFromTextFileOpTest
++    : public OpsTestBase {
++ protected:
++  void AddInputTensor(const Tensor& tensor) {
++    Tensor* input = AddInput(tensor.dtype(), tensor.shape());
++    *input = tensor;
++  }
++
++  void MakeOp() {
++    TF_ASSERT_OK(
++        NodeDefBuilder("init_embedding_table",
++                       "InitializeEmbeddingIndexToValueTableFromTextFile")
++            .Input(FakeInput(DT_RESOURCE))
++            .Input(FakeInput(DT_STRING))
++            .Finalize(node_def()));
++    TF_ASSERT_OK(InitOp());
++  }
++};
++
++TEST_F(InitializeEmbeddingIndexToValueTableFromTextFileOpTest,
++       InitializesTableFromBinaryFile) {
++  MakeOp();
++
++  const std::string filename = WriteEmbeddingTableFile({
++      {101, {{0, 1.0f}, {3, 3.5f}}},
++      {202, {{1, 2.5f}}},
++  });
++  Tensor handle = CreateResourceHandleTensor(
++      new EmbeddingIndexToValueTable(), device_->name());
++  Tensor filename_tensor(DT_STRING, TensorShape({}));
++  filename_tensor.scalar<tstring>()() = filename;
++
++  AddInputTensor(handle);
++  AddInputTensor(filename_tensor);
++  TF_ASSERT_OK(RunOpKernel());
++
++  auto resource_or = handle.scalar<ResourceHandle>()()
++                         .GetResource<EmbeddingIndexToValueTable>();
++  TF_ASSERT_OK(resource_or.status());
++  ASSERT_NE(resource_or.value(), nullptr);
++  EXPECT_TRUE(resource_or.value()->is_initialized());
++  EXPECT_EQ(resource_or.value()->num_entries(), 2);
++}
++
++class EmbeddingTableLookupOpTest : public OpsTestBase {
++ protected:
++  void AddInputTensor(const Tensor& tensor) {
++    Tensor* input = AddInput(tensor.dtype(), tensor.shape());
++    *input = tensor;
++  }
++
++  void MakeOp(bool force_ref_impl = false) {
++    TF_ASSERT_OK(NodeDefBuilder("embedding_lookup", "EmbeddingTableLookup")
++                     .Input(FakeInput(DT_RESOURCE))
++                     .Input(FakeInput(DT_INT64))
++                     .Attr("emb_dim", 4)
++                     .Attr("max_parallelism", 1)
++                     .Attr("force_ref_impl", force_ref_impl)
++                     .Finalize(node_def()));
++    TF_ASSERT_OK(InitOp());
++  }
++};
++
++TEST_F(EmbeddingTableLookupOpTest, ProducesExpectedSparseTensorOutputs) {
++  MakeOp();
++
++  const std::string filename = WriteEmbeddingTableFile({
++      {101, {{0, 1.0f}, {2, 3.0f}}},
++      {202, {{1, 2.5f}}},
++  });
++  auto* table = new EmbeddingIndexToValueTable();
++  EmbeddingTableIterator iter;
++  TF_ASSERT_OK(iter.Init(filename, Env::Default()));
++  TF_ASSERT_OK(table->Initialize(iter));
++
++  AddInputTensor(CreateResourceHandleTensor(table, device_->name()));
++  AddInputFromArray<int64_t>(TensorShape({3}), {101, 202, 999});
++
++  TF_ASSERT_OK(RunOpKernel());
++
++  ASSERT_NE(GetOutput(0), nullptr);
++  ASSERT_NE(GetOutput(1), nullptr);
++  ASSERT_NE(GetOutput(2), nullptr);
++
++  EXPECT_EQ(GetOutput(0)->shape(), TensorShape({3, 2}));
++  EXPECT_EQ(GetOutput(1)->shape(), TensorShape({3}));
++  EXPECT_EQ(GetOutput(2)->shape(), TensorShape({2}));
++
++  auto indices = GetOutput(0)->matrix<int64_t>();
++  EXPECT_EQ(indices(0, 0), 0);
++  EXPECT_EQ(indices(0, 1), 0);
++  EXPECT_EQ(indices(1, 0), 0);
++  EXPECT_EQ(indices(1, 1), 2);
++  EXPECT_EQ(indices(2, 0), 1);
++  EXPECT_EQ(indices(2, 1), 1);
++
++  auto values = GetOutput(1)->vec<float>();
++  EXPECT_FLOAT_EQ(values(0), 1.0f);
++  EXPECT_FLOAT_EQ(values(1), 3.0f);
++  EXPECT_FLOAT_EQ(values(2), 2.5f);
++
++  auto dense_shape = GetOutput(2)->vec<int64_t>();
++  EXPECT_EQ(dense_shape(0), 3);
++  EXPECT_EQ(dense_shape(1), 4);
++}
++
++TEST_F(EmbeddingTableLookupOpTest,
++       ProducesExpectedSparseTensorOutputsWithForceRefImpl) {
++  MakeOp(/*force_ref_impl=*/true);
++
++  const std::string filename = WriteEmbeddingTableFile({
++      {101, {{0, 1.0f}, {2, 3.0f}}},
++      {202, {{1, 2.5f}}},
++  });
++  auto* table = new EmbeddingIndexToValueTable();
++  EmbeddingTableIterator iter;
++  TF_ASSERT_OK(iter.Init(filename, Env::Default()));
++  TF_ASSERT_OK(table->Initialize(iter));
++
++  AddInputTensor(CreateResourceHandleTensor(table, device_->name()));
++  AddInputFromArray<int64_t>(TensorShape({3}), {101, 202, 999});
++
++  TF_ASSERT_OK(RunOpKernel());
++
++  auto indices = GetOutput(0)->matrix<int64_t>();
++  EXPECT_EQ(indices(0, 0), 0);
++  EXPECT_EQ(indices(0, 1), 0);
++  EXPECT_EQ(indices(1, 0), 0);
++  EXPECT_EQ(indices(1, 1), 2);
++  EXPECT_EQ(indices(2, 0), 1);
++  EXPECT_EQ(indices(2, 1), 1);
++
++  auto values = GetOutput(1)->vec<float>();
++  EXPECT_FLOAT_EQ(values(0), 1.0f);
++  EXPECT_FLOAT_EQ(values(1), 3.0f);
++  EXPECT_FLOAT_EQ(values(2), 2.5f);
++
++  auto dense_shape = GetOutput(2)->vec<int64_t>();
++  EXPECT_EQ(dense_shape(0), 3);
++  EXPECT_EQ(dense_shape(1), 4);
++}
++
++}  // namespace
++}  // namespace kembedding
++}  // namespace tensorflow
