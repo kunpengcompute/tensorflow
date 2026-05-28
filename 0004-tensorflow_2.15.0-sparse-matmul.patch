@@ -1,15 +1,13 @@
-diff --git a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc
-index 50544ade4..3dccaf5bd 100644
---- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc
-+++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc
-@@ -142,14 +142,14 @@ class SparseTensorDenseMatMulOp : public OpKernel {
+--- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc	2026-05-28 18:43:51.525855262 +0800
++++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc	2026-05-28 18:43:36.862623746 +0800
+@@ -142,14 +142,14 @@
  #define KDNN_ADJOINT(ADJ_A, ADJ_B)                                             \
    if (adjoint_a_ == ADJ_A && adjoint_b_ == ADJ_B) {                            \
      Status functor_status = functor::KDNNSparseMatMulFunctor<                  \
 -        CPUDevice, float, Tindices, ADJ_A,                                     \
 -        ADJ_B>::Compute(ctx->eigen_device<Device>(), out->matrix<float>(),     \
 +        Device, float, Tindices, ADJ_A,                                     \
-+        ADJ_B>::Compute(ctx, out->matrix<float>(), \
++        ADJ_B>::Compute(ctx, out->matrix<float>(),     \
                          a_indices->matrix<Tindices>(), a_values->vec<float>(), \
                          b->matrix<float>());                                   \
      OP_REQUIRES_OK(ctx, functor_status);                                       \
@@ -20,7 +18,7 @@ index 50544ade4..3dccaf5bd 100644
          FastBoundsCheck(inner_left, int32max) &&
          FastBoundsCheck(inner_right, int32max) &&
          FastBoundsCheck(outer_left, int32max)) {
-@@ -387,7 +387,7 @@ template <typename Tindices, bool ADJ_A, bool ADJ_B>
+@@ -387,7 +387,7 @@
  struct KDNNSparseMatMulFunctor<CPUDevice, float, Tindices, ADJ_A, ADJ_B> {
    static const std::size_t kNumVectorize = 32;
  
@@ -29,7 +27,7 @@ index 50544ade4..3dccaf5bd 100644
                          typename TTypes<Tindices>::ConstMatrix a_indices,
                          typename TTypes<float>::ConstVec a_values,
                          typename TTypes<float>::ConstMatrix b) {
-@@ -426,7 +426,7 @@ struct KDNNSparseMatMulFunctor<CPUDevice, float, Tindices, ADJ_A, ADJ_B> {
+@@ -426,7 +426,7 @@
          col_major_conj_b = b.swap_layout().shuffle(shuffle).conjugate().eval();
          b_data = col_major_conj_b.data();
        }
@@ -38,11 +36,9 @@ index 50544ade4..3dccaf5bd 100644
      }
      return OkStatus();
    }
-diff --git a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h
-index 3de9474a1..a7713c679 100644
---- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h
-+++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h
-@@ -40,7 +40,7 @@ template <typename Device, typename T, typename Tindices, bool ADJ_A,
+--- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h	2026-05-28 18:43:51.527855293 +0800
++++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h	2026-05-28 18:43:36.864623778 +0800
+@@ -40,7 +40,7 @@
            bool ADJ_B>
  struct KDNNSparseMatMulFunctor {
    static EIGEN_ALWAYS_INLINE Status Compute(
@@ -51,11 +47,9 @@ index 3de9474a1..a7713c679 100644
        typename TTypes<Tindices>::ConstMatrix a_indices,
        typename TTypes<T>::ConstVec a_values, typename TTypes<T>::ConstMatrix b);
  };
-diff --git a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc
-index fe856e6b6..6db36cf03 100644
---- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc
-+++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc
-@@ -16,13 +16,331 @@ limitations under the License.
+--- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc	2026-05-28 18:43:51.529855325 +0800
++++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc	2026-05-28 18:43:36.865623794 +0800
+@@ -16,13 +16,331 @@
  #include <random>
  
  #include "tensorflow/core/common_runtime/kernel_benchmark_testlib.h"
@@ -387,11 +381,9 @@ index fe856e6b6..6db36cf03 100644
  Node* SparseTensorDenseMatMulNode(Graph* g, Node* a_indices, Node* a_values,
                                    Node* a_shape, Node* b, bool adjoint_a,
                                    bool adjoint_b) {
-diff --git a/third_party/KDNN/kdnn_adapter.h b/third_party/KDNN/kdnn_adapter.h
-index c72e96347..64f471d04 100644
---- a/third_party/KDNN/kdnn_adapter.h
-+++ b/third_party/KDNN/kdnn_adapter.h
-@@ -68,7 +68,8 @@ inline void kdnnFusedGemm(OpKernelContext* ctx, const Tensor& a, const Tensor& b
+--- a/third_party/KDNN/kdnn_adapter.h	2026-05-28 18:43:51.531855356 +0800
++++ b/third_party/KDNN/kdnn_adapter.h	2026-05-28 18:43:36.867623826 +0800
+@@ -68,7 +68,8 @@
  }
  
  template<typename Tindices>
@@ -401,7 +393,7 @@ index c72e96347..64f471d04 100644
                        const std::size_t rhs_right, const std::size_t lhs_right,
                        const int lhs_index_a, const int rhs_index_a,
                        typename TTypes<float>::Matrix out,
-@@ -97,8 +98,13 @@ inline void kdnnSparseMatmul(const std::size_t nnz,
+@@ -97,8 +98,13 @@
          KDNN::Element::TypeT::F32, KDNN::Layout::AB};
      const KDNN::TensorInfo dstInfo = {{lhs_left, rhs_right},
          KDNN::Element::TypeT::F32, KDNN::Layout::AB};
