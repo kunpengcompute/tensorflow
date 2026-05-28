@@ -4,7 +4,7 @@
 
 TensorFlow ANNC provides three optimization functions: TensorFlow graph fusion, XLA graph fusion, and operator optimization. This section describes how to enable each function.
 
-**TensorFlow Graph Fusion<a name="section788964518814"></a>**
+### TensorFlow Graph Fusion
 
 [**Table 1** TensorFlow graph fusion interface](#tensorflow-graph-fusion-interface) shows how to use the TensorFlow graph fusion interface.
 
@@ -35,7 +35,7 @@ cp -r /base_model/wide_and_deep/1/variables /optimized_model/wide_and_deep/1/</p
 </tbody>
 </table>
 
-**XLA Graph Fusion<a name="section14991842122818"></a>**
+### XLA Graph Fusion
 
 [**Table 2** XLA graph fusion interface](#xla-graph-fusion-interface) describes the XLA graph fusion interface.
 
@@ -65,7 +65,7 @@ cp -r /base_model/wide_and_deep/1/variables /optimized_model/wide_and_deep/1/</p
 </tbody>
 </table>
 
-**Operator Optimization<a name="section56815743116"></a>**
+### Operator Optimization
 
 The operator optimization interfaces are described as in [**Table 3** Interface for redundant operator optimization](#interface-for-redundant-operator-optimization), [**Table 4** Interface for matrix operator optimization](#interface-for-matrix-operator-optimization), and [**Table 5** Interface for Softmax operator optimization](#interface-for-softmax-operator-optimization).
 
@@ -149,7 +149,7 @@ The operator optimization interfaces are described as in [**Table 3** Interface 
 
 ## Feature Description of TensorFlow Serving Thread Scheduling
 
-**Batch Operator Scheduling<a name="section788964518814"></a>**
+### Batch Operator Scheduling
 
 Kunpeng's TensorFlow Serving Thread Scheduling feature provides two configuration options: batch operator scheduling and thread affinity isolation. You can configure the options based on your specific requirements.
 
@@ -194,7 +194,7 @@ To use TensorFlow Serving to start an inference stress test, see section [Starti
 </tbody>
 </table>
 
-**Thread Affinity Isolation<a name="section106451202096"></a>**
+### Thread Affinity Isolation
 
 <a name="table103198278154"></a>
 <table><tbody><tr id="row231920279158"><th class="firstcol" valign="top" width="26.89%" id="mcps1.1.3.1.1"><p id="p631912272155"><a name="p631912272155"></a><a name="p631912272155"></a>TF Serving Command Line Interface</p>
