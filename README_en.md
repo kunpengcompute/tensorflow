@@ -54,7 +54,7 @@ For details about the version updates of Kunpeng TensorFlow, see [Release Notes]
 tensorflow
 ├── 0001-tensorflow_2.15.0-optimize.patch // TensorFlow patch file
 ├── LICENSE                                   // License file
-├── README.md                                 // Open-source repository introduction
+├── README_en.md                                 // Open-source repository introduction
 └── docs                                      // Documentation
  ```
 
