@@ -1,5 +1,5 @@
---- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc	2026-05-28 18:43:51.525855262 +0800
-+++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc	2026-05-28 18:43:36.862623746 +0800
+--- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc
++++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc
 @@ -142,14 +142,14 @@
  #define KDNN_ADJOINT(ADJ_A, ADJ_B)                                             \
    if (adjoint_a_ == ADJ_A && adjoint_b_ == ADJ_B) {                            \
@@ -7,7 +7,7 @@
 -        CPUDevice, float, Tindices, ADJ_A,                                     \
 -        ADJ_B>::Compute(ctx->eigen_device<Device>(), out->matrix<float>(),     \
 +        Device, float, Tindices, ADJ_A,                                     \
-+        ADJ_B>::Compute(ctx, out->matrix<float>(),     \
++        ADJ_B>::Compute(ctx, out->matrix<float>(), \
                          a_indices->matrix<Tindices>(), a_values->vec<float>(), \
                          b->matrix<float>());                                   \
      OP_REQUIRES_OK(ctx, functor_status);                                       \
@@ -36,8 +36,8 @@
      }
      return OkStatus();
    }
---- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h	2026-05-28 18:43:51.527855293 +0800
-+++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h	2026-05-28 18:43:36.864623778 +0800
+--- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h
++++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h
 @@ -40,7 +40,7 @@
            bool ADJ_B>
  struct KDNNSparseMatMulFunctor {
@@ -47,8 +47,8 @@
        typename TTypes<Tindices>::ConstMatrix a_indices,
        typename TTypes<T>::ConstVec a_values, typename TTypes<T>::ConstMatrix b);
  };
---- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc	2026-05-28 18:43:51.529855325 +0800
-+++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc	2026-05-28 18:43:36.865623794 +0800
+--- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc
++++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc
 @@ -16,13 +16,331 @@
  #include <random>
  
@@ -381,8 +381,52 @@
  Node* SparseTensorDenseMatMulNode(Graph* g, Node* a_indices, Node* a_values,
                                    Node* a_shape, Node* b, bool adjoint_a,
                                    bool adjoint_b) {
---- a/third_party/KDNN/kdnn_adapter.h	2026-05-28 18:43:51.531855356 +0800
-+++ b/third_party/KDNN/kdnn_adapter.h	2026-05-28 18:43:36.867623826 +0800
+@@ -120,4 +438,43 @@
+ BM_SparseTensorDenseMatmul(16384, 4096, 4096, 4096, true, false);
+ BM_SparseTensorDenseMatmul(16384, 4096, 4096, 4096, true, true);
+ 
++// NOLINTBEGIN
++#define BM_SparseTensorDenseMatmulDevT(NNZ, M, K, N, TA, TB, DEVICE, T)                \
++  static void                                                                           \
++      BM_SparseTensorDenseMatmul_##NNZ##_##M##_##K##_##N##_##TA##_##TB##_##DEVICE##_t##T( \
++          ::testing::benchmark::State& state) {                                         \
++    int64_t items_per_iter = (static_cast<int64_t>(NNZ) * (TB ? K : N));                \
++    test::Benchmark(#DEVICE, SparseTensorDenseMatmul(NNZ, M, K, N, TA, TB),             \
++                    /*old_benchmark_api*/ false)                                        \
++        .Run(state);                                                                    \
++    state.SetItemsProcessed(state.iterations() * items_per_iter);                       \
++    state.SetBytesProcessed(state.iterations() * items_per_iter *                       \
++                            sizeof(float));                                             \
++  }                                                                                     \
++  BENCHMARK(                                                                            \
++      BM_SparseTensorDenseMatmul_##NNZ##_##M##_##K##_##N##_##TA##_##TB##_##DEVICE##_t##T) \
++      ->Threads(T);
++// NOLINTEND
++
++#define BM_SparseTensorDenseMatmulT(NNZ, M, K, N, TA, TB, T)    \
++  BM_SparseTensorDenseMatmulDevT(NNZ, M, K, N, TA, TB, cpu, T);
++
++#define BM_SparseTensorDenseMatmulAllThreads(NNZ, M, K, N, TA, TB) \
++  BM_SparseTensorDenseMatmulT(NNZ, M, K, N, TA, TB, 1);           \
++  BM_SparseTensorDenseMatmulT(NNZ, M, K, N, TA, TB, 4);           \
++  BM_SparseTensorDenseMatmulT(NNZ, M, K, N, TA, TB, 8);           \
++  BM_SparseTensorDenseMatmulT(NNZ, M, K, N, TA, TB, 16);
++
++BM_SparseTensorDenseMatmulAllThreads(128,  16,   1024,   1, false, false);
++BM_SparseTensorDenseMatmulAllThreads(128,  16,   1024,   8, false, false);
++BM_SparseTensorDenseMatmulAllThreads(256,  128,  4096,   1, false, false);
++BM_SparseTensorDenseMatmulAllThreads(128,  128,  1024,   8, false, false);
++BM_SparseTensorDenseMatmulAllThreads(128,  16,   1024,  64, false, false);
++BM_SparseTensorDenseMatmulAllThreads(256,  128,  4096,  16, false, false);
++BM_SparseTensorDenseMatmulAllThreads(128,  128,  1024,  64, false, false);
++BM_SparseTensorDenseMatmulAllThreads(256,  128,  4096, 128, false, false);
++BM_SparseTensorDenseMatmulAllThreads(128,  128,  1024,   1, false, false);
++BM_SparseTensorDenseMatmulAllThreads(1024, 256,  4096,   1, false, false);
++BM_SparseTensorDenseMatmulAllThreads(128,  4096, 4096, 512, false, false);
++
+ }  // end namespace tensorflow
+--- a/third_party/KDNN/kdnn_adapter.h
++++ b/third_party/KDNN/kdnn_adapter.h
 @@ -68,7 +68,8 @@
  }
  
@@ -407,3 +451,103 @@
  }
  
  template<typename T>
+--- /dev/null
++++ b/experiment_scripts/run_sparse_matmul_test.sh
+@@ -0,0 +1,97 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
++DEFAULT_BAZEL_BIN="/home/rrx/usr/bazel-6.5.0"
++TARGET="${BAZEL_TARGET:-//tensorflow/core/kernels:sparse_tensor_dense_matmul_op_test}"
++FILTER="${BENCHMARK_FILTER:-BM_SparseTensorDenseMatmul_.*_cpu_t[0-9]+}"
++# Strip trailing $: Google Benchmark appends suffixes like /threads:N,
++# so the line never ends at the user pattern.
++FILTER="${FILTER%\$}"
++MIN_TIME="${BENCHMARK_MIN_TIME:-0.2s}"
++# If MIN_TIME is a bare number (no suffix like s/ms/us/ns), append "s".
++if [[ "${MIN_TIME}" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
++  MIN_TIME="${MIN_TIME}s"
++fi
++RESULT_DIR="${RESULT_DIR:-${ROOT_DIR}/benchmark_results}"
++BAZEL_OUTPUT_ROOT="${BAZEL_OUTPUT_ROOT:-${ROOT_DIR}/.bazel_output_user_root}"
++TEST_TMPDIR="${TEST_TMPDIR:-${ROOT_DIR}/.bazel_test_tmpdir}"
++CLEAR_PROXY="${CLEAR_PROXY:-0}"
++BAZEL_EXTRA_ARGS="${BAZEL_EXTRA_ARGS:---experimental_repo_remote_exec}"
++
++if [[ -n "${BAZEL_BIN:-}" ]]; then
++  BAZEL_CMD="${BAZEL_BIN}"
++elif [[ -x "${DEFAULT_BAZEL_BIN}" ]]; then
++  BAZEL_CMD="${DEFAULT_BAZEL_BIN}"
++else
++  BAZEL_CMD="bazel"
++fi
++
++mkdir -p "${RESULT_DIR}" "${BAZEL_OUTPUT_ROOT}" "${TEST_TMPDIR}"
++
++TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
++LOG_FILE="${RESULT_DIR}/sparse_tensor_dense_matmul_threaded_${TIMESTAMP}.log"
++
++PROXY_ENV=()
++if [[ "${CLEAR_PROXY}" == "1" ]]; then
++  PROXY_ENV=(
++    env
++    -u http_proxy
++    -u https_proxy
++    -u HTTP_PROXY
++    -u HTTPS_PROXY
++    -u all_proxy
++    -u ALL_PROXY
++    -u no_proxy
++    -u NO_PROXY
++  )
++fi
++
++BUILD_CMD=(
++  "${BAZEL_CMD}"
++  --batch
++  --output_user_root="${BAZEL_OUTPUT_ROOT}"
++  build
++)
++
++if [[ -n "${BAZEL_EXTRA_ARGS}" ]]; then
++  read -r -a EXTRA_ARGS_ARRAY <<< "${BAZEL_EXTRA_ARGS}"
++  BUILD_CMD+=("${EXTRA_ARGS_ARRAY[@]}")
++fi
++
++BUILD_CMD+=("${TARGET}")
++
++printf 'Workspace: %s\n' "${ROOT_DIR}" | tee "${LOG_FILE}"
++printf 'Bazel: %s\n' "${BAZEL_CMD}" | tee -a "${LOG_FILE}"
++printf 'Target: %s\n' "${TARGET}" | tee -a "${LOG_FILE}"
++printf 'Filter: %s\n' "${FILTER}" | tee -a "${LOG_FILE}"
++printf 'Benchmark min time: %s\n' "${MIN_TIME}" | tee -a "${LOG_FILE}"
++printf 'Clear proxy: %s\n' "${CLEAR_PROXY}" | tee -a "${LOG_FILE}"
++printf 'http_proxy: %s\n' "${http_proxy:-<unset>}" | tee -a "${LOG_FILE}"
++printf 'https_proxy: %s\n' "${https_proxy:-<unset>}" | tee -a "${LOG_FILE}"
++printf 'Bazel extra args: %s\n' "${BAZEL_EXTRA_ARGS}" | tee -a "${LOG_FILE}"
++printf 'Log: %s\n\n' "${LOG_FILE}" | tee -a "${LOG_FILE}"
++
++(
++  cd "${ROOT_DIR}"
++  "${PROXY_ENV[@]}" "${BUILD_CMD[@]}"
++) 2>&1 | tee -a "${LOG_FILE}"
++
++BIN_PATH="${ROOT_DIR}/bazel-bin/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test_cpu"
++if [[ ! -x "${BIN_PATH}" ]]; then
++  echo "Benchmark binary not found: ${BIN_PATH}" | tee -a "${LOG_FILE}"
++  exit 1
++fi
++
++RUN_CMD=(
++  "${BIN_PATH}"
++  "--benchmark_filter=${FILTER}"
++  "--benchmark_min_time=${MIN_TIME}"
++)
++
++(
++  cd "${ROOT_DIR}"
++  TEST_TMPDIR="${TEST_TMPDIR}" "${PROXY_ENV[@]}" "${RUN_CMD[@]}"
++) 2>&1 | tee -a "${LOG_FILE}"
++
++printf '\nSaved benchmark log to %s\n' "${LOG_FILE}"
