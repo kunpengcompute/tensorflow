@@ -2,7 +2,7 @@
 
 ## TensorFlow ANNC图编译优化特性使用说明
 
-TensorFlow ANNC图编译优化特性提供了TensorFlow图融合、XLA图融合、算子优化三种优化特性，本章节提供各特性的使能步骤。
+TensorFlow ANNC图编译优化特性提供了TensorFlow图融合、XLA图融合、算子优化、常量折叠优化特性，本章节提供各特性接口与接口使能步骤。
 
 ### TensorFlow图融合
 
@@ -142,6 +142,65 @@ XLA图融合接口如[**表 2** XLA图融合接口](#XLA图融合接口)所示�
 <tr id="row873762194620"><th class="firstcol" valign="top" width="20.06%" id="mcps1.2.3.4.1"><p id="p114856413449"><a name="p114856413449"></a><a name="p114856413449"></a>取值范围</p>
 </th>
 <td class="cellrowborder" valign="top" width="79.94%" headers="mcps1.2.3.4.1 "><p id="p748524184411"><a name="p748524184411"></a><a name="p748524184411"></a>环境变量为<span class="parmvalue" id="parmvalue147231513181917"><a name="parmvalue147231513181917"></a><a name="parmvalue147231513181917"></a>“--xla_cpu_enable_xnnpack=true”</span>开启特性。</p>
+</td>
+</tr>
+</tbody>
+</table>
+
+### 常量折叠优化
+
+常量折叠和图优化同时开启时，需先进行常量折叠优化。
+
+常量折叠优化接口使用如[**表 6** 常量折叠模型接口](#常量折叠模型转换接口)，[**表 7** 常量折接优化接口](#常量折叠优化接口)所示。
+
+**表 6** 常量折叠模型转换接口<a id="常量折叠模型转换接口"></a>
+
+<a name="table76971117203416"></a>
+<table><tbody><tr id="row169713174343"><th class="firstcol" valign="top" width="29.73%" id="mcps1.2.3.1.1"><p id="p15790132610344"><a name="p15790132610344"></a><a name="p15790132610344"></a>终端命令行接口</p>
+</th>
+<td class="cellrowborder" valign="top" width="80.27%" headers="mcps1.2.3.1.1 "><p id="p1579018267345"><a name="p1579018267345"></a><a name="p1579018267345"></a>annc-opt</p>
+</td>
+</tr>
+<tr id="row1669771715348"><th class="firstcol" valign="top" width="19.73%" id="mcps1.2.3.2.1"><p id="p1579042663418"><a name="p1579042663418"></a><a name="p1579042663418"></a>接口功能</p>
+</th>
+<td class="cellrowborder" valign="top" width="80.27%" headers="mcps1.2.3.2.1 "><p id="p1379052618344"><a name="p1379052618344"></a><a name="p1379052618344"></a>常量折叠启动命令。</p>
+</td>
+</tr>
+<tr id="row8697217173418"><th class="firstcol" valign="top" width="19.73%" id="mcps1.2.3.3.1"><p id="p1779017261344"><a name="p1779017261344"></a><a name="p1779017261344"></a>参数说明</p>
+</th>
+<td class="cellrowborder" valign="top" width="80.27%" headers="mcps1.2.3.3.1 "><a name="ul187905267346"></a><a name="ul187905267346"></a><ul id="ul187905267346"><li>-I /path/to/save_model.pb：待常量折叠的模型</li><li>-O /path/to/new_save_model.pb：常量折叠之后的模型</li><li>pass：layout_matmul</li></ul>
+</td>
+</tr>
+<tr id="row63001135194219"><th class="firstcol" valign="top" width="19.73%" id="mcps1.2.3.4.1"><p id="p123001235104219"><a name="p123001235104219"></a><a name="p123001235104219"></a>使用示例</p>
+</th>
+<td class="cellrowborder" valign="top" width="80.27%" headers="mcps1.2.3.4.1 "><a name="screen12790152618347"></a><a name="screen12790152618347"></a><pre class="screen" codetype="Linux" id="screen12790152618347">annc-opt -I /base_model/wide_and_deep/1/ -O /folding/wide_and_deep/1/ layout_matmul
+</pre>
+</td>
+</tr>
+</tbody>
+</table>
+
+**表 7** 常量折叠优化接口<a id="常量折叠优化接口"></a>
+
+<a name="table1173712184620"></a>
+<table><tbody><tr id="row77372244611"><th class="firstcol" valign="top" width="40%" id="mcps1.2.3.1.1"><p id="p103831220124013"><a name="p103831220124013"></a><a name="p103831220124013"></a>环境变量</p>
+</th>
+<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.1 "><p id="p9383820184016"><a name="p9383820184016"></a><a name="p9383820184016"></a>XLA_FLAGS</p>
+</td>
+</tr>
+<tr id="row2073713210467"><th class="firstcol" valign="top" width="20.06%" id="mcps1.2.3.2.1"><p id="p133831020144016"><a name="p133831020144016"></a><a name="p133831020144016"></a>接口功能</p>
+</th>
+<td class="cellrowborder" valign="top" width="79.94%" headers="mcps1.2.3.2.1 "><p id="p43831320174010"><a name="p43831320174010"></a><a name="p43831320174010"></a>使能常量折叠优化。</p>
+</td>
+</tr>
+<tr id="row07373294619"><th class="firstcol" valign="top" width="20.06%" id="mcps1.2.3.3.1"><p id="p2038317205401"><a name="p2038317205401"></a><a name="p2038317205401"></a>使用示例</p>
+</th>
+<td class="cellrowborder" valign="top" width="79.94%" headers="mcps1.2.3.3.1 "><a name="screen13383182017408"></a><a name="screen13383182017408"></a><pre class="screen" codetype="Linux" id="screen13383182017408">export ANNC_FLAGS="--layout-matmul"</pre>
+</td>
+</tr>
+<tr id="row873762194620"><th class="firstcol" valign="top" width="20.06%" id="mcps1.2.3.4.1"><p id="p114856413449"><a name="p114856413449"></a><a name="p114856413449"></a>取值范围</p>
+</th>
+<td class="cellrowborder" valign="top" width="79.94%" headers="mcps1.2.3.4.1 "><p id="p748524184411"><a name="p748524184411"></a><a name="p748524184411"></a>环境变量为<span class="parmvalue" id="parmvalue147231513181917"><a name="parmvalue147231513181917"></a><a name="parmvalue147231513181917"></a>“--layout-matmul”</span>开启特性。</p>
 </td>
 </tr>
 </tbody>
@@ -327,3 +386,39 @@ TensorFlow KDNN线程直通特性开关通过KDNN特性开关控制，具体说�
 </tr>
 </tbody>
 </table>
+
+## TensorFlow ANNC静态图融合特性使用说明
+
+TensorFlow ANNC静态图融合特性开关通过环境变量开关控制，具体说明如[表1 ANNC静态图融合特性开关](#table473618378218)所示。
+
+特性开关默认取值为0，即关闭ANNC静态图融合功能，如需使用需要手动在图编译阶段前设置环境变量开启，以Python语言为例可以通过如下方式设置：
+
+```python
+import os
+os.environ['ANNC_FUSED_ALL'] = '1'
+```
+
+**表 1**  ANNC静态图融合特性开关
+
+| 开关名 | 类型 | 取值 | 功能 |
+| ---- | -------- | ---- | ---- |
+| ANNC_FUSED_EMB_ACTIONID_GATHER | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于KPFusedEmbeddingActionIdGather算子开启ANNC静态图融合。 |
+| ANNC_FUSED_GATHER | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于KPFusedGather算子开启ANNC静态图融合。 |
+| ANNC_FUSED_EMD_PADDING | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于KPFusedEmbeddingPadding算子开启ANNC静态图融合。 |
+| ANNC_FUSED_EMD_PADDING_FAST | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于KPFusedEmbeddingPaddingFast算子开启ANNC静态图融合。 |
+| ANNC_FUSED_SPS_STITCH | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于KPFusedSparseDynamicStitch算子开启ANNC静态图融合。 |
+| ANNC_FUSED_SPS_RESHAPE | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于KPFusedSparseReshape算子开启ANNC静态图融合。 |
+| ANNC_FUSED_SPS_REDUCE | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于KPFusedSparseSegmentReduce算子开启ANNC静态图融合。 |
+| ANNC_FUSED_SPS_REDUCE_NONZERO | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于KPFusedSparseSegmentReduceNonzero算子开启ANNC静态图融合。 |
+| ANNC_FUSED_SPS_SELECT | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于KPFusedSparseSelect算子开启ANNC静态图融合。 |
+| ANNC_FUSED_ALL | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于所有ANNC融合算子开启ANNC静态图融合。 |
+
+>![](public_sys-resources/icon-note.gif) **说明：** 
+>以上算子当且仅当ANNC_FUSED_ALL=0且算子对应的环境变量为0时，该算子不会进行算子融合。
+
+## 修订记录
+
+| 发布日期 | 修订记录 |
+| ---- | ---- |
+| 2026-06-30 | 第二次正式发布。<ul><li>TensorFlow ANNC图编译优化特性增加常量折叠优化特性接口说明内容。</li><li>新增TensorFlow ANNC静态图融合特性使用说明内容。</li></ul> |
+| 2026-03-30 | 第一次正式发布。 <ul><li>新增TensorFlow KDNN线程直通特性使用说明内容。</li></ul>|

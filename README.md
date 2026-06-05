@@ -2,6 +2,7 @@
 
 ## 最新消息
 
+- \[2026.06.30\]：新增TensorFlow ANNC静态图融合特性, 适配鲲鹏950 7592C处理器，支持KPFusedGather、KPFusedSparseReshape等算子；TensorFlow ANNC图编译优化特性新增常量折叠优化，适配鲲鹏950 7592C处理器。
 - \[2026.03.30\]：新增TensorFlow KDNN线程直通特性, 支持batchmatmul、concat、softmax等算子对接KDNN。
 - \[2025.09.30\]：新增TensorFlow ANNC图编译优化特性，提供计算图优化，高性能融合算子生成与对接等优化技术。
 - \[2025.06.30\]：TensorFlow Serving线程调度优化特性首次发布。
@@ -16,7 +17,7 @@
 
 **图 1**  项目架构<a name="fig1326111445508"></a>
 
-![](./docs/zh/figures/Tensorflow2.png)
+![](./docs/zh/figures/项目架构.png)
 
 ## 特性介绍
 
@@ -40,6 +41,10 @@
 <td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710208">KDNN线程直通</p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">KDNN线程直通支持将上层框架线程池透传到KDNN算子库，通过复用框架线程池优化KDNN算子的线程调度，最终达到了提升算子性能的目的。</p></td>
 </tr>
+<tr id="row179181137112015">
+<td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710208">ANNC静态图融合</p></td>
+<td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">ANNC静态图融合是将多个Embedding算子融合为一个算子，通过remapper机制实现在图编译阶段将符合固定特征结构的子图替换为一个算子，从而提升模型推理的吞吐量。</p></td>
+</tr>
 </tbody>
 </table>
 
@@ -47,19 +52,20 @@
 
 ## 目录结构
 
- ```bash
+```bash
 tensorflow
-├── 0001-tensorflow_2.15.0-optimize.patch     # TensorFlow补丁文件
-├── LICENSE                                   # License文件
-├── README.md                                 # 项目介绍文件
-└── docs                                      # 文档
-│   └── zh                                    # 中文文档目录
-│       ├── figures                           # 图片资源目录
-│       ├── api_reference.md                  # API参考
-│       ├── quick_start.md                    # 快速入门
-│       ├── release_notes.md                  # 版本说明书
-│       ├── installation_guide.md             # 安装指导
-│       ├── feature_introduction.md           # 特性介绍  
+├── 0001-tensorflow_2.15.0-optimize.patch               # TensorFlow补丁文件
+├── 0002-tensorflow_2.15.0-annc-optimize.patch          # TensorFlow ANNC静态图融合补丁文件
+├── LICENSE                                             # License文件
+├── README.md                                           # 项目介绍文件
+└── docs                                                # 文档
+│   └── zh                                              # 中文文档目录
+│       ├── figures                                     # 图片资源目录
+│       ├── api_reference.md                            # API参考
+│       ├── quick_start.md                              # 快速入门
+│       ├── release_notes.md                            # 版本说明书
+│       ├── installation_guide.md                       # 安装指导
+│       ├── feature_introduction.md                     # 特性介绍  
 ```
 
 ## 版本说明
