@@ -6,13 +6,12 @@
 
 本章节介绍了TensorFlow ANNC（Accelerated Neural Network Compiler）图编译优化特性的基本概念和实现原理。
 
-为提升TensorFlow Serving（以下简称TF Serving）推理性能，鲲鹏BoostKit提出了TensorFlow ANNC图编译优化方案。ANNC是专注于加速神经网络计算的编译器，聚焦于通过计算图优化，高性能融合算子生成和对接技术，高效代码生成和优化能力，加速推荐的推理性能。ANNC作为基于开源OpenXLA（Open Accelerated Linear Algebra）的扩展加速套件，发布在openEuler组织的ANNC开源仓，具有鲲鹏亲和的优化特性，包括TensorFlow图融合、XLA（Accelerated Linear Algebra）图融合、算子优化。
-
-ANNC优化特性通过编译选项和代码补丁的方式接入TensorFlow推理框架和XLA，基于TensorFlow Serving/TensorFlow 2.15版本新增以下特性：
+为提升TensorFlow Serving（以下简称TF Serving）推理性能，鲲鹏BoostKit提出了TensorFlow ANNC图编译优化方案。ANNC是专注于加速神经网络计算的编译器，聚焦于通过计算图优化，高性能融合算子生成和对接技术，高效代码生成和优化能力，加速推荐的推理性能。ANNC作为基于开源OpenXLA（Open Accelerated Linear Algebra）的扩展加速套件，发布在openEuler组织的ANNC开源仓，具有鲲鹏亲和的优化特性，通过编译选项和代码补丁的方式接入TensorFlow推理框架和XLA，基于TensorFlow Serving/TensorFlow 2.15版本新增TensorFlow图融合、XLA（Accelerated Linear Algebra）图融合、算子优化和常量折叠优化特性。
 
 - TensorFlow图融合：提供TensorFlow模型层面的图融合与图重写功能。
 - XLA图融合：提供ANNC XLA图融合特性。
 - 算子优化：提供ANNC算子优化特性。
+- 常量折叠优化：提供ANNC常量折叠优化特性。
 
 >![](public_sys-resources/icon-note.gif) **说明：** 
 >OpenXLA是一个由高性能、可移植、可扩展的机器学习基础架构组件组成的开放生态系统。
@@ -105,6 +104,18 @@ XLA自身提供了多种与硬件无关的图融合优化策略，但是优化�
 **算子优化<a name="section287331525216"></a>**
 
 本功能包含各阶段的算子优化，包括将MatMul（Matrix Multiplication）算子下发至XLA，调用OpenBLAS（Open Basic Linear Algebra Subprograms）所提供的GEMM（General Matrix Multiplication）运算接口，包括将Softmax函数替换为更高效的实现；同时本功能通过识别特定的操作模式，减少其中的冗余操作，进一步提升模型的推理性能，例如：针对多个切片后进行拼接的模式，删除其中冗余的切片操作。
+
+**常量折叠优化<a name="section2050553619512"></a>**
+
+本功能专注于优化含有常量操作数的矩阵乘算子中常量操作数的打包开销。面对矩阵乘算子C=A*B，其中至少一个操作数为常量（例如推理模型中的权重B）的OpenBLAS调用场景。此类操作数在编译时已知权重的数值和形状，且运行时不发生改变。在未启用本优化时，ANNC编译器为满足硬件访存对齐和缓存局部性要求，需要对常量操作数进行数据打包和重排，如[**图 3** 数据打包示意图](#数据打包示意图)所示。由于该操作常量操作数的合法布局完全可以在编译器唯一确定，因此在该场景下将打包操作前置到编译期，启用本优化后，通过编译期间离线打包工具和专用免重排后端kpgemm，可以彻底消除运行时的冗余开销，如[**图 4** 常量折叠流程示意图](#常量折叠流程示意图)所示。
+
+**图 3** 数据打包示意图<a name="fig836316691915"></a><a id="数据打包示意图"></a>
+
+![](figures/常量折叠优化示意图1.png "数据打包示意图")
+
+**图 4** 常量折叠流程示意图<a name="fig836316691915"></a><a id="常量折叠流程示意图"></a>
+
+![](figures/常量折叠优化示意图2.png "常量折叠流程示意图")
 
 功能配置的详细说明请参见《<a href="./quick_start.md">快速入门</a>》。
 
@@ -238,7 +249,7 @@ KDNN对接TensorFlow软件架构图如[图1](#fig4919356464)所示。
 **图 1**  KDNN对接TensorFlow软件架构图<a name="fig4919356464"></a>  
 ![](figures/KDNN对接TensorFlow软件架构图.png "KDNN对接TensorFlow软件架构图")
 
-### 规格<a name="ZH-CN_TOPIC_0000002517309530"></a>
+### 规格
 
 本节介绍当前已经支持KDNN线程直通特性的算子及使用规格
 
@@ -308,20 +319,20 @@ KDNN对接TensorFlow软件架构图如[图1](#fig4919356464)所示。
 </td>
 <td class="cellrowborder" valign="top" headers="mcps1.2.9.1.3 "><p id="p9425101111146"><a name="p9425101111146"></a><a name="p9425101111146"></a>2D</p>
 </td>
-<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.4 "><p id="p144231611121419"><a name="p144231611121419"></a><a name="p144231611121419"></a>仅支持沿第二维度(行)执行softmax运算</p>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.4 "><p id="p144231611121419"><a name="p144231611121419"></a><a name="p144231611121419"></a>仅支持沿第二维度（行）执行softmax运算</p>
 </td>
 </tr>
 </tbody>
 </table>
 
 >![](public_sys-resources/icon-note.gif) **说明：** 
->开启KDNN优化特性条件下，如果算子输入输出满足约束会调用KDNN，否则使用tensorflow原生接口。
+>开启KDNN优化特性条件下，如果算子输入输出满足约束会调用KDNN，否则使用=TensorFlow原生接口。
 
-### 应用场景<a name="ZH-CN_TOPIC_0000002517462324"></a>
+### 应用场景
 
 TensorFlow KDNN线程直通优化特性主要在高并发推理场景中使用，表现在吞吐量的提升和推理时延大幅下降。
 
-### 原理描述<a name="ZH-CN_TOPIC_0000002549022203"></a>
+### 原理描述
 
 本节针对KDNN Threadpool线程直通的优化特性进行描述，以帮助用户更好地使用。
 
@@ -334,3 +345,245 @@ OMP版本的KDNN中，每个算子将创建N个OMP线程计算，M个Kernel并�
 ![](figures/Threadpool线程直通.png "Threadpool线程直通")
 
 使能线程直通后，会复用框架线程池，KDNN将计算任务提交到框架线程池统一调度，降低了线程创建的损耗同时避免了线程数爆炸的问题。
+
+## TensorFlow ANNC静态图融合
+
+### 简介
+
+本章节介绍了TensorFlow ANNC静态图融合优化特性的基本概念和实现原理，并详细指导用户基于鲲鹏950 7592C处理器在openEuler 24.03 LTS SP3操作系统中安装并使用TensorFlow ANNC静态图融合优化特性。
+
+为提升TensorFlow推理性能，鲲鹏BoostKit提出了TensorFlow ANNC静态图融合优化方案。鲲鹏BoostKit提供了多个自定义算子，在图编译阶段利用remapper机制将符合特定特征的计算子图替换为自定义算子。静态图融合通过消除中间内存开销、优化访存逻辑等，实现端到端的性能提升。当前支持如下算子:
+
+* KPFusedEmbeddingActionIdGather
+* KPFusedGather
+* KPFusedEmbeddingPadding
+* KPFusedEmbeddingPaddingFast
+* KPFusedSparseDynamicStitch
+* KPFusedSparseReshape
+* KPFusedSparseSegmentReduce
+* KPFusedSparseSegmentReduceNonzero
+* KPFusedSparseSelect
+
+ANNC静态图融合特性开关通过代码补丁的方式接入TensorFlow，基于TensorFlow 2.15版本增加。
+
+开启ANNC静态图融合特性条件下，如果计算图子图符合特定结构并且输入输出满足约束会在图编译阶段将符合要求的子图替换为对应的自定义算子。
+
+### 软件架构
+
+ANNC静态图融合软件架构图如[图1](#fig4919356463)所示。
+
+**图 1**  ANNC静态图融合软件架构图<a name="fig4919356463"></a>  
+![](figures/ANNC静态图融合软件架构.png "ANNC静态图融合软件架构图")
+
+### 规格
+
+本节介绍当前已经支持自定义算子及使用约束。
+
+#### KPFusedEmbeddingActionIdGather算子
+
+**原生子图结构**
+
+![](figures/KPFusedEmbeddingActionIdGather.png "KPFusedEmbeddingActionIdGather 原生算子子图")
+
+**输入输出约束**
+
+| 输入名称 | 数据类型 | 形状 |
+| --- | --- | --- |
+| 输入1 | int32/int64 | 2维张量 |
+| 输入2 | float | 2维张量 |
+| 输入3 | int32/int64 | 2维张量 |
+| 输入4 | int32 | 标量 |
+| 输入5 | int32 | 标量 |
+
+| 输出名称 | 数据类型 |
+| --- | --- |
+| 输出1 | float |
+
+#### KPFusedGather算子
+
+**原生子图结构**
+
+![](figures/KPFusedGather.png "KPFusedGather 原生算子子图")
+
+**输入输出约束**
+
+| 输入名称 | 数据类型 | 形状 |
+| --- | --- | --- |
+| 输入1 | float | 2维张量 |
+| 输入2 | int64 | 2维张量 |
+| 输入3 | int32 | [2] |
+
+| 输出名称 | 数据类型 |
+| --- | --- |
+| 输出1 | int64 |
+| 输出2 | int32 |
+| 输出3 | float |
+
+#### KPFusedEmbeddingPadding算子
+
+**原生子图结构**
+
+![](figures/KPFusedEmbeddingPadding.png "KPFusedEmbeddingPadding 原生算子子图")
+
+**输入输出约束**
+
+| 输入名称 | 数据类型 | 形状 |
+| --- | --- | --- |
+| 输入1 | int64 | [2] |
+| 输入2 | float | 2维张量 |
+| 输入3 | int32 | 标量 |
+| 输入4 | int32 | [2] |
+| 输入5 | int32 | 标量 |
+
+| 输出名称 | 数据类型 |
+| --- | --- |
+| 输出1 | int32 |
+| 输出2 | float |
+
+#### KPFusedEmbeddingPaddingFast算子
+
+**原生子图结构**
+
+![](figures/KPFusedEmbeddingPaddingFast.png "KPFusedEmbeddingPaddingFast 原生算子子图")
+
+**输入输出约束**
+
+| 输入名称 | 数据类型 | 形状 |
+| --- | --- | --- |
+| 输入1 | int64 | [2] |
+| 输入2 | float | 2维张量 |
+| 输入3 | int32 | 标量 |
+| 输入4 | int32 | [2] |
+| 输入5 | int32 | 标量 |
+
+| 输出名称 | 数据类型 |
+| --- | --- |
+| 输出1 | int32 |
+| 输出2 | int32 |
+
+#### KPFusedSparseDynamicStitch算子
+
+**原生子图结构**
+
+![](figures/KPFusedSparseDynamicStitch.png "KPFusedSparseDynamicStitch 原生算子子图")
+
+**输入输出约束**
+
+| 输入名称 | 数据类型 | 形状 |
+| --- | --- | --- |
+| 输入1 | int64 | 张量 |
+| 输入2 | float | 非空的2维张量列表 |
+
+| 输出名称 | 数据类型 |
+| --- | --- |
+| 输出1 | float |
+
+#### KPFusedSparseReshape算子
+
+**原生子图结构**
+
+![](figures/KPFusedSparseReshape.png "KPFusedSparseReshape 原生算子子图")
+
+**输入输出约束**
+
+| 输入名称 | 数据类型 | 形状 |
+| --- | --- | --- |
+| 输入1 | int64 | 2维张量 |
+| 输入2 | int32 | [2] |
+| 输入3 | int64 | [2] |
+| 输入4 | int32/int64 | 标量 |
+
+| 输出名称 | 数据类型 |
+| --- | --- |
+| 输出1 | int64 |
+| 输出2 | int64 |
+
+#### KPFusedSparseSegmentReduce算子
+
+**原生子图结构**
+
+![](figures/KPFusedSparseSegmentReduce.png "KPFusedSparseSegmentReduce 原生算子子图")
+
+**输入输出约束**
+
+| 输入名称 | 数据类型 | 形状 |
+| --- | --- | --- |
+| 输入1 | float | 2维张量 |
+| 输入2 | int32/int64 | 1维张量 |
+| 输入3 | int64 | 2维张量 |
+| 输入4 | int32 | [2] |
+| 输入5 | int32 | 标量 |
+
+| 输出名称 | 数据类型 |
+| --- | --- |
+| 输出1 | float |
+| 输出2 | int32 |
+
+#### KPFusedSparseSegmentReduceNonzero算子
+
+**原生子图结构**
+
+![](figures/KPFusedSparseSegmentReduceNonzero.png "KPFusedSparseSegmentReduceNonzero 原生算子子图")
+
+**输入输出约束**
+
+| 输入名称 | 数据类型 | 形状 |
+| --- | --- | --- |
+| 输入1 | float | 1维张量 |
+| 输入2 | int32/int64 | 1维张量 |
+| 输入3 | int64 | 2维张量 |
+| 输入4 | int32 | [2] |
+
+| 输出名称 | 数据类型 |
+| --- | --- |
+| 输出1 | int32 |
+| 输出2 | int32 |
+| 输出3 | float |
+
+#### KPFusedSparseSelect算子
+
+**原生子图结构**
+
+![](figures/KPFusedSparseSelect.png "KPFusedSparseSelec 原生算子子图t")
+
+**输入输出约束**
+
+| 输入名称 | 数据类型 | 形状 |
+| --- | --- | --- |
+| 输入1 | int32 | 张量 |
+| 输入2 | int32 | 张量 |
+| 输入3 | int32 | 张量 |
+| 输入4 | int32 | 标量 |
+| 输入5 | int32 | 标量 |
+| 输入6 | int32 | 标量 |
+| 输入7 | int32 | 标量 |
+
+| 输出名称 | 数据类型 |
+| --- | --- |
+| 输出1 | int32 |
+| 输出2 | float |
+| 输出3 | float |
+
+>![](public_sys-resources/icon-note.gif) **说明：** 
+>开启Embedding算子融合条件下，如果存在符合要求的子图则会在图编译阶段替换为对应的自定义算子，否则使用TensorFlow原生接口。
+
+### 应用场景
+
+TensorFlow ANNC静态图融合主要在高并发推理场景中使用，表现在吞吐量的提升和推理时延大幅下降。
+
+### 原理描述
+
+本节针对ANNC静态图融合优化特性进行描述，以帮助用户更好地使用。
+
+使能ANNC静态图融合后，会在图编译阶段将符合要求的子图替换为对应的自定义算子，进而减少中间内存开销、优化访存逻辑等，实现端到端的性能提升。
+
+**图 11**  算子融合原理图<a name="fig4919356474"></a>
+
+![](figures/ANNC静态图融合原理.png "/ANNC静态图融合原理")
+
+## 修订记录
+
+| 发布日期 | 修订记录 |
+| ---- | ---- |
+| 2026-06-30 | 第二次正式发布。<ul><li>TensorFlow ANNC图编译优化特性增加常量折叠优化特性介绍内容。</li><li>新增TensorFlow ANNC静态图融合特性，增加对应特性介绍，软件架构等内容。</li></ul> |
+| 2026-03-30 | 第一次正式发布。 <ul><li>新增TensorFlow KDNN线程直通特性，增加对应特性介绍，软件架构等内容。</li></ul>|
