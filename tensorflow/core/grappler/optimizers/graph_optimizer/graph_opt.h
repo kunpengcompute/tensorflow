@@ -1,3 +1,17 @@
+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+==============================================================================*/
 #ifndef ANNC_TF_GRAPH_OPT_H_
 #define ANNC_TF_GRAPH_OPT_H_
 #include <type_traits>
@@ -46,6 +60,7 @@ class PatternRewriter {
   bool check_input_dims(const tensorflow::grappler::GraphProperties& graph_properties,
                       const tensorflow::NodeDef* op, int input_index,
                       int expected_dim_size) {
+    if (op == nullptr) return false;
     const auto& input_props = graph_properties.GetInputProperties(op->name());
     if (input_index >= static_cast<int>(input_props.size())) {
       return false;
@@ -80,6 +95,7 @@ class PatternRewriter {
       return false;
 
     tensorflow::TensorProto* tensor = (*op->mutable_attr())["value"].mutable_tensor();
+    if (tensor == nullptr) return false;
     const auto& shape = tensor->tensor_shape();
     if (shape.dim_size() != static_cast<int>(dim_size)) return false;
     return true;
@@ -91,6 +107,7 @@ class PatternRewriter {
       return false;
 
     tensorflow::TensorProto* tensor = (*op->mutable_attr())["value"].mutable_tensor();
+    if (tensor == nullptr) return false;
     const auto& shape = tensor->tensor_shape();
     if (shape.dim_size() != static_cast<int>(dims.size())) return false;
     for (int i = 0; i < shape.dim_size(); ++i) {
@@ -106,12 +123,13 @@ class PatternRewriter {
       return false;
 
     tensorflow::TensorProto* tensor = (*op->mutable_attr())["value"].mutable_tensor();
+    if (tensor == nullptr) return false;
     const auto& shape = tensor->tensor_shape();
-    int dim_size = 1;
+    int64_t dim_size = 1;
     for (int i = 0; i < shape.dim_size(); ++i) {
       dim_size *= shape.dim(i).size();
     }
-    if (dim_size < static_cast<int>(cmp.size())) return false;
+    if (dim_size < static_cast<int64_t>(cmp.size())) return false;
 
     if (std::is_same<T, float>::value) {
       const float* data = tensor->mutable_float_val()->data();

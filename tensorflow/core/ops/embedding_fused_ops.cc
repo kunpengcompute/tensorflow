@@ -1,4 +1,4 @@
-/* Copyright 2018 The TensorFlow Authors. All Rights Reserved.
+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -74,11 +74,9 @@ REGISTER_OP("KPFusedEmbeddingPadding")
     .Output("output0: int32")
     .Output("output1: float")
     .SetShapeFn([](InferenceContext* c) {
-      ShapeHandle out;
       ShapeHandle scalar_shape = c->Scalar();
-      TF_RETURN_IF_ERROR(c->MakeShapeFromShapeTensor(3, &out));
       c->set_output(0, scalar_shape);
-      c->set_output(1, out);
+      c->set_output(1, c->UnknownShape());
       return OkStatus();
     });
 
