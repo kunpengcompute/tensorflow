@@ -1,3 +1,17 @@
+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+==============================================================================*/
 #include "graph_opt.h"
 
 using namespace tensorflow;
@@ -27,7 +41,10 @@ void GraphOptimizer::optimize() {
       if (rewriter->match_and_rewrite(&node, graph_, props_, node_indexes_)) {
         update_node_indexes(graph_, node_indexes_);
         const std::string new_node_name = node_name + fusion_appendix;
-        node_index = node_indexes_.at(new_node_name);
+        auto it = node_indexes_.find(new_node_name);
+        if (it != node_indexes_.end()) {
+          node_index = it->second;
+        }
         break;
       }
     }
@@ -55,6 +72,7 @@ void set_fusedop_attributes(NodeDef* fused,
 
 const NodeDef* PatternRewriter::get_node(const std::string& name) {
   const std::string node_name = get_node_name(name);
+  if (indexes_->find(node_name) == indexes_->end()) return nullptr;
   const int node_index = indexes_->at(node_name);
   return &graph_->node(node_index);
 }

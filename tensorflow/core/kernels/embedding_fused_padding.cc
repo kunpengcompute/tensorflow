@@ -66,14 +66,14 @@ public:
                 errors::InvalidArgument("reshape_sizes NumElements must == 2"));
 
     int input_rows_value = input_rows.scalar<int32>()();
-    int padding_rows = static_cast<int32>(origin_shape.flat<int64>()(0)) - input_rows_value;
+    int64_t padding_rows = origin_shape.flat<int64>()(0) - input_rows_value;
     auto reshape_cols = reshape_sizes.flat<int32>()(1);
-    int output_rows = padding_rows + input.dim_size(0);
-    int output_cols = input.dim_size(1);
+    int64_t output_rows = padding_rows + input.dim_size(0);
+    int64_t output_cols = input.dim_size(1);
     OP_REQUIRES(context,
                 padding_rows >= 0,
                 errors::InvalidArgument("Pooling size(", input_rows_value,
-                ") is greater than Input size(", static_cast<int32>(origin_shape.flat<int64>()(0)), ")"));
+                ") is greater than Input size(", origin_shape.flat<int64>()(0), ")"));
     OP_REQUIRES(context,
                 reshape_cols > 0,
                 errors::InvalidArgument("reshape_cols must > 0"));
@@ -89,15 +89,15 @@ public:
     OP_REQUIRES_OK(context,
                    context->allocate_output(0, TensorShape({}),
                                             &output0));
-    output0->scalar<int32>()() = padding_rows;
+    output0->scalar<int32>()() = static_cast<int32>(padding_rows);
     OP_REQUIRES(context,
                 output_rows * output_cols % reshape_cols == 0,
                 errors::InvalidArgument("padding cannot reshape to [-1, ", reshape_cols, "]")
     );
-    int reshape_rows = output_rows * output_cols / reshape_cols;
+    int64_t reshape_rows = output_rows * output_cols / reshape_cols;
     if (fast_) {
       OP_REQUIRES_OK(context, context->allocate_output(1, TensorShape({}), &output1));
-      output1->scalar<int32>()() = reshape_rows;
+      output1->scalar<int32>()() = static_cast<int32>(reshape_rows);
       return;
     }
 

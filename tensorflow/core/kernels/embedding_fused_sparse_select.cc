@@ -89,7 +89,8 @@ public:
     );
 
     auto worker_threads = context->device()->tensorflow_cpu_worker_threads();
-    const int64 cost_per_unit = std::max(N / worker_threads->num_threads, int64(10));
+    const int num_threads = std::max(worker_threads->num_threads, 1);
+    const int64 cost_per_unit = std::max(N / num_threads, int64(10));
     
     auto work = [&](int64 start, int64 end) {
       for (int64 i = start; i < end; i++) {

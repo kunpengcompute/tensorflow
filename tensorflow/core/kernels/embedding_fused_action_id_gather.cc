@@ -45,7 +45,7 @@ static void FusedDoubleGatherImpl(OpKernelContext* context,
   OP_REQUIRES(context, indices2_shape.dims() >= 1 && indices2_shape.dims() <= 2,
       errors::InvalidArgument("indices2 must be 1D or 2D matrix"));
 
-  const int P0 = params_shape.dim_size(0);
+  const int64_t P0 = params_shape.dim_size(0);
   // P_row: number of floats per params row (P1 for 2D, P1*P2 for 3D)
   int64_t P_row = params_shape.dim_size(1);
   if (params_shape.dims() == 3) {
@@ -54,13 +54,13 @@ static void FusedDoubleGatherImpl(OpKernelContext* context,
   
   // Handle indices1 dimensions: 1D [I10] or 2D [I10, I11]
   const int indices1_dims = indices1_shape.dims();
-  const int I10 = indices1_shape.dim_size(0);
-  const int I11 = (indices1_dims == 2) ? indices1_shape.dim_size(1) : 1;
+  const int64_t I10 = indices1_shape.dim_size(0);
+  const int64_t I11 = (indices1_dims == 2) ? indices1_shape.dim_size(1) : 1;
   
   // Handle indices2 dimensions: 1D [I21] or 2D [I20, I21]
   const int indices2_dims = indices2_shape.dims();
-  const int I20 = (indices2_dims == 2) ? indices2_shape.dim_size(0) : 1;
-  const int I21 = (indices2_dims == 2) ? indices2_shape.dim_size(1) : indices2_shape.dim_size(0);
+  const int64_t I20 = (indices2_dims == 2) ? indices2_shape.dim_size(0) : 1;
+  const int64_t I21 = (indices2_dims == 2) ? indices2_shape.dim_size(1) : indices2_shape.dim_size(0);
 
   // Build output shape based on indices dimensions
   TensorShape output_shape;
@@ -87,9 +87,9 @@ static void FusedDoubleGatherImpl(OpKernelContext* context,
   // Each work unit (i, j) writes to a disjoint region of output, so no
   // synchronization is needed between parallel tasks.
   // cost_per_unit: 2D indices1 -> I11 * P_row floats copied; 1D -> P_row floats.
-  const int64_t total_units = static_cast<int64_t>(I20) * I21;
+  const int64_t total_units = I20 * I21;
   const int64_t cost_per_unit =
-      (indices1_dims == 2) ? static_cast<int64_t>(I11) * P_row
+      (indices1_dims == 2) ? I11 * P_row
                            : P_row;
 
   auto worker_threads = context->device()->tensorflow_cpu_worker_threads();
@@ -111,7 +111,7 @@ static void FusedDoubleGatherImpl(OpKernelContext* context,
                   " out of range [0, ", I10, ")"));
               return;
             }
-            for (int k = 0; k < I11; ++k) {
+            for (int64_t k = 0; k < I11; ++k) {
               Tindices1 idx1 = indices1_data[idx2 * I11 + k];
               if (TF_PREDICT_FALSE(idx1 < 0 || idx1 >= P0)) {
                 context->CtxFailure(errors::InvalidArgument(
@@ -220,10 +220,10 @@ public:
     int pack_size = pack_dim.scalar<int32>()();
     int pack_const = pack.scalar<int32>()();
     OP_REQUIRES(context, pack_size > 0, errors::InvalidArgument("pack_size must > 0"));
-    int a_reshaped_cols = gathered.NumElements() / pack_size;
+    int64_t a_reshaped_cols = gathered.NumElements() / pack_size;
     auto a_reshaped = gathered.shaped<float, 2>({pack_size, a_reshaped_cols});
     Tensor* output;
-    int output_cols = a_reshaped_cols + pack_const;
+    int64_t output_cols = a_reshaped_cols + pack_const;
     OP_REQUIRES_OK(context,
                    context->allocate_output(0, TensorShape({pack_size, output_cols}), &output));
     auto a_reshaped_data = a_reshaped.data();
