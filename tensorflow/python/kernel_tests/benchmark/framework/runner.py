@@ -47,8 +47,9 @@ class CheckFuncClass:
         return True
 
 class UniversalOpBenchmark:
-    def __init__(self, log_dir="bench_logs"):
+    def __init__(self, log_dir="bench_logs", intra_threads=16):
         self.log_dir = log_dir
+        self.intra_threads = intra_threads
         self.results = []
 
     def _subprocess_worker(
@@ -208,7 +209,7 @@ class UniversalOpBenchmark:
         res_node = test_case.op_fn(placeholders, test_case.meta)
         config = tf.ConfigProto(
             inter_op_parallelism_threads=16,
-            intra_op_parallelism_threads=16
+            intra_op_parallelism_threads=self.intra_threads
         )
         options = ProfilerOptions(
             host_tracer_level=2,
@@ -303,7 +304,7 @@ class UniversalOpBenchmark:
             res_node = test_case.op_fn(placeholders, test_case.meta)
             config = tf.ConfigProto(
                 inter_op_parallelism_threads=16,
-                intra_op_parallelism_threads=16
+                intra_op_parallelism_threads=self.intra_threads
             )
             options = ProfilerOptions(
                 host_tracer_level=2,

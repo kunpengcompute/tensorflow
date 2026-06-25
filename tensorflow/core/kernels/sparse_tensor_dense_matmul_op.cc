@@ -142,14 +142,16 @@ class SparseTensorDenseMatMulOp : public OpKernel {
 #define KDNN_ADJOINT(ADJ_A, ADJ_B)                                             \
   if (adjoint_a_ == ADJ_A && adjoint_b_ == ADJ_B) {                            \
     Status functor_status = functor::KDNNSparseMatMulFunctor<                  \
-        CPUDevice, float, Tindices, ADJ_A,                                     \
-        ADJ_B>::Compute(ctx->eigen_device<Device>(), out->matrix<float>(),     \
+        Device, float, Tindices, ADJ_A,                                        \
+        ADJ_B>::Compute(ctx, out->matrix<float>(),                             \
                         a_indices->matrix<Tindices>(), a_values->vec<float>(), \
                         b->matrix<float>());                                   \
     OP_REQUIRES_OK(ctx, functor_status);                                       \
   }
     const int int32max = std::numeric_limits<int>::max();
-    if (IsKDNNEnabled() && std::is_same<T, float>::value && adjoint_a_ == false &&
+    if (IsKDNNEnabled() && std::is_same<Device, CPUDevice>::value &&
+        std::is_same<T, float>::value &&
+        adjoint_a_ == false &&
         FastBoundsCheck(inner_left, int32max) &&
         FastBoundsCheck(inner_right, int32max) &&
         FastBoundsCheck(outer_left, int32max)) {
@@ -387,7 +389,7 @@ template <typename Tindices, bool ADJ_A, bool ADJ_B>
 struct KDNNSparseMatMulFunctor<CPUDevice, float, Tindices, ADJ_A, ADJ_B> {
   static const std::size_t kNumVectorize = 32;
 
-  static Status Compute(const CPUDevice& d, typename TTypes<float>::Matrix out,
+  static Status Compute(OpKernelContext* ctx, typename TTypes<float>::Matrix out,
                         typename TTypes<Tindices>::ConstMatrix a_indices,
                         typename TTypes<float>::ConstVec a_values,
                         typename TTypes<float>::ConstMatrix b) {
@@ -426,7 +428,7 @@ struct KDNNSparseMatMulFunctor<CPUDevice, float, Tindices, ADJ_A, ADJ_B> {
         col_major_conj_b = b.swap_layout().shuffle(shuffle).conjugate().eval();
         b_data = col_major_conj_b.data();
       }
-      kdnnSparseMatmul<Tindices>(nnz, rhs_right, lhs_right, lhs_index_a, rhs_index_a, out, a_indices, a_values, b_data);
+      kdnnSparseMatmul<Tindices>(ctx, nnz, rhs_right, lhs_right, lhs_index_a, rhs_index_a, out, a_indices, a_values, b_data);
     }
     return OkStatus();
   }
