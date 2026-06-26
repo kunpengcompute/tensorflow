@@ -68,7 +68,8 @@ inline void kdnnFusedGemm(OpKernelContext* ctx, const Tensor& a, const Tensor& b
 }
 
 template<typename Tindices>
-inline void kdnnSparseMatmul(const std::size_t nnz,
+inline void kdnnSparseMatmul(OpKernelContext* ctx,
+                      const std::size_t nnz,
                       const std::size_t rhs_right, const std::size_t lhs_right,
                       const int lhs_index_a, const int rhs_index_a,
                       typename TTypes<float>::Matrix out,
@@ -97,8 +98,13 @@ inline void kdnnSparseMatmul(const std::size_t nnz,
         KDNN::Element::TypeT::F32, KDNN::Layout::AB};
     const KDNN::TensorInfo dstInfo = {{lhs_left, rhs_right},
         KDNN::Element::TypeT::F32, KDNN::Layout::AB};
+    // intra_op thread_pool
+    thread::ThreadPool* thread_pool = ctx->device()->tensorflow_cpu_worker_threads()->workers;
+    kdnn::KDNNThreadPool kdnn_tp(thread_pool);
+    KDNN::Threading::ActivateThreadpool(&kdnn_tp);
     KDNN::SparseGemm sparse_csr(aInfo, bInfo, dstInfo);
     sparse_csr.Run(a_values.data(), b_data, out.data());
+    KDNN::Threading::DeactivateThreadpool();
 }
 
 template<typename T>
