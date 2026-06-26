@@ -1,24 +1,128 @@
+diff --git a/experiment_scripts/run_sparse_matmul_test.sh b/experiment_scripts/run_sparse_matmul_test.sh
+new file mode 100644
+index 00000000000..95deb9e31b6
+--- /dev/null
++++ b/experiment_scripts/run_sparse_matmul_test.sh
+@@ -0,0 +1,94 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
++TARGET="${BAZEL_TARGET:-//tensorflow/core/kernels:sparse_tensor_dense_matmul_op_test}"
++FILTER="${BENCHMARK_FILTER:-BM_SparseTensorDenseMatmul_.*_cpu_t[0-9]+}"
++# Strip trailing $: Google Benchmark appends suffixes like /threads:N,
++# so the line never ends at the user pattern.
++FILTER="${FILTER%\$}"
++MIN_TIME="${BENCHMARK_MIN_TIME:-0.2s}"
++# If MIN_TIME is a bare number (no suffix like s/ms/us/ns), append "s".
++if [[ "${MIN_TIME}" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
++  MIN_TIME="${MIN_TIME}s"
++fi
++RESULT_DIR="${RESULT_DIR:-${ROOT_DIR}/benchmark_results}"
++BAZEL_OUTPUT_ROOT="${BAZEL_OUTPUT_ROOT:-${ROOT_DIR}/.bazel_output_user_root}"
++TEST_TMPDIR="${TEST_TMPDIR:-${ROOT_DIR}/.bazel_test_tmpdir}"
++CLEAR_PROXY="${CLEAR_PROXY:-0}"
++BAZEL_EXTRA_ARGS="${BAZEL_EXTRA_ARGS:---experimental_repo_remote_exec}"
++
++if [[ -n "${BAZEL_BIN:-}" ]]; then
++  BAZEL_CMD="${BAZEL_BIN}"
++else
++  BAZEL_CMD="bazel"
++fi
++
++mkdir -p "${RESULT_DIR}" "${BAZEL_OUTPUT_ROOT}" "${TEST_TMPDIR}"
++
++TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
++LOG_FILE="${RESULT_DIR}/sparse_tensor_dense_matmul_threaded_${TIMESTAMP}.log"
++
++PROXY_ENV=()
++if [[ "${CLEAR_PROXY}" == "1" ]]; then
++  PROXY_ENV=(
++    env
++    -u http_proxy
++    -u https_proxy
++    -u HTTP_PROXY
++    -u HTTPS_PROXY
++    -u all_proxy
++    -u ALL_PROXY
++    -u no_proxy
++    -u NO_PROXY
++  )
++fi
++
++BUILD_CMD=(
++  "${BAZEL_CMD}"
++  --batch
++  --output_user_root="${BAZEL_OUTPUT_ROOT}"
++  build
++)
++
++if [[ -n "${BAZEL_EXTRA_ARGS}" ]]; then
++  read -r -a EXTRA_ARGS_ARRAY <<< "${BAZEL_EXTRA_ARGS}"
++  BUILD_CMD+=("${EXTRA_ARGS_ARRAY[@]}")
++fi
++
++BUILD_CMD+=("${TARGET}")
++
++printf 'Workspace: %s\n' "${ROOT_DIR}" | tee "${LOG_FILE}"
++printf 'Bazel: %s\n' "${BAZEL_CMD}" | tee -a "${LOG_FILE}"
++printf 'Target: %s\n' "${TARGET}" | tee -a "${LOG_FILE}"
++printf 'Filter: %s\n' "${FILTER}" | tee -a "${LOG_FILE}"
++printf 'Benchmark min time: %s\n' "${MIN_TIME}" | tee -a "${LOG_FILE}"
++printf 'Clear proxy: %s\n' "${CLEAR_PROXY}" | tee -a "${LOG_FILE}"
++printf 'http_proxy: %s\n' "${http_proxy:-<unset>}" | tee -a "${LOG_FILE}"
++printf 'https_proxy: %s\n' "${https_proxy:-<unset>}" | tee -a "${LOG_FILE}"
++printf 'Bazel extra args: %s\n' "${BAZEL_EXTRA_ARGS}" | tee -a "${LOG_FILE}"
++printf 'Log: %s\n\n' "${LOG_FILE}" | tee -a "${LOG_FILE}"
++
++(
++  cd "${ROOT_DIR}"
++  "${PROXY_ENV[@]}" "${BUILD_CMD[@]}"
++) 2>&1 | tee -a "${LOG_FILE}"
++
++BIN_PATH="${ROOT_DIR}/bazel-bin/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test_cpu"
++if [[ ! -x "${BIN_PATH}" ]]; then
++  echo "Benchmark binary not found: ${BIN_PATH}" | tee -a "${LOG_FILE}"
++  exit 1
++fi
++
++RUN_CMD=(
++  "${BIN_PATH}"
++  "--benchmark_filter=${FILTER}"
++  "--benchmark_min_time=${MIN_TIME}"
++)
++
++(
++  cd "${ROOT_DIR}"
++  TEST_TMPDIR="${TEST_TMPDIR}" "${PROXY_ENV[@]}" "${RUN_CMD[@]}"
++) 2>&1 | tee -a "${LOG_FILE}"
++
++printf '\nSaved benchmark log to %s\n' "${LOG_FILE}"
+diff --git a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc
+index 50544ade430..be14ced7b96 100644
 --- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc
 +++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc
-@@ -142,14 +142,14 @@
+@@ -142,14 +142,16 @@ class SparseTensorDenseMatMulOp : public OpKernel {
  #define KDNN_ADJOINT(ADJ_A, ADJ_B)                                             \
    if (adjoint_a_ == ADJ_A && adjoint_b_ == ADJ_B) {                            \
      Status functor_status = functor::KDNNSparseMatMulFunctor<                  \
 -        CPUDevice, float, Tindices, ADJ_A,                                     \
 -        ADJ_B>::Compute(ctx->eigen_device<Device>(), out->matrix<float>(),     \
-+        Device, float, Tindices, ADJ_A,                                     \
-+        ADJ_B>::Compute(ctx, out->matrix<float>(), \
++        Device, float, Tindices, ADJ_A,                                        \
++        ADJ_B>::Compute(ctx, out->matrix<float>(),                             \
                          a_indices->matrix<Tindices>(), a_values->vec<float>(), \
                          b->matrix<float>());                                   \
      OP_REQUIRES_OK(ctx, functor_status);                                       \
    }
      const int int32max = std::numeric_limits<int>::max();
 -    if (IsKDNNEnabled() && std::is_same<T, float>::value && adjoint_a_ == false &&
-+    if (IsKDNNEnabled() && std::is_same<Device, CPUDevice>::value && std::is_same<T, float>::value && adjoint_a_ == false &&
++    if (IsKDNNEnabled() && std::is_same<Device, CPUDevice>::value &&
++        std::is_same<T, float>::value &&
++        adjoint_a_ == false &&
          FastBoundsCheck(inner_left, int32max) &&
          FastBoundsCheck(inner_right, int32max) &&
          FastBoundsCheck(outer_left, int32max)) {
-@@ -387,7 +387,7 @@
+@@ -387,7 +389,7 @@ template <typename Tindices, bool ADJ_A, bool ADJ_B>
  struct KDNNSparseMatMulFunctor<CPUDevice, float, Tindices, ADJ_A, ADJ_B> {
    static const std::size_t kNumVectorize = 32;
  
@@ -27,7 +131,7 @@
                          typename TTypes<Tindices>::ConstMatrix a_indices,
                          typename TTypes<float>::ConstVec a_values,
                          typename TTypes<float>::ConstMatrix b) {
-@@ -426,7 +426,7 @@
+@@ -426,7 +428,7 @@ struct KDNNSparseMatMulFunctor<CPUDevice, float, Tindices, ADJ_A, ADJ_B> {
          col_major_conj_b = b.swap_layout().shuffle(shuffle).conjugate().eval();
          b_data = col_major_conj_b.data();
        }
@@ -36,9 +140,11 @@
      }
      return OkStatus();
    }
+diff --git a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h
+index 3de9474a1f5..a7713c67905 100644
 --- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h
 +++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h
-@@ -40,7 +40,7 @@
+@@ -40,7 +40,7 @@ template <typename Device, typename T, typename Tindices, bool ADJ_A,
            bool ADJ_B>
  struct KDNNSparseMatMulFunctor {
    static EIGEN_ALWAYS_INLINE Status Compute(
@@ -47,9 +153,11 @@
        typename TTypes<Tindices>::ConstMatrix a_indices,
        typename TTypes<T>::ConstVec a_values, typename TTypes<T>::ConstMatrix b);
  };
+diff --git a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc
+index fe856e6b6bb..525613e332f 100644
 --- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc
 +++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc
-@@ -16,13 +16,331 @@
+@@ -16,13 +16,331 @@ limitations under the License.
  #include <random>
  
  #include "tensorflow/core/common_runtime/kernel_benchmark_testlib.h"
@@ -84,7 +192,7 @@
 +    float a_val = a_values_data[i];
 +    if (adjoint_b) {
 +      for (int n = 0; n < rhs_right; ++n) {
-+        out_data[row * rhs_right + n] += a_val * b_data[n * lhs_right + col];
++        out_data[row * rhs_right + n] += a_val * b_data[col * rhs_right + n];
 +      }
 +    } else {
 +      for (int n = 0; n < rhs_right; ++n) {
@@ -381,7 +489,7 @@
  Node* SparseTensorDenseMatMulNode(Graph* g, Node* a_indices, Node* a_values,
                                    Node* a_shape, Node* b, bool adjoint_a,
                                    bool adjoint_b) {
-@@ -120,4 +438,43 @@
+@@ -120,4 +438,43 @@ BM_SparseTensorDenseMatmul(16384, 4096, 4096, 4096, false, true);
  BM_SparseTensorDenseMatmul(16384, 4096, 4096, 4096, true, false);
  BM_SparseTensorDenseMatmul(16384, 4096, 4096, 4096, true, true);
  
@@ -425,9 +533,168 @@
 +BM_SparseTensorDenseMatmulAllThreads(128,  4096, 4096, 512, false, false);
 +
  }  // end namespace tensorflow
+diff --git a/tensorflow/python/kernel_tests/benchmark/framework/runner.py b/tensorflow/python/kernel_tests/benchmark/framework/runner.py
+index 2390cd24216..bcb6c88ffd7 100644
+--- a/tensorflow/python/kernel_tests/benchmark/framework/runner.py
++++ b/tensorflow/python/kernel_tests/benchmark/framework/runner.py
+@@ -47,8 +47,9 @@ class CheckFuncClass:
+         return True
+ 
+ class UniversalOpBenchmark:
+-    def __init__(self, log_dir="bench_logs"):
++    def __init__(self, log_dir="bench_logs", intra_threads=16):
+         self.log_dir = log_dir
++        self.intra_threads = intra_threads
+         self.results = []
+ 
+     def _subprocess_worker(
+@@ -208,7 +209,7 @@ class UniversalOpBenchmark:
+         res_node = test_case.op_fn(placeholders, test_case.meta)
+         config = tf.ConfigProto(
+             inter_op_parallelism_threads=16,
+-            intra_op_parallelism_threads=16
++            intra_op_parallelism_threads=self.intra_threads
+         )
+         options = ProfilerOptions(
+             host_tracer_level=2,
+@@ -303,7 +304,7 @@ class UniversalOpBenchmark:
+             res_node = test_case.op_fn(placeholders, test_case.meta)
+             config = tf.ConfigProto(
+                 inter_op_parallelism_threads=16,
+-                intra_op_parallelism_threads=16
++                intra_op_parallelism_threads=self.intra_threads
+             )
+             options = ProfilerOptions(
+                 host_tracer_level=2,
+diff --git a/tensorflow/python/kernel_tests/benchmark/main.py b/tensorflow/python/kernel_tests/benchmark/main.py
+index 70b3da53b22..1ee592efd85 100644
+--- a/tensorflow/python/kernel_tests/benchmark/main.py
++++ b/tensorflow/python/kernel_tests/benchmark/main.py
+@@ -8,6 +8,7 @@ def main():
+     parser = argparse.ArgumentParser(description="TF Op Benchmark Framework with KDNN Control")
+     parser.add_argument('--op', type=str, help='指定要运行的算子模块名')
+     parser.add_argument('--list', action='store_true', help='列出所有模块')
++    parser.add_argument('--intra', type=int, default=16, help='intra_op_parallelism_threads, 默认16')
+     parser.add_argument('--performance_test', choices=['True', 'False'], default='True', help='是否运行性能测试模块')
+ 
+     args = parser.parse_args()
+@@ -30,7 +31,7 @@ def main():
+ 
+     target_modules = [available_ops[args.op]] if args.op else list(available_ops.values())
+     root_log_dir = "bench_logs"
+-    bench = UniversalOpBenchmark(log_dir=root_log_dir)
++    bench = UniversalOpBenchmark(log_dir=root_log_dir, intra_threads=args.intra)
+     
+     for module_path in target_modules:
+         try:
+diff --git a/tensorflow/python/kernel_tests/benchmark/ops/sparse_dense_matmul_ops.py b/tensorflow/python/kernel_tests/benchmark/ops/sparse_dense_matmul_ops.py
+new file mode 100644
+index 00000000000..c730294771d
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/benchmark/ops/sparse_dense_matmul_ops.py
+@@ -0,0 +1,97 @@
++import tensorflow as tf
++import numpy as np
++from functools import partial
++from framework.runner import TestCase
++from tensorflow.python.framework import sparse_tensor
++
++
++def get_test_cases():
++    """sparse_tensor_dense_matmul 算子测试用例
++
++    测试 shape (M x K x N) & 稀疏度 sparsity 的组合:
++        - 128 x 1668 x 400, 0.7
++        - 256 x 1668 x 400, 0.7
++        - 128 x  492 x 400, 0.0
++        - 256 x  492 x 400, 0.0 
++    - sp_a: SparseTensor, shape (M, K)
++    - b:    DenseTensor,  shape (K, N)
++    - out:  DenseTensor,  shape (M, N)
++    """
++
++    SHAPES_SPARSITY = [
++        (128, 1668, 400, 0.7),
++        (256, 1668, 400, 0.7),
++        (128,  492, 400, 0.0),
++        (256,  492, 400, 0.0),
++    ]
++
++    def build_sparse_input(M, K, N, sparsity, dtype=np.float32):
++        """构造稀疏矩阵输入
++
++        Returns:
++            [indices, values, dense_shape, b_dense] — 四个独立的 numpy 数组，
++            以适配 benchmark framework 的 graph-mode placeholder 机制。
++        """
++        np.random.seed(42)
++
++        a_dense = np.random.randn(M, K).astype(dtype)
++
++        if sparsity > 0.0:
++            threshold = np.quantile(np.abs(a_dense), sparsity)
++            a_dense[np.abs(a_dense) <= threshold] = 0.0
++
++        nonzero_mask = a_dense != 0
++        indices = np.vstack(np.where(nonzero_mask)).astype(np.int64).T
++        values = a_dense[nonzero_mask]
++        dense_shape = np.array(a_dense.shape).astype(np.int64)
++
++        b_dense = np.random.randn(K, N).astype(dtype)
++
++        # 返回 4 个独立数组，framework 会逐个包装为 placeholder
++        return [indices, values, dense_shape, b_dense]
++
++    def sparse_op_fn(inputs, meta):
++        """算子函数：从 4 个 placeholder 构造 SparseTensor 并执行 sparse_dense_matmul
++
++        inputs[0]: indices   placeholder, shape (nnz, 2), dtype int64
++        inputs[1]: values    placeholder, shape (nnz,),  dtype float32
++        inputs[2]: dense_shape placeholder, shape (2,),   dtype int64
++        inputs[3]: b         placeholder, shape (K, N),   dtype float32
++        """
++        indices, values, dense_shape, b = inputs[0], inputs[1], inputs[2], inputs[3]
++        sp_a = sparse_tensor.SparseTensor(
++            indices=indices,
++            values=values,
++            dense_shape=dense_shape
++        )
++        adjoint_a = meta.get('adjoint_a', False)
++        adjoint_b = meta.get('adjoint_b', False)
++        return tf.sparse.sparse_dense_matmul(sp_a, b,
++                                             adjoint_a=adjoint_a,
++                                             adjoint_b=adjoint_b)
++
++    def make_name(M, K, N, sparsity, suffix=''):
++        """生成统一的测试用例名称"""
++        sp_str = f'{sparsity}'.replace('.', '_')
++        name = f'sparse_tensor_dense_matmul_{M}_{K}_{N}_sparsity_{sp_str}'
++        return name + suffix if suffix else name
++
++    test_cases = []
++
++    for M, K, N, sparsity in SHAPES_SPARSITY:
++        sp_str = f'{sparsity}'.replace('.', '_')
++
++        # 绑定 shape 参数
++        input_fn = partial(build_sparse_input, M=M, K=K, N=N, sparsity=sparsity)
++
++        test_cases.append(TestCase(
++            name=make_name(M, K, N, sp_str, suffix='_perf'),
++            op_fn=sparse_op_fn,
++            input_fn=input_fn,
++            num_iters=1000,
++            optimize_percent=5,
++            operator_name='SparseTensorDenseMatMul',
++            meta={}
++        ))
++
++    return test_cases
+diff --git a/third_party/KDNN/kdnn_adapter.h b/third_party/KDNN/kdnn_adapter.h
+index c72e963474c..64f471d04e4 100644
 --- a/third_party/KDNN/kdnn_adapter.h
 +++ b/third_party/KDNN/kdnn_adapter.h
-@@ -68,7 +68,8 @@
+@@ -68,7 +68,8 @@ inline void kdnnFusedGemm(OpKernelContext* ctx, const Tensor& a, const Tensor& b
  }
  
  template<typename Tindices>
@@ -437,7 +704,7 @@
                        const std::size_t rhs_right, const std::size_t lhs_right,
                        const int lhs_index_a, const int rhs_index_a,
                        typename TTypes<float>::Matrix out,
-@@ -97,8 +98,13 @@
+@@ -97,8 +98,13 @@ inline void kdnnSparseMatmul(const std::size_t nnz,
          KDNN::Element::TypeT::F32, KDNN::Layout::AB};
      const KDNN::TensorInfo dstInfo = {{lhs_left, rhs_right},
          KDNN::Element::TypeT::F32, KDNN::Layout::AB};
@@ -451,103 +718,3 @@
  }
  
  template<typename T>
---- /dev/null
-+++ b/experiment_scripts/run_sparse_matmul_test.sh
-@@ -0,0 +1,97 @@
-+#!/usr/bin/env bash
-+set -euo pipefail
-+
-+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-+DEFAULT_BAZEL_BIN="/home/rrx/usr/bazel-6.5.0"
-+TARGET="${BAZEL_TARGET:-//tensorflow/core/kernels:sparse_tensor_dense_matmul_op_test}"
-+FILTER="${BENCHMARK_FILTER:-BM_SparseTensorDenseMatmul_.*_cpu_t[0-9]+}"
-+# Strip trailing $: Google Benchmark appends suffixes like /threads:N,
-+# so the line never ends at the user pattern.
-+FILTER="${FILTER%\$}"
-+MIN_TIME="${BENCHMARK_MIN_TIME:-0.2s}"
-+# If MIN_TIME is a bare number (no suffix like s/ms/us/ns), append "s".
-+if [[ "${MIN_TIME}" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-+  MIN_TIME="${MIN_TIME}s"
-+fi
-+RESULT_DIR="${RESULT_DIR:-${ROOT_DIR}/benchmark_results}"
-+BAZEL_OUTPUT_ROOT="${BAZEL_OUTPUT_ROOT:-${ROOT_DIR}/.bazel_output_user_root}"
-+TEST_TMPDIR="${TEST_TMPDIR:-${ROOT_DIR}/.bazel_test_tmpdir}"
-+CLEAR_PROXY="${CLEAR_PROXY:-0}"
-+BAZEL_EXTRA_ARGS="${BAZEL_EXTRA_ARGS:---experimental_repo_remote_exec}"
-+
-+if [[ -n "${BAZEL_BIN:-}" ]]; then
-+  BAZEL_CMD="${BAZEL_BIN}"
-+elif [[ -x "${DEFAULT_BAZEL_BIN}" ]]; then
-+  BAZEL_CMD="${DEFAULT_BAZEL_BIN}"
-+else
-+  BAZEL_CMD="bazel"
-+fi
-+
-+mkdir -p "${RESULT_DIR}" "${BAZEL_OUTPUT_ROOT}" "${TEST_TMPDIR}"
-+
-+TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
-+LOG_FILE="${RESULT_DIR}/sparse_tensor_dense_matmul_threaded_${TIMESTAMP}.log"
-+
-+PROXY_ENV=()
-+if [[ "${CLEAR_PROXY}" == "1" ]]; then
-+  PROXY_ENV=(
-+    env
-+    -u http_proxy
-+    -u https_proxy
-+    -u HTTP_PROXY
-+    -u HTTPS_PROXY
-+    -u all_proxy
-+    -u ALL_PROXY
-+    -u no_proxy
-+    -u NO_PROXY
-+  )
-+fi
-+
-+BUILD_CMD=(
-+  "${BAZEL_CMD}"
-+  --batch
-+  --output_user_root="${BAZEL_OUTPUT_ROOT}"
-+  build
-+)
-+
-+if [[ -n "${BAZEL_EXTRA_ARGS}" ]]; then
-+  read -r -a EXTRA_ARGS_ARRAY <<< "${BAZEL_EXTRA_ARGS}"
-+  BUILD_CMD+=("${EXTRA_ARGS_ARRAY[@]}")
-+fi
-+
-+BUILD_CMD+=("${TARGET}")
-+
-+printf 'Workspace: %s\n' "${ROOT_DIR}" | tee "${LOG_FILE}"
-+printf 'Bazel: %s\n' "${BAZEL_CMD}" | tee -a "${LOG_FILE}"
-+printf 'Target: %s\n' "${TARGET}" | tee -a "${LOG_FILE}"
-+printf 'Filter: %s\n' "${FILTER}" | tee -a "${LOG_FILE}"
-+printf 'Benchmark min time: %s\n' "${MIN_TIME}" | tee -a "${LOG_FILE}"
-+printf 'Clear proxy: %s\n' "${CLEAR_PROXY}" | tee -a "${LOG_FILE}"
-+printf 'http_proxy: %s\n' "${http_proxy:-<unset>}" | tee -a "${LOG_FILE}"
-+printf 'https_proxy: %s\n' "${https_proxy:-<unset>}" | tee -a "${LOG_FILE}"
-+printf 'Bazel extra args: %s\n' "${BAZEL_EXTRA_ARGS}" | tee -a "${LOG_FILE}"
-+printf 'Log: %s\n\n' "${LOG_FILE}" | tee -a "${LOG_FILE}"
-+
-+(
-+  cd "${ROOT_DIR}"
-+  "${PROXY_ENV[@]}" "${BUILD_CMD[@]}"
-+) 2>&1 | tee -a "${LOG_FILE}"
-+
-+BIN_PATH="${ROOT_DIR}/bazel-bin/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test_cpu"
-+if [[ ! -x "${BIN_PATH}" ]]; then
-+  echo "Benchmark binary not found: ${BIN_PATH}" | tee -a "${LOG_FILE}"
-+  exit 1
-+fi
-+
-+RUN_CMD=(
-+  "${BIN_PATH}"
-+  "--benchmark_filter=${FILTER}"
-+  "--benchmark_min_time=${MIN_TIME}"
-+)
-+
-+(
-+  cd "${ROOT_DIR}"
-+  TEST_TMPDIR="${TEST_TMPDIR}" "${PROXY_ENV[@]}" "${RUN_CMD[@]}"
-+) 2>&1 | tee -a "${LOG_FILE}"
-+
-+printf '\nSaved benchmark log to %s\n' "${LOG_FILE}"
