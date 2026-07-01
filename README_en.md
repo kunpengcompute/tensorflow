@@ -117,9 +117,9 @@ This code repository contributes to the TensorFlow community. It strictly adhere
 
 ## License
 
-This project is licensed under Apache License 2.0. For details, see the <a href="LICENSE.md">LICENSE</a>.
+This project is licensed under Apache License 2.0. For details, see the [LICENSE](./LICENSE).
 
-The documentation of this project is released under the CC-BY 4.0 license. For details, see the <a href="./docs/LICENSE">LICENSE</a>.
+The documentation of this project is released under the CC-BY 4.0 license. For details, see the [LICENSE](./docs/LICENSE).
 
 ## Contribution Statement
 
