@@ -2,13 +2,13 @@
 
 ## Feature Description of TensorFlow ANNC for Graph Compilation Optimization
 
-TensorFlow ANNC provides three optimization functions: TensorFlow graph fusion, XLA graph fusion, and operator optimization. This section describes how to enable each function.
+TensorFlow ANNC for graph compilation optimization provides the following features: TensorFlow graph fusion, XLA graph fusion, operator optimization, and constant folding optimization. This document describes APIs of each feature and the steps required to enable them.
 
 ### TensorFlow Graph Fusion
 
 [**Table 1** TensorFlow graph fusion interface](#tensorflow-graph-fusion-interface) shows how to use the TensorFlow graph fusion interface.
 
-[**Table 1** TensorFlow graph fusion interface] <a id="tensorflow-graph-fusion-interface"></a>
+**Table 1** TensorFlow graph fusion interface<a id="tensorflow-graph-fusion-interface"></a>
 
 <a name="table76971117203416"></a>
 <table><tbody><tr id="row169713174343"><th class="firstcol" valign="top" width="29.73%" id="mcps1.2.3.1.1"><p id="p15790132610344"><a name="p15790132610344"></a><a name="p15790132610344"></a>Command Line Interface</p>
@@ -18,12 +18,12 @@ TensorFlow ANNC provides three optimization functions: TensorFlow graph fusion, 
 </tr>
 <tr id="row1669771715348"><th class="firstcol" valign="top" width="19.73%" id="mcps1.2.3.2.1"><p id="p1579042663418"><a name="p1579042663418"></a><a name="p1579042663418"></a>Function</p>
 </th>
-<td class="cellrowborder" valign="top" width="80.27%" headers="mcps1.2.3.2.1 "><p id="p1379052618344"><a name="p1379052618344"></a><a name="p1379052618344"></a>Enables the graph fusion feature.</p>
+<td class="cellrowborder" valign="top" width="80.27%" headers="mcps1.2.3.2.1 "><p id="p1379052618344"><a name="p1379052618344"></a><a name="p1379052618344"></a>Triggers the graph fusion feature.</p>
 </td>
 </tr>
 <tr id="row8697217173418"><th class="firstcol" valign="top" width="19.73%" id="mcps1.2.3.3.1"><p id="p1779017261344"><a name="p1779017261344"></a><a name="p1779017261344"></a>Parameter Description</p>
 </th>
-<td class="cellrowborder" valign="top" width="80.27%" headers="mcps1.2.3.3.1 "><a name="ul187905267346"></a><a name="ul187905267346"></a><ul id="ul187905267346"><li><code>-I /path/to/save_model.pb</code>: model before graph fusion</li><li><code>-O /path/to/new_save_model.pb</code>: model after graph fusion</li><li><code>pass</code>: graph fusion policy (Currently, <code>lookup_embedding_hash</code> is supported.)</li></ul>
+<td class="cellrowborder" valign="top" width="80.27%" headers="mcps1.2.3.3.1 "><a name="ul187905267346"></a><a name="ul187905267346"></a><ul id="ul187905267346"><li><code>-I /path/to/save_model.pb</code>: model before graph fusion</li><li><code>-O /path/to/new_save_model.pb</code>: model after graph fusion</li><li><code>pass</code>: graph fusion strategy (Currently, <code>lookup_embedding_hash</code> is supported.)</li></ul>
 </td>
 </tr>
 <tr id="row63001135194219"><th class="firstcol" valign="top" width="19.73%" id="mcps1.2.3.4.1"><p id="p123001235104219"><a name="p123001235104219"></a><a name="p123001235104219"></a>Example</p>
@@ -39,7 +39,7 @@ cp -r /base_model/wide_and_deep/1/variables /optimized_model/wide_and_deep/1/</p
 
 [**Table 2** XLA graph fusion interface](#xla-graph-fusion-interface) describes the XLA graph fusion interface.
 
-[**Table 2** XLA graph fusion interface]<a id="xla-graph-fusion-interface"></a>
+**Table 2** XLA graph fusion interface<a id="xla-graph-fusion-interface"></a>
 
 <a name="table8136171014352"></a>
 <table><tbody><tr id="row19137101013358"><th class="firstcol" valign="top" width="40%" id="mcps1.2.3.1.1"><p id="p288371293515"><a name="p288371293515"></a><a name="p288371293515"></a>Environment Variable</p>
@@ -126,7 +126,7 @@ The operator optimization interfaces are described as in [**Table 3** Interface 
 <a name="table1173712184620"></a>
 <table><tbody><tr id="row77372244611"><th class="firstcol" valign="top" width="40%" id="mcps1.2.3.1.1"><p id="p103831220124013"><a name="p103831220124013"></a><a name="p103831220124013"></a>Environment Variable</p>
 </th>
-<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.1 "><p id="p9383820184016"><a name="p9383820184016"></a><a name="p9383820184016"></a>XLA_FLAGS</p>
+<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.1 "><p id="p9383820184016"><a name="p9383820184016"></a><a name="p9383820184016"></a>ANNC_FLAGS</p>
 </td>
 </tr>
 <tr id="row2073713210467"><th class="firstcol" valign="top" width="20.06%" id="mcps1.2.3.2.1"><p id="p133831020144016"><a name="p133831020144016"></a><a name="p133831020144016"></a>Function</p>
@@ -147,11 +147,70 @@ The operator optimization interfaces are described as in [**Table 3** Interface 
 </tbody>
 </table>
 
+### Constant Folding Optimization
+
+When both constant folding and graph optimization are enabled, constant folding must be performed first.
+
+The Constant folding interfaces are shown in [**Table 6** Interface for model conversion using constant folding](#interface-for-model-conversion-using-constant-folding) and [**Table 7** Constant folding interface](#constant-folding-interface).
+
+**Table 6** Interface for model conversion using constant folding<a id="interface-for-model-conversion-using-constant-folding"></a>
+
+<a name="table76971117203416"></a>
+<table><tbody><tr id="row169713174343"><th class="firstcol" valign="top" width="29.73%" id="mcps1.2.3.1.1"><p id="p15790132610344"><a name="p15790132610344"></a><a name="p15790132610344"></a>Command Line Interface</p>
+</th>
+<td class="cellrowborder" valign="top" width="80.27%" headers="mcps1.2.3.1.1 "><p id="p1579018267345"><a name="p1579018267345"></a><a name="p1579018267345"></a>annc-opt</p>
+</td>
+</tr>
+<tr id="row1669771715348"><th class="firstcol" valign="top" width="19.73%" id="mcps1.2.3.2.1"><p id="p1579042663418"><a name="p1579042663418"></a><a name="p1579042663418"></a>Function</p>
+</th>
+<td class="cellrowborder" valign="top" width="80.27%" headers="mcps1.2.3.2.1 "><p id="p1379052618344"><a name="p1379052618344"></a><a name="p1379052618344"></a>Triggers the constant folding feature.</p>
+</td>
+</tr>
+<tr id="row8697217173418"><th class="firstcol" valign="top" width="19.73%" id="mcps1.2.3.3.1"><p id="p1779017261344"><a name="p1779017261344"></a><a name="p1779017261344"></a>Parameter Description</p>
+</th>
+<td class="cellrowborder" valign="top" width="80.27%" headers="mcps1.2.3.3.1 "><a name="ul187905267346"></a><a name="ul187905267346"></a><ul id="ul187905267346"><li><code>-I /path/to/save_model.pb</code>: model before constant folding</li><li><code>-O /path/to/new_save_model.pb</code>: model after constant folding</li><li><code>pass</code>: layout_matmul</li></ul>
+</td>
+</tr>
+<tr id="row63001135194219"><th class="firstcol" valign="top" width="19.73%" id="mcps1.2.3.4.1"><p id="p123001235104219"><a name="p123001235104219"></a><a name="p123001235104219"></a>Example</p>
+</th>
+<td class="cellrowborder" valign="top" width="80.27%" headers="mcps1.2.3.4.1 "><a name="screen12790152618347"></a><a name="screen12790152618347"></a><pre class="screen" codetype="Linux" id="screen12790152618347">annc-opt -I /base_model/wide_and_deep/1/ -O /folding/wide_and_deep/1/ layout_matmul
+</pre>
+</td>
+</tr>
+</tbody>
+</table>
+
+**Table 7** Constant folding interface<a id="constant-folding-interface"></a>
+
+<a name="table1173712184620"></a>
+<table><tbody><tr id="row77372244611"><th class="firstcol" valign="top" width="40%" id="mcps1.2.3.1.1"><p id="p103831220124013"><a name="p103831220124013"></a><a name="p103831220124013"></a>Environment Variable</p>
+</th>
+<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.1 "><p id="p9383820184016"><a name="p9383820184016"></a><a name="p9383820184016"></a>ANNC_FLAGS</p>
+</td>
+</tr>
+<tr id="row2073713210467"><th class="firstcol" valign="top" width="20.06%" id="mcps1.2.3.2.1"><p id="p133831020144016"><a name="p133831020144016"></a><a name="p133831020144016"></a>Function</p>
+</th>
+<td class="cellrowborder" valign="top" width="79.94%" headers="mcps1.2.3.2.1 "><p id="p43831320174010"><a name="p43831320174010"></a><a name="p43831320174010"></a>Enables constant folding optimization.</p>
+</td>
+</tr>
+<tr id="row07373294619"><th class="firstcol" valign="top" width="20.06%" id="mcps1.2.3.3.1"><p id="p2038317205401"><a name="p2038317205401"></a><a name="p2038317205401"></a>Example</p>
+</th>
+<td class="cellrowborder" valign="top" width="79.94%" headers="mcps1.2.3.3.1 "><a name="screen13383182017408"></a><a name="screen13383182017408"></a><pre class="screen" codetype="Linux" id="screen13383182017408">export ANNC_FLAGS="--layout-matmul"</pre>
+</td>
+</tr>
+<tr id="row873762194620"><th class="firstcol" valign="top" width="20.06%" id="mcps1.2.3.4.1"><p id="p114856413449"><a name="p114856413449"></a><a name="p114856413449"></a>Value</p>
+</th>
+<td class="cellrowborder" valign="top" width="79.94%" headers="mcps1.2.3.4.1 "><p id="p748524184411"><a name="p748524184411"></a><a name="p748524184411"></a>Enables the feature when the environment variable is <code>--layout-matmul</code>.</p>
+</td>
+</tr>
+</tbody>
+</table>
+
 ## Feature Description of TensorFlow Serving Thread Scheduling
 
 ### Batch Operator Scheduling
 
-Kunpeng's TensorFlow Serving Thread Scheduling feature provides two configuration options: batch operator scheduling and thread affinity isolation. You can configure the options based on your specific requirements.
+Kunpeng's TensorFlow Serving thread scheduling feature provides two configuration options: batch operator scheduling and thread affinity isolation. You can configure the options based on your specific requirements.
 
 To use TensorFlow Serving to start an inference stress test, see section [Starting the Service and Performing a Pressure Test](https://www.hikunpeng.com/document/detail/en/SRA/ecosystemEnable/TensorFlowServing/kunpengtfserving_06_0012.html) in the _TensorFlow Serving Porting Guide_.
 
@@ -283,7 +342,7 @@ To use TensorFlow Serving to start an inference stress test, see section [Starti
 </tbody>
 </table>
 
->![note](public_sys-resources/icon-note.gif) **Note:**
+>![](public_sys-resources/icon-note.gif) **NOTE:**
 >`numactl` is a tool used to control and manage the NUMA architecture on Linux. It can be installed using Yum.
 >
 >```bash
@@ -291,3 +350,224 @@ To use TensorFlow Serving to start an inference stress test, see section [Starti
 >```
 >
 >For example, `numactl -C 0-79 -m 0` indicates that the TF Serving service runs on the cores of NUMA node 0, so that CPU resources can be fully utilized. `-C` and `-m` specify cores and memory of NUMA node 0, respectively.
+
+## Using the TensorFlow KDNN Thread Passthrough Feature
+
+The TensorFlow KDNN thread passthrough feature is controlled by a KDNN environment variable shown in [Table 1 KDNN environment variable](#table473618378218)
+
+**Table 1** KDNN environment variable
+
+<a name="table473618378218"></a>
+<table><tbody><tr id="row273612371926"><th class="firstcol" valign="top" width="17.11%" id="mcps1.2.3.1.1"><p id="p37361437223"><a name="p37361437223"></a><a name="p37361437223"></a>KDNN Environment Variable</p>
+</th>
+<td class="cellrowborder" valign="top" width="82.89%" headers="mcps1.2.3.1.1 "><p id="p147351257418"><a name="p147351257418"></a><a name="p147351257418"></a>TF_ENABLE_KDNN_OPTS</p>
+</td>
+</tr>
+<tr id="row2736637329"><th class="firstcol" valign="top" width="17.11%" id="mcps1.2.3.2.1"><p id="p17544180133510"><a name="p17544180133510"></a><a name="p17544180133510"></a>Type</p>
+</th>
+<td class="cellrowborder" valign="top" width="82.89%" headers="mcps1.2.3.2.1 "><p id="p135441705354"><a name="p135441705354"></a><a name="p135441705354"></a>Process environment variable</p>
+</td>
+</tr>
+<tr id="row1373713374215"><th class="firstcol" valign="top" width="17.11%" id="mcps1.2.3.3.1"><p id="p173719376217"><a name="p173719376217"></a><a name="p173719376217"></a>Function</p>
+</th>
+<td class="cellrowborder" valign="top" width="82.89%" headers="mcps1.2.3.3.1 "><p id="p15737237026"><a name="p15737237026"></a><a name="p15737237026"></a>Enables or disables KDNN.</p>
+</td>
+</tr>
+<tr id="row17371371026"><th class="firstcol" valign="top" width="17.11%" id="mcps1.2.3.4.1"><p id="p187371371426"><a name="p187371371426"></a><a name="p187371371426"></a>Value Range</p>
+</th>
+<td class="cellrowborder" valign="top" width="82.89%" headers="mcps1.2.3.4.1 "><p id="p139187124325"><a name="p139187124325"></a><a name="p139187124325"></a><code>0</code>: KDNN disabled</p>
+<p id="p18324912320"><a name="p18324912320"></a><a name="p18324912320"></a><code>1</code>: KDNN enabled</p>
+</td>
+</tr>
+<tr id="row17372371123"><th class="firstcol" valign="top" width="17.11%" id="mcps1.2.3.5.1"><p id="p14737103710220"><a name="p14737103710220"></a><a name="p14737103710220"></a>Example</p>
+</th>
+<td class="cellrowborder" valign="top" width="82.89%" headers="mcps1.2.3.5.1 "><p id="p1926119477390"><a name="p1926119477390"></a><a name="p1926119477390"></a>Before the first KDNN operator call, configure <code>TF_ENABLE_KDNN_OPTS</code>, for example, <strong id="b166491125328"><a name="b166491125328"></a><a name="b166491125328"></a><code>os.environ['TF_ENABLE_KDNN_OPTS'] = str(1)</code></strong> in the python environment.</p>
+</td>
+</tr>
+</tbody>
+</table>
+
+## SparseMatmul Multi-threading Optimization
+
+**Interface Description**
+
+The SparseMatmul operator is a KDNN operator for calculating the product of a sparse matrix and a dense matrix. It supports single-precision FP32 inputs. This operator is the core component of the Neural Network (NN) layers in recommendation models.
+
+The operator is designed based on the compressed sparse row (CSR) storage structure. It skips zero blocks during loading and computing to maximize the efficiency of computational and memory bandwidth utilization. The core computing kernel has been optimized for the Kunpeng platform by leveraging SIMD (supporting the NEON instruction set), implementing multi-threading optimization.
+
+**Interface Type**
+
+Internal computing interface.
+
+**Input Parameter**
+
+| Parameter | Type | Description |
+| --------- | ------ | ------ |
+| `tp` | `KDNN::Threading::ThreadpoolIface *` | KDNN thread pool interface, which is used for multi-thread parallel execution. |
+| `alpha` | `const FLOAT` | Scaling factor. |
+| `mat` | `const JOIN(spmat_csr_, _t) *` | Sparse matrix (CSR format). |
+| `x` | `const FLOAT *` | Dense matrix. |
+| `columns` | `const KDNN_INT` | Number of columns in a matrix. |
+| `ldx` | `const KDNN_INT` | Stride of matrix **x**. |
+| `beta` | `const FLOAT` | Accumulation scaling factor. |
+| `y` | `FLOAT *` | Output matrix.|
+| `ldy` | `const KDNN_INT` | Stride of matrix **y**. |
+
+**Output Parameter**
+
+None. The result is returned through the **y** parameter.
+
+**Interface Features**
+
+- **Multi-threading optimization**: The output matrix is partitioned based on the column dimension, and each thread processes a distinct column block.
+- **Lock-free design**: A per-thread buffer is allocated to eliminate thread synchronization overhead.
+- **Load balancing**: The uniform slicing strategy is used to distribute workloads evenly across threads.
+- **Memory optimization**: `malloc_align` ensures aligned memory allocation, maximizing SIMD vectorization throughput..
+- **Intelligent fallback**: The algorithm automatically falls back to serial execution under conditions of thread pool unavailability, nested parallelism, or single-thread execution.
+
+**Interface Change**
+
+The `ThreadpoolIface *tp` parameter is added to the API function signature to transfer the thread pool instance.
+
+Before modification:
+
+```c
+kdnn_sparse_status_t kdnn_sparse_scsrmm(
+    const kdnn_sparse_operation_t opt, ...);
+```
+
+After modification:
+
+```c
+kdnn_sparse_status_t kdnn_sparse_scsrmm(
+    KDNN::Threading::ThreadpoolIface *tp,
+    const kdnn_sparse_operation_t opt, ...);
+```
+
+**Interface Source File**
+
+`third_party/kdnn/kdnn_adapter.h` and `tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc`
+
+## EmbeddingTableLookup Operator in the kembedding Operator Library
+
+The EmbeddingTableLookup operator, a custom operator in the kembedding operator library, is used to efficiently perform sparse embedding lookup.
+
+**Interface Description**
+
+This operator retrieves sparse embeddings from the resource table `EmbeddingIndexToValueTable` based on keys and outputs a standard `SparseTensor` triplet.
+
+- `indices`: contains the coordinates of the hit non-zero elements.
+- `values`: contains the corresponding embedding values.
+- `dense_shape`: contains the shape of the complete embedding matrix.
+
+**Interface Type**
+
+TensorFlow OpKernel class.
+
+**Input Parameter**
+
+| Parameter | Type | Description |
+| --------- | ------ | ------ |
+| `keys` | <code>int64</code> tensor| List of embedding keys to be searched for, with the shape of <code>[key_cnt]</code>. |
+| `table_handle` | `resource` | Resource table handle, which is created by <code>EmbeddingIndexToValueTable</code> and has loaded embedding data. |
+
+**Output Parameter**
+
+| Parameter | Type | Description |
+| --------- | ------ | ------ |
+| `indices` | <code>int64</code> tensor | SparseTensor indices, with the shape of <code>[N, 2]</code>, where <code>N</code> indicates the total number of hit non-zero elements, and the second dimension is <code>[row, col]</code>. |
+| `values` | <code>float</code> tensor | SparseTensor values, with the shape of <code>[N]</code>, which corresponds to <code>indices</code> one to one. |
+| `dense_shape` | <code>int64</code> tensor | Dense shape, with the shape of <code>[2]</code>. The value is <code>[key_cnt, emb_dim]</code>. |
+
+**Core Attributes:**
+
+| Name | Description |
+| --------- | ------ |
+| `emb_dim` | Embedding dimension, which is used to construct the output <code>dense_shape</code>. |
+
+**Interface Source File**
+
+`third_party/kembedding/src/kernels/embedding_table_lookup_op.cc`
+
+**Other Related Operators**
+
+- <code>EmbeddingIndexToValueTable</code>: creates a resource table handle.
+- <code>InitializeEmbeddingIndexToValueTableFromTextFile</code>: initializes the resource table from a binary file.
+
+Sample
+
+```python
+import tensorflow as tf
+
+# Load the dynamic library of the kembedding custom operator.
+kembedding_module = tf.load_op_library(
+    'path/to/bazel-bin/third_party/kembedding/kembedding_embedding_table_lookup.so'
+)
+
+# Create and initialize a resource table.
+with tf.Session() as sess:
+    # Step 1: Create a resource table handle.
+    table_handle = kembedding_module.embedding_index_to_value_table()
+
+    # Step 2: Load the embedding table data from the binary file.
+    sess.run(
+        kembedding_module.initialize_embedding_index_to_value_table_from_text_file(
+            table_handle=table_handle,
+            filename='path/to/embedding_table.bin'
+        )
+    )
+
+    # Step 3: Perform batch search.
+    keys = tf.constant([101, 202, 999], dtype=tf.int64)
+    indices, values, dense_shape = kembedding_module.embedding_table_lookup(
+        table_handle=table_handle,
+        keys=keys,
+        emb_dim=4
+    )
+
+    # Obtaining Results
+    result_indices, result_values, result_shape = sess.run(
+        [indices, values, dense_shape]
+    )
+
+    # Output example:
+    # indices = [[0, 0], [0, 2], [1, 1]]
+    # values = [1.0, 3.0, 2.5]
+    # dense_shape = [3, 4]
+```
+
+## Usage of the TensorFlow ANNC Static Graph Fusion Feature
+
+The TensorFlow ANNC static graph fusion feature is enabled or disabled by environment variables. For details, see [Table 1 Environment variables for enabling or disabling ANNC static graph fusion](#table473618378218)
+
+The default value of each environment variable is `0`, indicating that the ANNC static graph fusion function is disabled. To use this function, you need to manually set the environment variable before the graph compilation. For example, you can set the environment variable in Python as follows:
+
+```python
+import os
+os.environ['ANNC_FUSED_ALL'] = '1'
+```
+
+**Table 1** Environment variables for enabling or disabling ANNC static graph fusion
+
+| Environment Variable | Type | Value | Function |
+| ---- | -------- | ---- | ---- |
+| ANNC_FUSED_EMB_ACTIONID_GATHER | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedEmbeddingActionIdGather operator. |
+| ANNC_FUSED_GATHER | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedGather operator. |
+| ANNC_FUSED_EMD_PADDING | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedEmbeddingPadding operator. |
+| ANNC_FUSED_EMD_PADDING_FAST | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedEmbeddingPaddingFast operator. |
+| ANNC_FUSED_SPS_STITCH | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedSparseDynamicStitch operator. |
+| ANNC_FUSED_SPS_RESHAPE | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedSparseReshape operator. |
+| ANNC_FUSED_SPS_REDUCE | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedSparseSegmentReduce operator. |
+| ANNC_FUSED_SPS_REDUCE_NONZERO | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedSparseSegmentReduceNonzero operator. |
+| ANNC_FUSED_SPS_SELECT | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedSparseSelect operator. |
+| ANNC_FUSED_ALL | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for all ANNC fusion operators. |
+
+>![](public_sys-resources/icon-note.gif) **NOTE:**
+>Operator fusion will not be performed for any of the above operators if and only if `ANNC_FUSED_ALL` is set to `0` and the environment variable corresponding to the specific operator is also set to `0`.
+
+## Description
+
+| Release Date | Change History |
+| ---- | ---- |
+| 2026-06-30 | This is the second official release. <ul><li>Added the description for constant folding optimization to the TensorFlow ANNC for graph compilation documentation. </li><li>Added the description for the TensorFlow ANNC static graph fusion feature. </li><li>Added the description for the SparseMatmul multi-threading optimization feature. </li><li>Added the description for the EmbeddingTableLookup operator in the TensorFlow kembedding operator library.</li></ul> |
+| 2026-03-30 | This is the first official release. <ul><li>Added the description for the TensorFlow KDNN thread passthrough feature.</li></ul> |

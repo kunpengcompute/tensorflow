@@ -136,7 +136,7 @@
 
 ### 编译安装<a name="ZH-CN_TOPIC_0000002549929907"></a>
 
-TensorFlow ANNC图编译优化特性后端已合入TensorFlow和TF Serving开源仓，Tensorflow图融合优化，XLA图融合，算子优化，常量折叠优化相关代码发布在Gitcode托管的ANNC开源仓，可使用**git**拉取完整代码后进行代码编译操作。
+TensorFlow ANNC图编译优化特性后端已合入TensorFlow和TF Serving开源仓，TensorFlow图融合优化，XLA图融合，算子优化，常量折叠优化相关代码发布在Gitcode托管的ANNC开源仓，可使用**git**拉取完整代码后进行代码编译操作。
 
 **获取代码<a name="section12640151210390"></a>**
 
@@ -638,7 +638,7 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 
 2. 将获取到的KDNN软件包，解压，解压后得到二进制RPM包。
 
-3. 装KDNN的RPM包。
+3. 安装KDNN的RPM包。
 
     ```shell
     rpm -ivh boostcore-kdnn-xxxx.aarch64.rpm
