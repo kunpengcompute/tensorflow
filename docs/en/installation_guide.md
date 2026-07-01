@@ -511,7 +511,7 @@ Kunpeng Deep Neural Network Library (KDNN) is a high-performance AI operator lib
 
 **OS Requirements<a name="section250mcpsimp"></a>**
 
-[**Table 2**](#OS requirements-2) lists the verified OSs.
+[**Table 2** OS requirements](#os-requirements-2) lists the verified OSs.
 
 **Table 2** OS requirements<a id="os-requirements-2"></a>
 
@@ -834,50 +834,6 @@ Adapt TensorFlow by following the instructions in [Adapting TensorFlow for KDNN]
 
    If the execution is successful, the installation is successful. `{op_name}` is the query result in the previous step.
 
-## Compiling and Installing kembedding
-
-kembedding is a custom operator library tailored for inference scenarios of recommendation model. Based on TensorFlow 2.15, it provides the `EmbeddingTableLookup` custom operator to efficiently perform sparse embedding lookup.
-
-### Compilation and Installation
-
-The kembedding operator library is built using Bazel 6.5.0. The build target is stored in the `third_party/kembedding/BUILD file`.
-
-1. Install GCC 12.3.1.
-
-   ```bash
-   yum install -y gcc-toolset-12-gcc*
-   export PATH=/opt/openEuler/gcc-toolset-12/root/usr/bin/:$PATH
-   export LD_LIBRARY_PATH=/opt/openEuler/gcc-toolset-12/root/usr/lib64/:$LD_LIBRARY_PATH
-   ```
-
-2. Compile the kembedding dynamic library.
-
-   ```bash
-   cd /path/to/tensorflow
-   bazel build //third_party/kembedding:kembedding_embedding_table_lookup.so
-   ```
-
-   The build product is `bazel-bin/third_party/kembedding/kembedding_embedding_table_lookup.so`.
-
-3. (Optional) Run unit tests.
-
-   ```bash
-   bazel test //third_party/kembedding:embedding_table_lookup_op_test --test_output=errors
-   ```
-
-4. (Optional) Run performance benchmark tests.
-
-   ```bash
-   bazel run //third_party/kembedding:embedding_table_lookup_benchmark
-   ```
-
-## KDNN SparseMatmul Multi-threading Optimization
-
-The SparseMatmul operator in KDNN has been integrated into TensorFlow. Multi-threading optimization is enabled by default and automatically takes effect after KDNN is installed. You can use the following GFlags parameters to control the optimization behavior:
-
-- `--enable_kdnn_sparse_matmul_parallel=true` enables the SparseMatmul multi-threading optimization (default).
-- `--enable_kdnn_sparse_matmul_parallel=false` disables the multi-threading optimization and falls back to single-thread execution.
-
 ## FAQs
 
 If any problem occurs during the compilation and building of TensorFlow and TensorFlow Serving, rectify the fault by following instructions in this section.
@@ -893,5 +849,5 @@ If any problem occurs during the compilation and building of TensorFlow and Tens
 
 | Release Date | Change History |
 | ---------- | -------------- |
-| 2026-06-30 | This is the second official release. <ul><li>Added the description for constant folding optimization to the TensorFlow ANNC for graph compilation documentation. </li><li>Added the environment support and installation guide for TensorFlow ANNC static graph fusion. </li><li>Added compilation and installation instructions for the kembedding operator library. </li><li>Added the description for the KDNN SparseMatmul multi-threading optimization.</li></ul> |
+| 2026-06-30 | This is the second official release. <ul><li>Added the description for constant folding optimization to the TensorFlow ANNC for graph compilation documentation. </li><li>Added the environment support and installation guide for TensorFlow ANNC static graph fusion. </li></ul> |
 | 2026-03-30 | This is the first official release. <ul><li>Added installation steps for TensorFlow with KDNN integration. </li><li>Added the environment support and installation guide for KDNN thread passthrough.</li></ul> |

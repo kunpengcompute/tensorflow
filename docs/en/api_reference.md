@@ -126,7 +126,7 @@ The operator optimization interfaces are described as in [**Table 3** Interface 
 <a name="table1173712184620"></a>
 <table><tbody><tr id="row77372244611"><th class="firstcol" valign="top" width="40%" id="mcps1.2.3.1.1"><p id="p103831220124013"><a name="p103831220124013"></a><a name="p103831220124013"></a>Environment Variable</p>
 </th>
-<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.1 "><p id="p9383820184016"><a name="p9383820184016"></a><a name="p9383820184016"></a>ANNC_FLAGS</p>
+<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.1 "><p id="p9383820184016"><a name="p9383820184016"></a><a name="p9383820184016"></a>XLA_FLAGS</p>
 </td>
 </tr>
 <tr id="row2073713210467"><th class="firstcol" valign="top" width="20.06%" id="mcps1.2.3.2.1"><p id="p133831020144016"><a name="p133831020144016"></a><a name="p133831020144016"></a>Function</p>
@@ -155,7 +155,7 @@ The Constant folding interfaces are shown in [**Table 6** Interface for model co
 
 **Table 6** Interface for model conversion using constant folding<a id="interface-for-model-conversion-using-constant-folding"></a>
 
-<a name="table76971117203416"></a>
+<a name="table769711172034"></a>
 <table><tbody><tr id="row169713174343"><th class="firstcol" valign="top" width="29.73%" id="mcps1.2.3.1.1"><p id="p15790132610344"><a name="p15790132610344"></a><a name="p15790132610344"></a>Command Line Interface</p>
 </th>
 <td class="cellrowborder" valign="top" width="80.27%" headers="mcps1.2.3.1.1 "><p id="p1579018267345"><a name="p1579018267345"></a><a name="p1579018267345"></a>annc-opt</p>
@@ -182,7 +182,7 @@ The Constant folding interfaces are shown in [**Table 6** Interface for model co
 
 **Table 7** Constant folding interface<a id="constant-folding-interface"></a>
 
-<a name="table1173712184620"></a>
+<a name="table11737121846"></a>
 <table><tbody><tr id="row77372244611"><th class="firstcol" valign="top" width="40%" id="mcps1.2.3.1.1"><p id="p103831220124013"><a name="p103831220124013"></a><a name="p103831220124013"></a>Environment Variable</p>
 </th>
 <td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.1 "><p id="p9383820184016"><a name="p9383820184016"></a><a name="p9383820184016"></a>ANNC_FLAGS</p>
@@ -387,155 +387,6 @@ The TensorFlow KDNN thread passthrough feature is controlled by a KDNN environme
 </tbody>
 </table>
 
-## SparseMatmul Multi-threading Optimization
-
-**Interface Description**
-
-The SparseMatmul operator is a KDNN operator for calculating the product of a sparse matrix and a dense matrix. It supports single-precision FP32 inputs. This operator is the core component of the Neural Network (NN) layers in recommendation models.
-
-The operator is designed based on the compressed sparse row (CSR) storage structure. It skips zero blocks during loading and computing to maximize the efficiency of computational and memory bandwidth utilization. The core computing kernel has been optimized for the Kunpeng platform by leveraging SIMD (supporting the NEON instruction set), implementing multi-threading optimization.
-
-**Interface Type**
-
-Internal computing interface.
-
-**Input Parameter**
-
-| Parameter | Type | Description |
-| --------- | ------ | ------ |
-| `tp` | `KDNN::Threading::ThreadpoolIface *` | KDNN thread pool interface, which is used for multi-thread parallel execution. |
-| `alpha` | `const FLOAT` | Scaling factor. |
-| `mat` | `const JOIN(spmat_csr_, _t) *` | Sparse matrix (CSR format). |
-| `x` | `const FLOAT *` | Dense matrix. |
-| `columns` | `const KDNN_INT` | Number of columns in a matrix. |
-| `ldx` | `const KDNN_INT` | Stride of matrix **x**. |
-| `beta` | `const FLOAT` | Accumulation scaling factor. |
-| `y` | `FLOAT *` | Output matrix.|
-| `ldy` | `const KDNN_INT` | Stride of matrix **y**. |
-
-**Output Parameter**
-
-None. The result is returned through the **y** parameter.
-
-**Interface Features**
-
-- **Multi-threading optimization**: The output matrix is partitioned based on the column dimension, and each thread processes a distinct column block.
-- **Lock-free design**: A per-thread buffer is allocated to eliminate thread synchronization overhead.
-- **Load balancing**: The uniform slicing strategy is used to distribute workloads evenly across threads.
-- **Memory optimization**: `malloc_align` ensures aligned memory allocation, maximizing SIMD vectorization throughput..
-- **Intelligent fallback**: The algorithm automatically falls back to serial execution under conditions of thread pool unavailability, nested parallelism, or single-thread execution.
-
-**Interface Change**
-
-The `ThreadpoolIface *tp` parameter is added to the API function signature to transfer the thread pool instance.
-
-Before modification:
-
-```c
-kdnn_sparse_status_t kdnn_sparse_scsrmm(
-    const kdnn_sparse_operation_t opt, ...);
-```
-
-After modification:
-
-```c
-kdnn_sparse_status_t kdnn_sparse_scsrmm(
-    KDNN::Threading::ThreadpoolIface *tp,
-    const kdnn_sparse_operation_t opt, ...);
-```
-
-**Interface Source File**
-
-`third_party/kdnn/kdnn_adapter.h` and `tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc`
-
-## EmbeddingTableLookup Operator in the kembedding Operator Library
-
-The EmbeddingTableLookup operator, a custom operator in the kembedding operator library, is used to efficiently perform sparse embedding lookup.
-
-**Interface Description**
-
-This operator retrieves sparse embeddings from the resource table `EmbeddingIndexToValueTable` based on keys and outputs a standard `SparseTensor` triplet.
-
-- `indices`: contains the coordinates of the hit non-zero elements.
-- `values`: contains the corresponding embedding values.
-- `dense_shape`: contains the shape of the complete embedding matrix.
-
-**Interface Type**
-
-TensorFlow OpKernel class.
-
-**Input Parameter**
-
-| Parameter | Type | Description |
-| --------- | ------ | ------ |
-| `keys` | <code>int64</code> tensor| List of embedding keys to be searched for, with the shape of <code>[key_cnt]</code>. |
-| `table_handle` | `resource` | Resource table handle, which is created by <code>EmbeddingIndexToValueTable</code> and has loaded embedding data. |
-
-**Output Parameter**
-
-| Parameter | Type | Description |
-| --------- | ------ | ------ |
-| `indices` | <code>int64</code> tensor | SparseTensor indices, with the shape of <code>[N, 2]</code>, where <code>N</code> indicates the total number of hit non-zero elements, and the second dimension is <code>[row, col]</code>. |
-| `values` | <code>float</code> tensor | SparseTensor values, with the shape of <code>[N]</code>, which corresponds to <code>indices</code> one to one. |
-| `dense_shape` | <code>int64</code> tensor | Dense shape, with the shape of <code>[2]</code>. The value is <code>[key_cnt, emb_dim]</code>. |
-
-**Core Attributes:**
-
-| Name | Description |
-| --------- | ------ |
-| `emb_dim` | Embedding dimension, which is used to construct the output <code>dense_shape</code>. |
-
-**Interface Source File**
-
-`third_party/kembedding/src/kernels/embedding_table_lookup_op.cc`
-
-**Other Related Operators**
-
-- <code>EmbeddingIndexToValueTable</code>: creates a resource table handle.
-- <code>InitializeEmbeddingIndexToValueTableFromTextFile</code>: initializes the resource table from a binary file.
-
-Sample
-
-```python
-import tensorflow as tf
-
-# Load the dynamic library of the kembedding custom operator.
-kembedding_module = tf.load_op_library(
-    'path/to/bazel-bin/third_party/kembedding/kembedding_embedding_table_lookup.so'
-)
-
-# Create and initialize a resource table.
-with tf.Session() as sess:
-    # Step 1: Create a resource table handle.
-    table_handle = kembedding_module.embedding_index_to_value_table()
-
-    # Step 2: Load the embedding table data from the binary file.
-    sess.run(
-        kembedding_module.initialize_embedding_index_to_value_table_from_text_file(
-            table_handle=table_handle,
-            filename='path/to/embedding_table.bin'
-        )
-    )
-
-    # Step 3: Perform batch search.
-    keys = tf.constant([101, 202, 999], dtype=tf.int64)
-    indices, values, dense_shape = kembedding_module.embedding_table_lookup(
-        table_handle=table_handle,
-        keys=keys,
-        emb_dim=4
-    )
-
-    # Obtaining Results
-    result_indices, result_values, result_shape = sess.run(
-        [indices, values, dense_shape]
-    )
-
-    # Output example:
-    # indices = [[0, 0], [0, 2], [1, 1]]
-    # values = [1.0, 3.0, 2.5]
-    # dense_shape = [3, 4]
-```
-
 ## Usage of the TensorFlow ANNC Static Graph Fusion Feature
 
 The TensorFlow ANNC static graph fusion feature is enabled or disabled by environment variables. For details, see [Table 1 Environment variables for enabling or disabling ANNC static graph fusion](#table473618378218)
@@ -569,5 +420,5 @@ os.environ['ANNC_FUSED_ALL'] = '1'
 
 | Release Date | Change History |
 | ---- | ---- |
-| 2026-06-30 | This is the second official release. <ul><li>Added the description for constant folding optimization to the TensorFlow ANNC for graph compilation documentation. </li><li>Added the description for the TensorFlow ANNC static graph fusion feature. </li><li>Added the description for the SparseMatmul multi-threading optimization feature. </li><li>Added the description for the EmbeddingTableLookup operator in the TensorFlow kembedding operator library.</li></ul> |
+| 2026-06-30 | This is the second official release. <ul><li>Added the description for constant folding optimization to the TensorFlow ANNC for graph compilation documentation. </li><li>Added the description for the TensorFlow ANNC static graph fusion feature. </li></ul> |
 | 2026-03-30 | This is the first official release. <ul><li>Added the description for the TensorFlow KDNN thread passthrough feature.</li></ul> |

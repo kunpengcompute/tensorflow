@@ -21,7 +21,7 @@
 <td class="cellrowborder" valign="top" width="57.830000000000005%" headers="mcps1.1.3.3.1 "><p id="p1730912179911"><a name="p1730912179911"></a><a name="p1730912179911"></a><span id="text17191017111119"><a name="text17191017111119"></a><a name="text17191017111119"></a>Kunpeng TensorFlow Inference Optimization</span></p>
 </td>
 </tr>
-<tr id="row1930811171892"><th class="firstcol" valign="top" width="42.17%" id="mcps1.1.3.3.1"><p id="p2030912172097"><a name="p2030912172097"></a><a name="p2030912172097"></a>Software Version</p>
+<tr id="row19308111718"><th class="firstcol" valign="top" width="42.17%" id="mcps1.1.3.3.1"><p id="p2030912172097"><a name="p2030912172097"></a><a name="p2030912172097"></a>Software Version</p>
 </th>
 <td class="cellrowborder" valign="top" width="57.830000000000005%" headers="mcps1.1.3.3.1 "><p id="p1730912179911"><a name="p1730912179911"></a><a name="p1730912179911"></a><span id="text17191017111119"><a name="text17191017111119"></a><a name="text17191017111119"></a>v1.1.0</span></p>
 </td>
@@ -75,8 +75,6 @@ For details, see [Installation Guide](./installation_guide.md).
 
 - Added the TensorFlow ANNC static graph fusion feature, adapted to Kunpeng 950 processor and supporting static graph fusion of operators such as KPFusedEmbeddingActionIdGather.
 - Added the TensorFlow ANNC constant folding optimization, adapted to Kunpeng 950 processor.
-- Added the EmbeddingTableLookup operator to the kembedding operator library, further enhancing feature processing capabilities for recommendation models.
-- Added the SparseMatmul multi-threading optimization. This optimization partitions the output matrix by column dimension, with each thread processing an independent column block. Performance of sparse matrix multiplication on multi-core CPUs is improved through lock-free design, load balancing, and memory optimization.
 
 **Modified Features<a name="zh-cn_topic_0000002518399190_section16450949161512"></a>**
 

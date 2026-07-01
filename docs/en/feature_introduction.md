@@ -19,7 +19,7 @@ Kunpeng BoostKit provides this TensorFlow ANNC feature to enhance TensorFlow Ser
 
 ### Software Architecture
 
-**[Figure 1** TF Serving software architecture](#tf-serving-software-architecture) shows the TF Serving software architecture. [**Table 1** TF Serving software component functions](#tf-serving-software-component-functions) describes the functions of each component.
+[**Figure 1** TF Serving software architecture](#tf-serving-software-architecture) shows the TF Serving software architecture. [**Table 1** TF Serving software component functions](#tf-serving-software-component-functions) describes the functions of each component.
 
 **Figure 1** TF Serving software architecture<a name="fig2460131971612"></a><a id="tf-serving-software-architecture"></a>
 
@@ -77,15 +77,15 @@ Kunpeng BoostKit provides this TensorFlow ANNC feature to enhance TensorFlow Ser
 </tbody>
 </table>
 
-### Application Scenarios<a name="ZH-CN_TOPIC_0000002550048255"></a>
+### Application Scenarios
 
 The TensorFlow Serving ANNC feature is mainly used in recommendation systems and advertising delivery. It can greatly improve inference performance for coarse-ranking models in high-concurrency scenarios, boosting throughput while significantly reducing latency.
 
-### Principles<a name="ZH-CN_TOPIC_0000002550048263"></a>
+### Principles
 
 This section describes the TensorFlow/XLA optimization features.
 
-**TensorFlow Graph Fusion<a name="section2050553619512"></a>**
+**TensorFlow Graph Fusion**
 
 Some subgraphs in TensorFlow models contain redundant computations. By identifying specific graph patterns, you can fuse multiple operators in the subgraphs into one fused operator. This avoids extra work, optimizes memory access, and improves model inference performance. For details, see [**Figure 1** TensorFlow graph fusion](#tensorflow-graph-fusion). This function enables graph fusion and rewriting at the TensorFlow model level on the frontend, and supports manual creation of custom fused operators on the backend.
 
@@ -93,7 +93,7 @@ Some subgraphs in TensorFlow models contain redundant computations. By identifyi
 
 ![tensorflow-graph-fusion](figures/tensorflow-graph-fusion.png "TensorFlow graph fusion diagram")
 
-**XLA Graph Fusion<a name="section1049725715115"></a>**
+**XLA Graph Fusion**
 
 XLA provides multiple hardware-agnostic graph fusion optimization policies. However, the resulting cluster (including the fused parts) may still contain redundant computations. For example, sub-expressions are repeated or can be merged across different fusion operations. For details, see [**Figure 2** XLA graph fusion](#xla-graph-fusion). This function aims to identify redundant computations after fusion, such as the F1 operations. Redundant computations can be eliminated using pre-fusion policies, such as the fusion of F4, F5, and F6 operations, to further improve the model inference efficiency.
 
@@ -101,19 +101,19 @@ XLA provides multiple hardware-agnostic graph fusion optimization policies. Howe
 
 ![xla-graph-fusion](figures/xla-graph-fusion.png "XLA graph fusion diagram")
 
-**Operator Optimization<a name="section287331525216"></a>**
+**Operator Optimization**
 
 This feature performs operator optimization across stages, including offloading the Matrix Multiplication (MatMul) operator to XLA, calling the General Matrix Multiplication (GEMM) operation interface provided by Open Basic Linear Algebra Subprograms (OpenBLAS), and replacing the Softmax function with a more efficient implementation. In addition, it identifies specific operation patterns to eliminate redundant computations and further improve the model inference performance. For example, in scenarios where multiple slices are concatenated, redundant slicing operations are removed.
 
-**Constant Folding Optimization<a name="section2050553619512"></a>**
+**Constant Folding Optimization**
 
 This function focuses on optimizing the packing overhead of constant operands in matrix multiplication operators. It applies to OpenBLAS call scenarios involving a matrix multiplication operator `C = A × B`, where at least one operand (such as weight `B` in an inference model) is a constant. The value and shape of such operands are known at compile time and remain unchanged at runtime. When this optimization is disabled, the ANNC compiler must pack and rearrange constant operands to meet hardware memory access alignment and cache locality requirements, as shown in [**Figure 3** Data packing](#data-packing). Since the valid layout of constant operands can be uniquely determined by the compiler, the packing operation in this scenario can be shifted forward to the compile phase. Once this optimization is enabled, an offline packing tool used during compilation and a dedicated rearrangement-free backend (kpgemm) can completely eliminate redundant runtime overhead, as shown in [**Figure 4** Constant folding workflow](#constant-folding-workflow).
 
-**Figure 3** Data packing<a name="fig836316691915"></a><a id="data-packing"></a>
+**Figure 3** Data packing<a name="fig836316691916"></a><a id="data-packing"></a>
 
 ![](figures/data-packing.png "data-packing")
 
-**Figure 4** Constant folding workflow<a name="fig836316691915"></a><a id="constant-folding-workflow"></a>
+**Figure 4** Constant folding workflow<a name="fig836316691917"></a><a id="constant-folding-workflow"></a>
 
 ![](figures/constant-folding-workflow.png)
 
@@ -349,117 +349,6 @@ In the OMP version of KDNN, each operator creates _N_ OMP threads for computatio
 
 When thread passthrough is enabled, the framework thread pool is reused. KDNN submits computing tasks to the framework thread pool for unified scheduling, reducing the overhead of thread creation and avoiding the uncontrolled thread growth.
 
-## SparseMatmul Multi-threading Optimization
-
-### Introduction
-
-The SparseMatmul operator is a KDNN operator for calculating the product of a sparse matrix and a dense matrix. It supports single-precision FP32 inputs. This operator is the core component of the Neural Network (NN) layers in recommendation models.
-
-The operator is designed based on the compressed sparse row (CSR) storage structure. It skips zero blocks during loading and computing to maximize the efficiency of computational and memory bandwidth utilization. The core computing kernel has been optimized for the Kunpeng platform by leveraging SIMD (supporting the NEON instruction set), implementing multi-threading optimization.
-
-### Optimization
-
-The SparseMatmul multi-threading optimization includes the following core designs:
-
-1. **Data parallelism**: The output matrix is partitioned based on the column dimension, and each thread processes a distinct column block.
-
-2. **Lock-free design**: A per-thread buffer is allocated to eliminate thread synchronization overhead and eliminate false sharing.
-
-3. **Load balancing**: The uniform slicing strategy is used to distribute workloads evenly across threads.
-
-4. **Memory optimization**: `malloc_align` ensures aligned memory allocation, maximizing SIMD vectorization throughput..
-
-The algorithm automatically falls back to the serial version in the following scenarios to avoid unnecessary scheduling overhead:
-
-- The thread pool is unavailable.
-- Nested parallelism exists.
-- Only single-thread execution is performed.
-
-Through parallelization and execution path optimization of Sparse MatMul, the operator can fully utilize hardware resources in multi-core CPU scenarios, reducing the computing time.
-
-### Optimization Implementation
-
-**Algorithm Logic**
-
-1. **Column partitioning strategy**: The output matrix columns are evenly divided according to the number of threads.
-2. **Thread-local buffer**: A per-thread buffer is allocated to eliminate data contention.
-3. **Parallel execution**: The `ParallelFor` interface of the KDNN thread pool is used.
-4. **Single-thread fallback condition**: The serial algorithm is applied when the thread pool pointer is null, the current thread is already in a parallel region, or the thread pool size is less than or equal to `1`.
-
-**Interface Change**
-
-The `ThreadpoolIface *tp` parameter is added to pass the thread pool instance.
-
-## EmbeddingTableLookup Operator
-
-### Introduction
-
-The EmbeddingTableLookup operator, a core operator in the kembedding operator library, is used to efficiently perform sparse embedding lookup. This operator can be used to retrieve sparse embeddings from a pre-loaded resource table based on keys and output a standard SparseTensor triplet (`indices`, `values`, and `dense_shape`), featuring high performance and low latency.
-
-In a typical application scenario, it loads the sparse embedding table built offline to the memory of an inference process, and then performs quick lookup based on a batch of keys during inference. This meets the requirements of a data processing layer in a recommendation model.
-
-### Usage Process
-
-Generally, three steps are required to use the `EmbeddingTableLookup` operator.
-
-1. Call `EmbeddingIndexToValueTable` to create a resource table handle.
-2. Call `InitializeEmbeddingIndexToValueTableFromTextFile` to initialize the resource table from a binary file.
-3. Call `EmbeddingTableLookup` to perform batch lookup.
-
-### File and Memory Organization
-
-The embedding table file consists of two parts:
-
-- File header: stores meta information such as `total_key_size` and byte order.
-- Data area: Each key stores the number of valid dimensions, the valid dimension index array, and corresponding float value array in sequence.
-
-After the loading is complete, the resource table is stored in a bucket-based structure:
-
-- The outer layer is a `std::vector` with a fixed number of buckets.
-- Each bucket uses `absl::flat_hash_map<uint64_t, EmbeddingValue>`.
-- The value consists of multiple `(valid_value_index, valid_value)` pairs.
-
-### Example Description
-
-Assume that the following table is constructed:
-
-- key `101` -> `(0, 1.0)`, `(2, 3.0)`
-- key `202` -> `(1, 2.5)`
-
-Use the following input for lookup:
-
-```python
-keys = [101, 202, 999] # The third key 999 is not hit.
-emb_dim = 4
-```
-
-The output is as follows:
-
-```python
-indices = [[0, 0], [0, 2], [1, 1]]
-values = [1.0, 3.0, 2.5]
-dense_shape = [3, 4] # 3 indicates the number of keys, and 4 indicates the embedding dimension.
-```
-
-### Arm Optimization
-
-On the AArch64 platform, the `EmbeddingTableLookup` operator has been optimized in the following aspects. These optimizations greatly improve its performance on the Arm platform, making it well-suited for high-concurrency inference scenarios of recommendation models.
-
-**1. Parallel lookup by key sharding**
-
-- The TensorFlow sharding parallel method is used to split the key vector across multiple worker threads.
-- Each thread is responsible for searching for looking up keys within its assigned range, which is efficient for batch request scenarios.
-
-**2. Reduced memory allocation and expansion costs**
-
-- The original method reserves memory based on the maximum possible size by using `reserve(key_cnt * emb_dim)`. However, the actual result is usually much smaller than this value, which causes memory waste.
-- The optimized implementation first counts results via `shard_results` to obtain the exact `value_tensor_size`, and then allocates memory for the final output tensor in one step.
-
-**3. Eliminating intermediate vector buffers**
-
-- In the original method, results are first accumulated in an intermediate vector and then copied to the output tensor.
-- The optimized implementation calculates the total size in advance, allocates memory for the output tensor directly, and writes results into it, reducing unnecessary memory copy overhead.
-
 ## TensorFlow ANNC Static Graph Fusion
 
 ### Introduction
@@ -693,11 +582,11 @@ When ANNC static graph fusion is enabled, eligible subgraphs are replaced with t
 
 **Figure 11** Operator fusion principle<a name="fig4919356474"></a>
 
-![](figures/operator-fusion-principle.png "operatorh-fusion-principle")
+![](figures/operator-fusion-principle.png "operator-fusion-principle")
 
 ## Description
 
 | Release Date| Change History|
 | ---- | ---- |
-| 2026-06-30 | This is the second official release. <ul><li>Added the description for constant folding optimization to the TensorFlow ANNC for graph compilation documentation. </li><li>Added the TensorFlow ANNC static graph fusion feature, including feature description and software architecture. </li><li>Added the description for the KDNN SparseMatmul multi-threading optimization feature. </li><li>Added the description for the EmbeddingTableLookup operator of the kembedding operator library.</li></ul> |
+| 2026-06-30 | This is the second official release. <ul><li>Added the description for constant folding optimization to the TensorFlow ANNC for graph compilation documentation. </li><li>Added the TensorFlow ANNC static graph fusion feature, including feature description and software architecture. </li></ul> |
 | 2026-03-30 | This is the first official release. <ul><li>Added the TensorFlow KDNN thread passthrough feature, including feature description and software architecture.</li></ul>|
