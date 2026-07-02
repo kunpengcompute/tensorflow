@@ -638,7 +638,7 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 
 2. 将获取到的KDNN软件包，解压，解压后得到二进制RPM包。
 
-3. 装KDNN的RPM包。
+3. 安装KDNN的RPM包。
 
     ```shell
     rpm -ivh boostcore-kdnn-xxxx.aarch64.rpm

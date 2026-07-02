@@ -151,11 +151,11 @@ XLA图融合接口如[**表 2** XLA图融合接口](#XLA图融合接口)所示�
 
 常量折叠和图优化同时开启时，需先进行常量折叠优化。
 
-常量折叠优化接口使用如[**表 6** 常量折叠模型接口](#常量折叠模型转换接口)，[**表 7** 常量折接优化接口](#常量折叠优化接口)所示。
+常量折叠优化接口使用如[**表 6** 常量折叠模型接口](#常量折叠模型转换接口)，[**表 7** 常量折叠优化接口](#常量折叠优化接口)所示。
 
 **表 6** 常量折叠模型转换接口<a id="常量折叠模型转换接口"></a>
 
-<a name="table76971117203416"></a>
+<a name="table769711172034"></a>
 <table><tbody><tr id="row169713174343"><th class="firstcol" valign="top" width="29.73%" id="mcps1.2.3.1.1"><p id="p15790132610344"><a name="p15790132610344"></a><a name="p15790132610344"></a>终端命令行接口</p>
 </th>
 <td class="cellrowborder" valign="top" width="80.27%" headers="mcps1.2.3.1.1 "><p id="p1579018267345"><a name="p1579018267345"></a><a name="p1579018267345"></a>annc-opt</p>
@@ -182,10 +182,10 @@ XLA图融合接口如[**表 2** XLA图融合接口](#XLA图融合接口)所示�
 
 **表 7** 常量折叠优化接口<a id="常量折叠优化接口"></a>
 
-<a name="table1173712184620"></a>
+<a name="table11737121846"></a>
 <table><tbody><tr id="row77372244611"><th class="firstcol" valign="top" width="40%" id="mcps1.2.3.1.1"><p id="p103831220124013"><a name="p103831220124013"></a><a name="p103831220124013"></a>环境变量</p>
 </th>
-<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.1 "><p id="p9383820184016"><a name="p9383820184016"></a><a name="p9383820184016"></a>XLA_FLAGS</p>
+<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.1 "><p id="p9383820184016"><a name="p9383820184016"></a><a name="p9383820184016"></a>ANNC_FLAGS</p>
 </td>
 </tr>
 <tr id="row2073713210467"><th class="firstcol" valign="top" width="20.06%" id="mcps1.2.3.2.1"><p id="p133831020144016"><a name="p133831020144016"></a><a name="p133831020144016"></a>接口功能</p>
