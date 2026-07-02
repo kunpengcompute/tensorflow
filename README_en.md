@@ -2,24 +2,22 @@
 
 ## Latest Updates
 
-- [2025.09.30]: Added the TensorFlow ANNC for graph compilation optimization feature, providing optimizations including computational graph optimization, and generation and integration of high-performance fused operators.
-- [2025.06.30]: Released the TensorFlow Serving thread scheduling optimization feature for the first time.
+- [2026-06-30]: Added the TensorFlow ANNC static graph fusion feature, adapted to Kunpeng 950 processor and supporting operators such as KPFusedGather and KPFusedSparseReshape. Added the constant folding optimization to TensorFlow ANNC for graph compilation, adapted to Kunpeng 950 processor.
+- [2026-03-30]: Added the TensorFlow KDNN thread passthrough feature, supporting operators such as batchmatmul, concat, and softmax.
+- [2025-09-30]: Added the TensorFlow ANNC for graph compilation optimization feature, providing optimizations including computational graph optimization, and generation and integration of high-performance fused operators.
+- [2025-06-30]: Released the TensorFlow Serving thread scheduling optimization feature for the first time.
 
 ## Project Introduction
 
 Kunpeng TensorFlow is a high-performance inference acceleration extension based on open-source TensorFlow. It focuses on efficient execution in search, recommendation, and advertising inference scenarios. It significantly improves throughput and cuts latency for model inference through in-depth enhancements in graph optimization, operators, and runtime, providing top performance for AI applications based on Kunpeng CPUs.
 
-Pixie provides the following features:
-
-- ANNC for graph compilation optimization: It leverages Kunpeng hardware affinity operators and TensorFlow graph fusion technologies to accelerate model inference.
-- Thread scheduling optimization: It uses Kunpeng affinity operator scheduling and thread pool management technologies to optimize TensorFlow operator scheduling in high-concurrency scenarios.
-
-**Figure 1** Project architecture<a name="fig1326111445508"></a>
-![project-architecture](./docs/en/figures/project-architecture.png "project-architecture")
-
 - Executor layer: runtime optimization
 - Kernel layer: custom operators, which provide high-performance DNN operators based on KDNN.
 - XLA layer: provides the Kunpeng graph compiler based on ANNC.
+
+**Figure 1** Project architecture<a name="fig1326111445508"></a>
+
+![](./docs/en/figures/project-architecture.png)
 
 ## Feature Description
 
@@ -39,24 +37,40 @@ Pixie provides the following features:
 <td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710208">ANNC for graph compilation optimization</p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">ANNC is a compiler dedicated to accelerating neural network computing. It focuses on technologies including computational graph optimization, generation and integration of high-performance fused operators, and efficient code generation and optimization. These capabilities significantly improve inference performance in recommendation scenarios.</p></td>
 </tr>
+<tr id="row179181137112015">
+<td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710208">KDNN thread passthrough</p></td>
+<td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">Transparently passes the upper-layer framework thread pool to the KDNN operator library. By reusing the framework thread pool, KDNN operator scheduling is optimized, improving operator performance.</p></td>
+</tr>
+<tr id="row179181137112015">
+<td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710208">ANNC static graph fusion</p></td>
+<td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">Fuses multiple embedding operators into a single operator. Using the remapper mechanism, subgraphs with fixed structural patterns are replaced during graph compilation, improving inference throughput.</p></td>
+</tr>
 </tbody>
 </table>
 
-For details about the features of Kunpeng TensorFlow, see [Feature Introduction](./docs/en/feature_introduction.md).
-
-## Release Notes
-
-For details about the version updates of Kunpeng TensorFlow, see [Release Notes](./docs/en/release_notes.md).
+For details about Kunpeng TensorFlow features, see [Feature Introduction](./docs/en/feature_introduction.md).
 
 ## Directory Structure
 
- ```bash
+```bash
 tensorflow
-├── 0001-tensorflow_2.15.0-optimize.patch // TensorFlow patch file
-├── LICENSE                                   // License file
-├── README_en.md                                 // Open-source repository introduction
-└── docs                                      // Documentation
- ```
+├── 0001-tensorflow_2.15.0-optimize.patch               # TensorFlow patch file
+├── 0002-tensorflow_2.15.0-annc-optimize.patch          # Patch file for TensorFlow ANNC static graph fusion
+├── LICENSE                                             # License file
+├── README_en.md                                        # Project introduction file
+└── docs                                                # Documentation
+│   └── en                                                # English document directory
+│       ├── figures                                     # Figure resource directory
+│       ├── api_reference.md                            # API Reference
+│       ├── quick_start.md                              # Quick Start
+│       ├── release_notes.md                            # Release Notes
+│       ├── installation_guide.md                       # Installation guide
+│       ├── feature_introduction.md                     # Feature introduction 
+```
+
+## Version Description
+
+For details about the updates of the Kunpeng TensorFlow version, see [Release Notes](./docs/en/release_notes.md).
 
 ## Documents
 
@@ -103,13 +117,13 @@ This code repository contributes to the TensorFlow community. It strictly adhere
 
 ## License
 
-This project is licensed under Apache License 2.0. For details, see the <a href="./docs/LICENSE">LICENSE</a> file.
+This project is licensed under Apache License 2.0. For details, see the [LICENSE](./LICENSE).
 
-This project document is licensed under CC-BY 4.0. For details, see the <a href="./docs/LICENSE">LICENSE</a> file.
+The documentation of this project is released under the CC-BY 4.0 license. For details, see the [LICENSE](./docs/LICENSE).
 
 ## Contribution Statement
 
-We welcome your contributions to the community. If you have any questions/suggestions or want to provide feedback on feature requirements and bug reports, you can submit [issues](https://gitcode.com/boostkit/community/blob/master/docs/contributor/issue-submit.md). For details, see [Contribution Guideline](https://gitcode.com/boostkit/community/blob/master/docs/contributor/contributing.md). You are also welcome to share insights in the [Discussions](https://gitcode.com/boostkit/community/discussions). Thank you for your support.
+We welcome your contributions to the community. If you have any questions/suggestions or want to provide feedback on feature requirements and bug reports, you can submit [issues](https://gitcode.com/boostkit/community/blob/master/docs/contributor/issue-submit.md). For details, see [Contribution Guideline](https://gitcode.com/boostkit/community/blob/master/docs/contributor/contributing.md). You are also welcome to share insights in [Discussions](https://gitcode.com/boostkit/community/discussions). Thank you for your support.
 
 ## Acknowledgments
 
