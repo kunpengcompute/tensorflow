@@ -580,7 +580,7 @@ This section explains the ANNC static graph fusion optimization feature to help 
 
 When ANNC static graph fusion is enabled, eligible subgraphs are replaced with the corresponding custom operators during graph compilation. This reduces intermediate memory overhead and optimizes memory access, resulting in end-to-end performance improvements.
 
-**Figure 11** Operator fusion principle<a name="fig4919356474"></a>
+**Figure 2** Operator fusion principle<a name="fig4919356474"></a>
 
 ![](figures/operator-fusion-principle.png "operator-fusion-principle")
 

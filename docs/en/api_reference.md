@@ -389,7 +389,7 @@ The TensorFlow KDNN thread passthrough feature is controlled by a KDNN environme
 
 ## Usage of the TensorFlow ANNC Static Graph Fusion Feature
 
-The TensorFlow ANNC static graph fusion feature is enabled or disabled by environment variables. For details, see [Table 1 Environment variables for enabling or disabling ANNC static graph fusion](#table473618378218)
+The TensorFlow ANNC static graph fusion feature is enabled or disabled by environment variables. For details, see [Table 1 Environment variables for enabling or disabling ANNC static graph fusion](#table47361837821)
 
 The default value of each environment variable is `0`, indicating that the ANNC static graph fusion function is disabled. To use this function, you need to manually set the environment variable before the graph compilation. For example, you can set the environment variable in Python as follows:
 
@@ -399,6 +399,8 @@ os.environ['ANNC_FUSED_ALL'] = '1'
 ```
 
 **Table 1** Environment variables for enabling or disabling ANNC static graph fusion
+
+<a name="table47361837821"></a>
 
 | Environment Variable | Type | Value | Function |
 | ---- | -------- | ---- | ---- |

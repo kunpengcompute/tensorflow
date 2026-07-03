@@ -33,17 +33,17 @@ Kunpeng TensorFlow is a high-performance inference acceleration extension based 
 <td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710208">Thread scheduling optimization</p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">Refines operator scheduling algorithms and provides other thread management optimizations, delivering throughput improvements for concurrent model inference.</p></td>
 </tr>
-<tr id="row179181137112015">
-<td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710208">ANNC for graph compilation optimization</p></td>
-<td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">ANNC is a compiler dedicated to accelerating neural network computing. It focuses on technologies including computational graph optimization, generation and integration of high-performance fused operators, and efficient code generation and optimization. These capabilities significantly improve inference performance in recommendation scenarios.</p></td>
+<tr id="row179181137112016">
+<td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710209">ANNC for graph compilation optimization</p></td>
+<td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752011">ANNC is a compiler dedicated to accelerating neural network computing. It focuses on technologies including computational graph optimization, generation and integration of high-performance fused operators, and efficient code generation and optimization. These capabilities significantly improve inference performance in recommendation scenarios.</p></td>
 </tr>
-<tr id="row179181137112015">
-<td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710208">KDNN thread passthrough</p></td>
-<td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">Transparently passes the upper-layer framework thread pool to the KDNN operator library. By reusing the framework thread pool, KDNN operator scheduling is optimized, improving operator performance.</p></td>
+<tr id="row179181137112017">
+<td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710210">KDNN thread passthrough</p></td>
+<td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752012">Transparently passes the upper-layer framework thread pool to the KDNN operator library. By reusing the framework thread pool, KDNN operator scheduling is optimized, improving operator performance.</p></td>
 </tr>
-<tr id="row179181137112015">
-<td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710208">ANNC static graph fusion</p></td>
-<td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">Fuses multiple embedding operators into a single operator. Using the remapper mechanism, subgraphs with fixed structural patterns are replaced during graph compilation, improving inference throughput.</p></td>
+<tr id="row179181137112018">
+<td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710211">ANNC static graph fusion</p></td>
+<td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752013">Fuses multiple embedding operators into a single operator. Using the remapper mechanism, subgraphs with fixed structural patterns are replaced during graph compilation, improving inference throughput.</p></td>
 </tr>
 </tbody>
 </table>

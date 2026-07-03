@@ -493,8 +493,6 @@ Kunpeng Deep Neural Network Library (KDNN) is a high-performance AI operator lib
 
 **Table 1** Hardware requirement<a id="hardware-requirement-2"></a>
 
-<a name="_table38928044"></a>
-
 <table><thead align="left"><tr id="row239mcpsimp"><th class="cellrowborder" valign="top" width="25%" id="mcps1.2.3.1.1"><p id="p241mcpsimp"><a name="p241mcpsimp"></a><a name="p241mcpsimp"></a>Item</p>
 </th>
 <th class="cellrowborder" valign="top" width="75%" id="mcps1.2.3.1.2"><p id="p243mcpsimp"><a name="p243mcpsimp"></a><a name="p243mcpsimp"></a>Description</p>
@@ -514,8 +512,6 @@ Kunpeng Deep Neural Network Library (KDNN) is a high-performance AI operator lib
 [**Table 2** OS requirements](#os-requirements-2) lists the verified OSs.
 
 **Table 2** OS requirements<a id="os-requirements-2"></a>
-
-<a name="_d0e164"></a>
 
 <table><thead align="left"><tr id="row261mcpsimp"><th class="cellrowborder" valign="top" width="15%" id="mcps1.2.5.1.1"><p id="p263mcpsimp"><a name="p263mcpsimp"></a><a name="p263mcpsimp"></a>Item</p>
 </th>
@@ -553,8 +549,6 @@ Kunpeng Deep Neural Network Library (KDNN) is a high-performance AI operator lib
 [**Table 3** Software requirements](#software-requirements-2) describes the verified software environments.
 
 **Table 3** Software requirements<a id="software-requirements-2"></a>
-
-<a name="_table237115053311"></a>
 
 <table><thead align="left"><tr id="row301mcpsimp"><th class="cellrowborder" valign="top" width="15%" id="mcps1.2.5.1.1"><p id="p303mcpsimp"><a name="p303mcpsimp"></a><a name="p303mcpsimp"></a>Item</p>
 </th>
@@ -607,7 +601,7 @@ Kunpeng Deep Neural Network Library (KDNN) is a high-performance AI operator lib
 
 ### Compilation Environment Setup
 
-**Obtaining the KDNN Software Package <a name="section1273403710218"></a>**
+**Obtaining the KDNN Software Package**
 
 1. Decompress the obtained KDNN software package to obtain the binary RPM package.
 2. Install the RPM package of KDNN.
@@ -622,7 +616,7 @@ Kunpeng Deep Neural Network Library (KDNN) is a high-performance AI operator lib
 
 ### Compilation and Installation
 
-**Adapting TensorFlow for KDNN<a name="section163685710283"></a>**
+**Adapting TensorFlow for KDNN**
 
 Adapt TensorFlow by following the instructions in [Adapting TensorFlow for KDNN](https://www.hikunpeng.com/document/detail/en/kunpengaccel/kail/kaiOperl/docs/en/kdnn/best_practices.md#adapting-tensorflow-for-KDNN) in the _KDNN Best Practices_. Replace the patch with `0001-tensorflow_2.15.0-optimize.patch`, and in Step 4, download the package from `boostkit/tensorflow.git` using the branch tag `v1.0.0`.
 
@@ -748,9 +742,9 @@ Adapt TensorFlow by following the instructions in [Adapting TensorFlow for KDNN]
 </tbody>
 </table>
 
-### Performing Compilation and Installation<a name="ZH-CN_TOPIC_0000002517462328"></a>
+### Performing Compilation and Installation
 
-**Adapting TensorFlow for KDNN<a name="section163685710283"></a>**
+**Applying ANNC Static Graph Fusion Patches**
 
 1. Install basic software.
 
