@@ -2,7 +2,7 @@
 
 ## 最新消息
 
-- \[2026.06.30\]：新增TensorFlow ANNC静态图融合特性, 适配鲲鹏950 7592C处理器，支持KPFusedGather、KPFusedSparseReshape等算子；TensorFlow ANNC图编译优化特性新增常量折叠优化，适配鲲鹏950 7592C处理器。
+- \[2026.06.30\]：新增TensorFlow ANNC静态图融合特性, 适配鲲鹏950 7592C处理器，支持KPFusedGather、KPFusedSparseReshape等算子；TensorFlow ANNC图编译优化特性新增常量折叠优化，适配鲲鹏950 7592C处理器；新增kembedding自定义算子库，提供EmbeddingTableLookup算子；新增KDNN SparseMatmul多线程优化。
 - \[2026.03.30\]：新增TensorFlow KDNN线程直通特性, 支持batchmatmul、concat、softmax等算子对接KDNN。
 - \[2025.09.30\]：新增TensorFlow ANNC图编译优化特性，提供计算图优化，高性能融合算子生成与对接等优化技术。
 - \[2025.06.30\]：TensorFlow Serving线程调度优化特性首次发布。
@@ -17,7 +17,7 @@
 
 **图 1**  项目架构<a name="fig1326111445508"></a>
 
-![](./docs/zh/figures/项目架构.png)
+![项目架构](./docs/zh/figures/项目架构.png)
 
 ## 特性介绍
 
@@ -45,6 +45,14 @@
 <td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710208">ANNC静态图融合</p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">ANNC静态图融合是将多个Embedding算子融合为一个算子，通过remapper机制实现在图编译阶段将符合固定特征结构的子图替换为一个算子，从而提升模型推理的吞吐量。</p></td>
 </tr>
+<tr id="row179181137112015">
+<td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710208">kembedding自定义算子</p></td>
+<td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">kembedding是面向推荐模型推理场景的自定义算子库，提供EmbeddingTableLookup算子，用于高效执行稀疏embedding查找操作，输出标准SparseTensor三元组，具有高性能和低延迟的特点。</p></td>
+</tr>
+<tr id="row179181137112015">
+<td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710208">KDNN SparseMatmul多线程优化</p></td>
+<td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">针对KDNN SparseMatmul算子实现多线程并行优化，采用数据并行、无锁设计、负载均衡和内存优化等关键技术，充分利用多核CPU硬件资源，降低稀疏矩阵乘法计算耗时。</p></td>
+</tr>
 </tbody>
 </table>
 
@@ -56,6 +64,8 @@
 tensorflow
 ├── 0001-tensorflow_2.15.0-optimize.patch               # TensorFlow补丁文件
 ├── 0002-tensorflow_2.15.0-annc-optimize.patch          # TensorFlow ANNC静态图融合补丁文件
+├── 0003-tensorflow_2.15.0-kembedding.patch             # kembedding自定义算子补丁文件
+├── 0004-tensorflow_2.15.0-sparse-matmul.patch          # KDNN SparseMatmul多线程优化补丁文件
 ├── LICENSE                                             # License文件
 ├── README.md                                           # 项目介绍文件
 └── docs                                                # 文档
@@ -65,7 +75,7 @@ tensorflow
 │       ├── quick_start.md                              # 快速入门
 │       ├── release_notes.md                            # 版本说明书
 │       ├── installation_guide.md                       # 安装指导
-│       ├── feature_introduction.md                     # 特性介绍  
+│       ├── feature_introduction.md                     # 特性介绍
 ```
 
 ## 版本说明

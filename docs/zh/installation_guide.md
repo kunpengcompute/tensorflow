@@ -179,8 +179,8 @@ TensorFlow ANNC图编译优化特性后端已合入TensorFlow和TF Serving开源
     cp bazel-bin/annc/service/cpu/libannc.so /usr/lib64/
     cp $ANNC/annc/service/cpu/xla/libs/XNNPACK/build/libXNNPACK.so /usr/lib64
     cp $ANNC/bazel-out/aarch64-opt/bin/annc/service/cpu/xla/libs/libblas_mlir.so /usr/lib64
-    mkdir -p /usr/include/annc 
-    cp annc/service/cpu/kdnn_rewriter.h /usr/include/annc/ 
+    mkdir -p /usr/include/annc
+    cp annc/service/cpu/kdnn_rewriter.h /usr/include/annc/
     cp annc/service/cpu/annc_flags.h /usr/include/annc/
     cd python
     python3 setup.py bdist_wheel
@@ -200,7 +200,7 @@ TensorFlow ANNC图编译优化特性后端已合入TensorFlow和TF Serving开源
 
     **图 1** 使能补丁成功示意图<a name="fig5303357205213"></a><a id="使能补丁成功示意图"></a>
 
-    ![](figures/补丁成功示意图.png "使能补丁成功示意图")
+    ![补丁成功示意图](figures/补丁成功示意图.png "使能补丁成功示意图")
 
 4. 进入“tensorflow-serving”目录。
 
@@ -235,8 +235,8 @@ TensorFlow ANNC图编译优化特性后端已合入TensorFlow和TF Serving开源
 
     ```bash
     bazel --output_user_root=$BAZEL_COMPILE_CACHE build -c opt --distdir=$DISTDIR --override_repository=org_tensorflow=$TENSORFLOW_DIR \
-    --copt=-march=armv8.3-a+crc --copt=-O3 --copt=-fprefetch-loop-arrays --copt=-Wno-error=maybe-uninitialized  \ 
-    --copt=-Werror=stringop-overflow=0 --config=fused_embedding  \ 
+    --copt=-march=armv8.3-a+crc --copt=-O3 --copt=-fprefetch-loop-arrays --copt=-Wno-error=maybe-uninitialized  \
+    --copt=-Werror=stringop-overflow=0 --config=fused_embedding  \
     --define tflite_with_xnnpack=false tensorflow_serving/model_servers:tensorflow_model_server
     ```
 
@@ -778,9 +778,9 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 **适配TensorFlow<a name="section163685710283"></a>**
 
 1. 安装基础软件。
-   
+
    ```bash
-   yum install gcc g++ zip python vim tar wget unzip 
+   yum install gcc g++ zip python vim tar wget unzip
    ```
 
 2. 安装Bazel。
@@ -792,7 +792,7 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
    从GitHub下载开源TensorFlow 2.15.0版本。
 
    ```bash
-   git clone -b v2.15.0 https://github.com/tensorflow/tensorflow.git 
+   git clone -b v2.15.0 https://github.com/tensorflow/tensorflow.git
    ```
 
 4. 下载优化补丁。
@@ -800,7 +800,7 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
    从GitCode下载优化补丁并合入开源TensorFlow目录中。
 
    ```bash
-   git clone -b v1.1.0 https://gitcode.com/boostkit/tensorflow.git sra-tensorflow 
+   git clone -b v1.1.0 https://gitcode.com/boostkit/tensorflow.git sra-tensorflow
    cp /path/to/sra-tensorflow/0001-tensorflow\_2.15.0-optimize.patch /path/to/tensorflow/
    cp /path/to/sra-tensorflow/0002-tensorflow\_2.15.0-annc-optimize.patch /path/to/tensorflow/
    cd /path/to/tensorflow && patch -p1 < 0001-tensorflow\_2.15.0-optimize.patch && patch -p1 < 0002-tensorflow\_2.15.0-annc-optimize.patch
@@ -823,7 +823,7 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
    上述配置环境变量命令中的路径“/usr/include/python3.11”为Python.h所在目录，用户操作过程中请以实际编译环境中的路径为准。
 
 6. 构建配置。
-   
+
    请参见《TensorFlow 移植指南》中的“[源码编译安装](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0009.html)”章节配置编译选项。
 
    ```bash
@@ -861,6 +861,91 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
    ```
 
    执行通过即安装成功。其中`{op_name}`为上一步中查询结果。
+
+## kembedding自定义算子库编译安装
+
+kembedding是面向推荐模型推理场景的自定义算子库，基于TensorFlow 2.15版本，提供`EmbeddingTableLookup`自定义算子，用于高效执行稀疏embedding查找操作。
+
+### 编译安装
+
+kembedding算子库使用Bazel 6.5.0构建系统编译，构建目标位于`third_party/kembedding/BUILD`文件中。
+
+1. 安装GCC 12.3.1版本。
+
+   ```bash
+   yum install -y gcc-toolset-12-gcc*
+   export PATH=/opt/openEuler/gcc-toolset-12/root/usr/bin/:$PATH
+   export LD_LIBRARY_PATH=/opt/openEuler/gcc-toolset-12/root/usr/lib64/:$LD_LIBRARY_PATH
+   ```
+
+2. 下载TensorFlow源码。
+
+   从GitHub下载开源TensorFlow 2.15.0版本。
+
+   ```bash
+   git clone -b v2.15.0 https://github.com/tensorflow/tensorflow.git
+   ```
+
+3. 下载优化补丁。
+
+   从GitCode下载优化补丁并合入开源TensorFlow目录中。
+
+   ```bash
+   git clone -b v1.1.0 https://gitcode.com/boostkit/tensorflow.git sra-tensorflow
+   cp /path/to/sra-tensorflow/0003-tensorflow_2.15.0-kembedding.patch /path/to/tensorflow/
+   cd /path/to/tensorflow && patch -p1 < 0003-tensorflow_2.15.0-kembedding.patch
+   ```
+
+4. 编译 kembedding 动态库。
+
+   ```bash
+   cd /path/to/tensorflow
+   bazel build //third_party/kembedding:kembedding_embedding_table_lookup.so
+   ```
+
+   构建产物为 `bazel-bin/third_party/kembedding/kembedding_embedding_table_lookup.so`。
+
+5. 运行单元测试（可选）。
+
+   ```bash
+   bazel test //third_party/kembedding:embedding_table_lookup_op_test --test_output=errors
+   ```
+
+6. 运行性能基准测试（可选）。
+
+   ```bash
+   bazel run //third_party/kembedding:embedding_table_lookup_benchmark
+   ```
+
+## KDNN SparseMatmul多线程优化
+
+KDNN 算子库中的 SparseMatmul（稀疏矩阵乘法）算子已经集成到 TensorFlow 中。多线程优化默认开启，在安装 KDNN 后会自动生效。
+
+### 编译安装
+
+1. 下载TensorFlow源码。
+
+   从GitHub下载开源TensorFlow 2.15.0版本。
+
+   ```bash
+   git clone -b v2.15.0 https://github.com/tensorflow/tensorflow.git
+   ```
+
+2. 集成KDNN。
+
+   请参见《KDNN 最佳实践》文档中的“[适配TensorFlow](https://www.hikunpeng.com/document/detail/zh/kunpengaccel/kail/kaiOperl/docs/zh/kdnn/best_practices.md#适配tensorflow)”章节执行TensorFlow适配步骤，其中步骤4替换为：
+
+   ```bash
+   git clone -b v1.1.0 https://gitcode.com/boostkit/tensorflow.git sra-tensorflow
+   cp /path/to/sra-tensorflow/0001-tensorflow\_2.15.0-optimize.patch /path/to/tensorflow/
+   cp /path/to/sra-tensorflow/0002-tensorflow\_2.15.0-annc-optimize.patch /path/to/tensorflow/
+   cp /path/to/sra-tensorflow/0004-tensorflow_2.15.0-sparse-matmul.patch /path/to/tensorflow/
+   cd /path/to/tensorflow && patch -p1 < 0001-tensorflow\_2.15.0-optimize.patch && patch -p1 < 0002-tensorflow\_2.15.0-annc-optimize.patch && patch -p1 < 0004-tensorflow_2.15.0-sparse-matmul.patch
+   ```
+
+### 适配后验证
+
+补充功能性能测试操作说明
 
 ## 常见问题
 

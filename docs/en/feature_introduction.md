@@ -13,7 +13,7 @@ Kunpeng BoostKit provides this TensorFlow ANNC feature to enhance TensorFlow Ser
 - Operator optimization: ANNC-driven operator optimization.
 - Constant folding optimization: ANNC constant folding optimization.
 
->![](public_sys-resources/icon-note.gif) **NOTE:**
+>![icon note](public_sys-resources/icon-note.gif) **NOTE:**
 >OpenXLA is an open ecosystem consisting of high-performance, portable, and scalable machine learning infrastructure components.
 >XLA is an open-source compiler for machine learning. It optimizes models from the TensorFlow framework, to enable efficient execution across various hardware platforms including GPUs, CPUs, and machine learning accelerators.
 
@@ -111,11 +111,11 @@ This function focuses on optimizing the packing overhead of constant operands in
 
 **Figure 3** Data packing<a name="fig836316691916"></a><a id="data-packing"></a>
 
-![](figures/data-packing.png "data-packing")
+![data packing](figures/data-packing.png "data-packing")
 
 **Figure 4** Constant folding workflow<a name="fig836316691917"></a><a id="constant-folding-workflow"></a>
 
-![](figures/constant-folding-workflow.png)
+![constant folding workflow](figures/constant-folding-workflow.png)
 
 For details about function configuration, see <a href="./quick_start.md">Quick Start</a>.
 
@@ -135,7 +135,7 @@ Implemented as patches integrated into openEuler's `sra_tensorflow_adapter` repo
   - Sequential core binding allocates TensorFlow computing threads to the first K cores and TF Serving communication threads to remaining cores.
   - Interleaved core binding (applicable when hyper-threading is enabled) assigns TensorFlow threads to physical cores and TF Serving communication threads to virtual cores.
 
->![](public_sys-resources/icon-note.gif) **NOTE:**
+>![icon note](public_sys-resources/icon-note.gif) **NOTE:**
 >XLA serves as TensorFlow's optimizing compiler, specifically designed to enhance the execution speed of linear algebra operations. By transforming TensorFlow computational graphs into highly efficient, hardware-specific instructions, XLA delivers significant performance improvements.
 
 ### Software Architecture
@@ -144,7 +144,7 @@ Implemented as patches integrated into openEuler's `sra_tensorflow_adapter` repo
 
 **Figure 1** TF Serving software architecture<a name="fig9660112419318"></a><a id="tf-serving-software-architecture-1"></a>
 
-![](figures/tf-serving-software-architecture-0.png "TF-Serving software architecture-0")
+![tf serving software architecture 0](figures/tf-serving-software-architecture-0.png "TF-Serving software architecture-0")
 
 **Table 1** TF Serving component functions<a id="tf-serving-component-functions"></a>
 
@@ -248,7 +248,7 @@ The optimization feature is integrated into TensorFlow through compilation optio
 
 Figure 1 Software architecture of KDNN integrated with TensorFlow<a name="fig4919356464"></a>
 
-![](figures/software-architecture-of-kdnn-integrated-with-tensorflow.png "software-architecture-of-kdnn-integrated-with-tensorflow")
+![software architecture of kdnn integrated with tensorflow](figures/software-architecture-of-kdnn-integrated-with-tensorflow.png "software-architecture-of-kdnn-integrated-with-tensorflow")
 
 ### Specifications
 
@@ -326,7 +326,7 @@ This section describes the operators that support the KDNN thread passthrough fe
 </tbody>
 </table>
 
->![](public_sys-resources/icon-note.gif) **NOTE:**
+>![icon note](public_sys-resources/icon-note.gif) **NOTE:**
 >When the KDNN optimization feature is enabled, KDNN is invoked if the operator input and output meet the constraints; otherwise, the native TensorFlow APIs are used.
 
 ### Application Scenarios
@@ -339,13 +339,13 @@ This section describes the KDNN thread passthrough optimization feature to help 
 
 **Figure 1** OMP parallelism<a name="fig19954351104320"></a>
 
-![](figures/omp-parallelism.png)
+![omp parallelism](figures/omp-parallelism.png)
 
 In the OMP version of KDNN, each operator creates _N_ OMP threads for computation. For _M_ concurrent kernels, `M × N` OMP threads are created.
 
 **Figure 2** Passthrough to the threadpool<a name="fig1203165984517"></a>
 
-![](figures/passthrough-to-the-threadpool.png)
+![passthrough to the threadpool](figures/passthrough-to-the-threadpool.png)
 
 When thread passthrough is enabled, the framework thread pool is reused. KDNN submits computing tasks to the framework thread pool for unified scheduling, reducing the overhead of thread creation and avoiding the uncontrolled thread growth.
 
@@ -357,15 +357,15 @@ This section describes the basic concepts and implementation principles of the T
 
 To enhance TensorFlow inference performance, Kunpeng BoostKit proposes the TensorFlow ANNC static graph fusion solution. Kunpeng BoostKit provides multiple custom operators. During graph compilation, the remapper mechanism replaces subgraphs that meet specific patterns with custom operators. Static graph fusion reduces intermediate memory overhead and optimizes memory access, delivering end-to-end performance improvements. Currently, the following operators are supported:
 
-* KPFusedEmbeddingActionIdGather
-* KPFusedGather
-* KPFusedEmbeddingPadding
-* KPFusedEmbeddingPaddingFast
-* KPFusedSparseDynamicStitch
-* KPFusedSparseReshape
-* KPFusedSparseSegmentReduce
-* KPFusedSparseSegmentReduceNonzero
-* KPFusedSparseSelect
+- KPFusedEmbeddingActionIdGather
+- KPFusedGather
+- KPFusedEmbeddingPadding
+- KPFusedEmbeddingPaddingFast
+- KPFusedSparseDynamicStitch
+- KPFusedSparseReshape
+- KPFusedSparseSegmentReduce
+- KPFusedSparseSegmentReduceNonzero
+- KPFusedSparseSelect
 
 The ANNC static graph fusion feature is integrated into TensorFlow 2.15 through a code patch.
 
@@ -376,7 +376,7 @@ When the ANNC static graph fusion feature is enabled, if a subgraph in the compu
 [Figure 1](#fig4919356463) shows the software architecture of the ANNC static graph fusion feature.
 
 **Figure 1** Software architecture of the ANNC static graph fusion<a name="fig4919356463"></a>
-![](./figures/software-architecture-of-the-annc-static-graph-fusion.png)
+![software architecture of the annc static graph fusion](./figures/software-architecture-of-the-annc-static-graph-fusion.png)
 
 ### Specifications
 
@@ -386,7 +386,7 @@ This section describes the supported custom operators and their usage restrictio
 
 **Native subgraph structure**
 
-![](figures/1KPFusedEmbeddingActionIdGather.png)
+![1KPFusedEmbeddingActionIdGather](figures/1KPFusedEmbeddingActionIdGather.png)
 
 **Input and Output Constraints**
 
@@ -406,7 +406,7 @@ This section describes the supported custom operators and their usage restrictio
 
 **Native subgraph structure**
 
-![](figures/2KPFusedGather.png)
+![2KPFusedGather](figures/2KPFusedGather.png)
 
 **Input and Output Constraints**
 
@@ -426,7 +426,7 @@ This section describes the supported custom operators and their usage restrictio
 
 **Native subgraph structure**
 
-![](figures/3KPFusedEmbeddingPadding.png)
+![3KPFusedEmbeddingPadding](figures/3KPFusedEmbeddingPadding.png)
 
 **Input and Output Constraints**
 
@@ -447,7 +447,7 @@ This section describes the supported custom operators and their usage restrictio
 
 **Native subgraph structure**
 
-![](figures/4KPFusedEmbeddingPaddingFast.png "native-subgraph-of-kpfusedembeddingpaddingfast")
+![4KPFusedEmbeddingPaddingFast](figures/4KPFusedEmbeddingPaddingFast.png "native-subgraph-of-kpfusedembeddingpaddingfast")
 
 **Input and Output Constraints**
 
@@ -468,7 +468,7 @@ This section describes the supported custom operators and their usage restrictio
 
 **Native subgraph structure**
 
-![](figures/5KPFusedSparseDynamicStitch.png "native-subgraph-of-kpfusedsparsedynamicstitch")
+![5KPFusedSparseDynamicStitch](figures/5KPFusedSparseDynamicStitch.png "native-subgraph-of-kpfusedsparsedynamicstitch")
 
 **Input and Output Constraints**
 
@@ -485,7 +485,7 @@ This section describes the supported custom operators and their usage restrictio
 
 **Native subgraph structure**
 
-![](figures/6KPFusedSparseReshape.png "native-subgraph-of-kpfusedsparsereshape")
+![6KPFusedSparseReshape](figures/6KPFusedSparseReshape.png "native-subgraph-of-kpfusedsparsereshape")
 
 **Input and Output Constraints**
 
@@ -505,7 +505,7 @@ This section describes the supported custom operators and their usage restrictio
 
 **Native subgraph structure**
 
-![](figures/7KPFusedSparseSegmentReduce.png "native-subgraph-of-KPFusedSparseSegmentReduce")
+![7KPFusedSparseSegmentReduce](figures/7KPFusedSparseSegmentReduce.png "native-subgraph-of-KPFusedSparseSegmentReduce")
 
 **Input and Output Constraints**
 
@@ -526,7 +526,7 @@ This section describes the supported custom operators and their usage restrictio
 
 **Native subgraph structure**
 
-![](figures/8KPFusedSparseSegmentReduceNonzero.png "native-subgraph-of-kpfusedsparsesegmentreducenonzero")
+![8KPFusedSparseSegmentReduceNonzero](figures/8KPFusedSparseSegmentReduceNonzero.png "native-subgraph-of-kpfusedsparsesegmentreducenonzero")
 
 **Input and Output Constraints**
 
@@ -547,7 +547,7 @@ This section describes the supported custom operators and their usage restrictio
 
 **Native subgraph structure**
 
-![](figures/9KPFusedSparseSelect.png "native-subgraph-of-KPFusedSparseSelect")
+![9KPFusedSparseSelect](figures/9KPFusedSparseSelect.png "native-subgraph-of-KPFusedSparseSelect")
 
 **Input and Output Constraints**
 
@@ -567,7 +567,7 @@ This section describes the supported custom operators and their usage restrictio
 | Output 2| float |
 | Output 3| float |
 
->![](public_sys-resources/icon-note.gif) **NOTE:**
+>![icon note](public_sys-resources/icon-note.gif) **NOTE:**
 >When the embedding operator fusion is enabled, if a subgraph meets the required conditions, it will be replaced with the corresponding custom operator during graph compilation. Otherwise, the native TensorFlow APIs are used.
 
 ### Application Scenarios
@@ -582,7 +582,7 @@ When ANNC static graph fusion is enabled, eligible subgraphs are replaced with t
 
 **Figure 11** Operator fusion principle<a name="fig4919356474"></a>
 
-![](figures/operator-fusion-principle.png "operator-fusion-principle")
+![operator fusion principle](figures/operator-fusion-principle.png "operator-fusion-principle")
 
 ## Description
 

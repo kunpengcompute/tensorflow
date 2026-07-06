@@ -12,7 +12,7 @@
 
    ```bash
    git clone -b master https://gitcode.com/BoostKit/tensorflow.git sra-tensorflow
-   ```  
+   ```
 
 3. Enable the optimization patch.
 
@@ -22,20 +22,20 @@
    cd open-tensorflow
    patch -p1 < 0001-tensorflow_2.15.0-optimize.patch
    patch -p1 < 0002-tensorflow_2.15.0-annc-optimize.patch
-   ```  
+   ```
 
 4. Compile the pip package.
 
    ```bash
    bazel build --config=opt //tensorflow/tools/pip_package:build_pip_package
    ./bazel-bin/tensorflow/tools/pip_package/build_pip_package ./output
-   ```  
+   ```
 
 5. Compile `libtensorflow_cc.so`.
 
    ```bash
    bazel build --config=opt //tensorflow/libtensorflow_cc.so
-   ```  
+   ```
 
 If you encounter any problem during the compilation, see the [TensorFlow Porting Guide](https://www.hikunpeng.com/document/detail/en/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0001.html) and [TensorFlow Installation Guide](https://tensorflow.google.cn/install/source?hl=en-us).
 
@@ -70,13 +70,13 @@ Kunpeng's TensorFlow ANNC for graph compilation provides TensorFlow graph fusion
     /path/to/tensorflow-serving/bazel-bin/tensorflow_serving/model_servers/tensorflow_model_server --port=8889 --model_name=deepfm --model_base_path=/optimized_model/deepfm --tensorflow_intra_op_parallelism=1 --tensorflow_inter_op_parallelism=-1 --xla_cpu_compilation_enabled=true
     ```
 
-    >![](public_sys-resources/icon-note.gif) **NOTE:**
+    >![icon note](public_sys-resources/icon-note.gif) **NOTE:**
     >The model specified by `--model_base_path` is not subject to this restriction. You can download and use other models.
 
 4. Start the stress test on the client.
 
     ```bash
-    docker run -it --rm --net host  nvcr.io/nvidia/tritonserver:24.05-py3-sdk perf_analyzer --concurrency-range 28:28:1 -p 8561 -f perf.csv -m deepfm --service-kind tfserving -i grpc --request-distribution poisson -b 128  -u localhost:8889 --percentile 99 --input-data=random 
+    docker run -it --rm --net host  nvcr.io/nvidia/tritonserver:24.05-py3-sdk perf_analyzer --concurrency-range 28:28:1 -p 8561 -f perf.csv -m deepfm --service-kind tfserving -i grpc --request-distribution poisson -b 128  -u localhost:8889 --percentile 99 --input-data=random
     ```
 
 ### TensorFlow Serving Thread Scheduling Optimization
@@ -93,7 +93,7 @@ Kunpeng Deep Neural Network Library (KDNN) is a high-performance AI operator lib
     numactl -N 0 /path/to/serving/bazel-bin/tensorflow_serving/model_servers/tensorflow_model_server --port=8889 --model_name=deepfm --model_base_path=/path/to/model_zoo/models/deepfm --tensorflow_intra_op_parallelism=1 --tensorflow_inter_op_parallelism=-1 --xla_cpu_compilation_enabled=true
     ```
 
-    >![](public_sys-resources/icon-note.gif) **NOTE:**
+    >![icon note](public_sys-resources/icon-note.gif) **NOTE:**
     >`numactl -N 0` binds the program's memory allocation to NUMA node 0.
 
 2. Start the performance test on the client.
@@ -102,7 +102,7 @@ Kunpeng Deep Neural Network Library (KDNN) is a high-performance AI operator lib
     docker run -it --rm --cpuset-cpus="$(cat /sys/devices/system/node/node0/cpulist)" --cpuset-mems="0" --net host  nvcr.io/nvidia/tritonserver:24.05-py3-sdk perf_analyzer --concurrency-range 28:28:1 -p 8000 -f perf.csv -m deepfm --service-kind tfserving -i grpc --request-distribution poisson -b 128  -u localhost:8889 --percentile 99 --input-data=random
     ```
 
-    >![](public_sys-resources/icon-note.gif) **NOTE:**
+    >![icon note](public_sys-resources/icon-note.gif) **NOTE:**
     >--`--cpuset-cpus`: limits the container's processes to execute on the specified CPU cores.
     >--`--cpuset-mems`: specifies the memory node bound to the container.
 
@@ -110,7 +110,7 @@ Kunpeng Deep Neural Network Library (KDNN) is a high-performance AI operator lib
 
     KDNN is enabled by default. You can set the environment variable `TF_ENABLE_KDNN_OPTS` to `0` to disable KDNN.
 
-    ![](figures/1_zh-cn_image_0000002504453619.png)
+    ![1 zh cn image 0000002504453619](figures/1_zh-cn_image_0000002504453619.png)
 
 ### TensorFlow ANNC Static Graph Fusion
 
@@ -122,7 +122,7 @@ The Kunpeng TensorFlow ANNC static graph fusion feature provides environment var
     numactl -N 0  ANNC_FUSED_ALL=1 /path/to/serving/bazel-bin/tensorflow_serving/model_servers/tensorflow_model_server --port=8889 --model_name=deepfm --model_base_path=/path/to/model_zoo/models/deepfm --tensorflow_intra_op_parallelism=1 --tensorflow_inter_op_parallelism=-1 --xla_cpu_compilation_enabled=true
     ```
 
-    >![](public_sys-resources/icon-note.gif) **NOTE:**
+    >![icon note](public_sys-resources/icon-note.gif) **NOTE:**
     >`numactl -N 0` binds the program's memory allocation to NUMA node 0.
 
 2. Start the performance test on the client.
@@ -131,7 +131,7 @@ The Kunpeng TensorFlow ANNC static graph fusion feature provides environment var
     docker run -it --rm --cpuset-cpus="$(cat /sys/devices/system/node/node0/cpulist)" --cpuset-mems="0" --net host  nvcr.io/nvidia/tritonserver:24.05-py3-sdk perf_analyzer --concurrency-range 28:28:1 -p 8000 -f perf.csv -m deepfm --service-kind tfserving -i grpc --request-distribution poisson -b 128  -u localhost:8889 --percentile 99 --input-data=random
     ```
 
-    >![](public_sys-resources/icon-note.gif) **NOTE:**
+    >![icon note](public_sys-resources/icon-note.gif) **NOTE:**
     >--`--cpuset-cpus`: limits the container's processes to execute on the specified CPU cores.
     >--`--cpuset-mems`: specifies the memory node bound to the container.
 

@@ -342,7 +342,7 @@ To use TensorFlow Serving to start an inference stress test, see section [Starti
 </tbody>
 </table>
 
->![](public_sys-resources/icon-note.gif) **NOTE:**
+>![icon note](public_sys-resources/icon-note.gif) **NOTE:**
 >`numactl` is a tool used to control and manage the NUMA architecture on Linux. It can be installed using Yum.
 >
 >```bash
@@ -413,7 +413,7 @@ os.environ['ANNC_FUSED_ALL'] = '1'
 | ANNC_FUSED_SPS_SELECT | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedSparseSelect operator. |
 | ANNC_FUSED_ALL | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for all ANNC fusion operators. |
 
->![](public_sys-resources/icon-note.gif) **NOTE:**
+>![icon note](public_sys-resources/icon-note.gif) **NOTE:**
 >Operator fusion will not be performed for any of the above operators if and only if `ANNC_FUSED_ALL` is set to `0` and the environment variable corresponding to the specific operator is also set to `0`.
 
 ## Description
