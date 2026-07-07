@@ -654,6 +654,24 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 
 请参见《KDNN 最佳实践》文档中的“[适配TensorFlow](https://www.hikunpeng.com/document/detail/zh/kunpengaccel/kail/kaiOperl/docs/zh/kdnn/best_practices.md#适配tensorflow)”章节执行TensorFlow适配步骤，其中patch补丁需要替换为0001-tensorflow\_2.15.0-optimize.patch以及执行步骤4中boostkit/tensorflow.git下载tag分支需要为v1.0.0。
 
+### 适配后验证
+
+1. 进入`/path/to/tensorflow/tensorflow/python/kernel_tests/benchmark`目录。
+
+2. 查询支持的模块名称。
+
+   ```bash
+   python main.py --list
+   ```
+
+3. 运行测试用例。
+
+   ```bash
+   python main.py --op {op_name} --performance_test False \[ --intra {intra} \]
+   ```
+
+   执行通过即安装成功。其中`{op_name}`为上一步中查询结果, `intra`为可选配置, `{intra}`为算子内并行度配置，默认为16。
+
 ## TensorFlow ANNC静态图融合
 
 ### 已验证环境
@@ -945,7 +963,7 @@ KDNN 算子库中的 SparseMatmul（稀疏矩阵乘法）算子已经集成到 T
 
 ### 适配后验证
 
-补充功能性能测试操作说明
+同"TensorFlow KDNN线程直通"章节的"适配后验证", 其中op名为sparse_dense_matmul_ops
 
 ## 常见问题
 
