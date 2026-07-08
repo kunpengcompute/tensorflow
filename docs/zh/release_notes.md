@@ -5,6 +5,7 @@
 ### 产品版本信息
 
 <a name="table62675726"></a>
+
 <table><tbody><tr id="row41561572"><th class="firstcol" valign="top" width="42.17%" id="mcps1.1.3.1.1"><p id="p11044137"><a name="p11044137"></a><a name="p11044137"></a>产品名称</p>
 </th>
 <td class="cellrowborder" valign="top" width="57.830000000000005%" headers="mcps1.1.3.1.1 "><p id="p1597721693713"><a name="p1597721693713"></a><a name="p1597721693713"></a>Kunpeng BoostKit</p>
@@ -31,6 +32,7 @@
 ### 与操作系统、编译器和CPU配套说明
 
 <a name="table59918346913"></a>
+
 <table><thead align="left"><tr id="row134231235497"><th class="cellrowborder" valign="top" width="31.009999999999998%" id="mcps1.1.4.1.1"><p id="p1542383511912"><a name="p1542383511912"></a><a name="p1542383511912"></a>操作系统</p>
 </th>
 <th class="cellrowborder" valign="top" width="34.72%" id="mcps1.1.4.1.2"><p id="p8423193516910"><a name="p8423193516910"></a><a name="p8423193516910"></a>CPU类型</p>
@@ -72,8 +74,9 @@
 ### 更新说明
 
 - 新增TensorFlow ANNC静态图融合特性，适配鲲鹏950 7592C处理器，支持KPFusedEmbeddingActionIdGather等算子静态图融合。
-
-- 新增TensorFlow ANNC 常量折叠优化，适配鲲鹏950 7592C处理器。
+- 新增TensorFlow ANNC常量折叠优化，适配鲲鹏950 7592C处理器。
+- 新增kembedding算子库中的EmbeddingTableLookup算子，进一步丰富推荐模型的特征处理能力。
+- 新增SparseMatmul多线程优化，该优化按输出矩阵的列维度进行分片，每个线程处理独立的列块，通过无锁设计、负载均衡和内存优化等技术，提升了稀疏矩阵乘法在多核CPU场景下的计算性能。
 
 **修改特性<a name="zh-cn_topic_0000002518399190_section16450949161512"></a>**
 
@@ -120,6 +123,7 @@
 **新增特性<a name="zh-cn_topic_0000002518399190_section11862975"></a>**
 
 <a name="zh-cn_topic_0000002518399190_table41916133"></a>
+
 <table><thead align="left"><tr id="zh-cn_topic_0000002518399190_row28804032"><th class="cellrowborder" valign="top" width="23.419999999999998%" id="mcps1.1.3.1.1"><p id="zh-cn_topic_0000002518399190_p4697041"><a name="zh-cn_topic_0000002518399190_p4697041"></a><a name="zh-cn_topic_0000002518399190_p4697041"></a>算法名称</p>
 </th>
 <th class="cellrowborder" valign="top" width="76.58%" id="mcps1.1.3.1.2"><p id="zh-cn_topic_0000002518399190_p44916036"><a name="zh-cn_topic_0000002518399190_p44916036"></a><a name="zh-cn_topic_0000002518399190_p44916036"></a>更新说明</p>
@@ -167,6 +171,7 @@
 **新增特性<a name="section11862975"></a>**
 
 <a name="table41916133"></a>
+
 <table><thead align="left"><tr id="row28804032"><th class="cellrowborder" valign="top" width="23.419999999999998%" id="mcps1.1.3.1.1"><p id="p4697041"><a name="p4697041"></a><a name="p4697041"></a>算法名称</p>
 </th>
 <th class="cellrowborder" valign="top" width="76.58%" id="mcps1.1.3.1.2"><p id="p44916036"><a name="p44916036"></a><a name="p44916036"></a>更新说明</p>
@@ -207,6 +212,7 @@
 ### v1.1.0版本配套文档
 
 <a name="table41916133"></a>
+
 <table><thead align="left"><tr id="row28804032"><th class="cellrowborder" valign="top" width="45.019999999999996%" id="mcps1.1.4.1.1"><p id="p4697041"><a name="p4697041"></a><a name="p4697041"></a>文档名称</p>
 </th>
 <th class="cellrowborder" valign="top" width="38.019999999999996%" id="mcps1.1.4.1.2"><p id="p44916036"><a name="p44916036"></a><a name="p44916036"></a>内容简介</p>

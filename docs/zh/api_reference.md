@@ -342,7 +342,7 @@ XLA图融合接口如[**表 2** XLA图融合接口](#XLA图融合接口)所示�
 </tbody>
 </table>
 
->![](public_sys-resources/icon-note.gif) **说明：** 
+>![icon note](public_sys-resources/icon-note.gif) **说明：**
 >numactl是一个在Linux系统上用于控制和管理NUMA（非统一内存访问，Non-Uniform Memory Access）架构的工具。可通过yum工具安装：
 >
 >```bash
@@ -353,7 +353,7 @@ XLA图融合接口如[**表 2** XLA图融合接口](#XLA图融合接口)所示�
 
 ## TensorFlow KDNN线程直通特性使用说明
 
-TensorFlow KDNN线程直通特性开关通过KDNN特性开关控制，具体说明如[表1 KDNN特性开关](#table473618378218)所示
+TensorFlow KDNN线程直通特性开关通过KDNN特性开关控制，具体说明如[表1 KDNN特性开关](#table473618378218)所示。
 
 **表 1**  KDNN特性开关
 
@@ -387,6 +387,158 @@ TensorFlow KDNN线程直通特性开关通过KDNN特性开关控制，具体说�
 </tbody>
 </table>
 
+## SparseMatmul多线程优化
+
+**接口描述**
+
+SparseMatmul算子属于KDNN算子库，用于计算稀疏矩阵与稠密矩阵的乘积，支持单精度FP32输入。该算子是推荐模型NN层的核心组件。
+
+算子基于压缩稀疏行（CSR）存储结构设计，通过在装载与计算阶段跳过零块，实现计算与访存的高效利用。核心计算内核针对鲲鹏平台进行了SIMD优化，支持NEON指令集，并实现了多线程优化。
+
+**接口类型**
+
+内部计算接口。
+
+**输入参数**
+
+| 参数名称 | 类型 | 说明 |
+|---------|------|------|
+| `tp` | `KDNN::Threading::ThreadpoolIface *` | KDNN线程池接口，用于多线程并行执行。 |
+| `alpha` | `const FLOAT` | 缩放因子。 |
+| `mat` | `const JOIN(spmat_csr_, _t) *` | 稀疏矩阵（CSR格式）。 |
+| `x` | `const FLOAT *` | 稠密矩阵。 |
+| `columns` | `const KDNN_INT` | 矩阵列数。 |
+| `ldx` | `const KDNN_INT` | 矩阵x的步长。 |
+| `beta` | `const FLOAT` | 累积缩放因子。 |
+| `y` | `FLOAT *` | 输出矩阵。 |
+| `ldy` | `const KDNN_INT` | 矩阵y的步长。 |
+
+**输出参数**
+
+无直接输出参数，结果通过`y`参数返回。
+
+**接口特性**
+
+- **多线程优化**：按输出矩阵的列维度进行分片，每个线程处理独立的列块。
+- **无锁设计**：为每个线程分配独立缓冲区，避免线程间同步开销。
+- **负载均衡**：采用均匀分片策略，使各线程工作量尽可能均衡。
+- **内存优化**：使用`malloc_align`分配对齐内存，提升SIMD向量化执行效率。
+- **智能回退**：在线程池不可用、存在嵌套并行或仅单线程执行时自动回退到串行算法。
+
+**接口变化**
+
+接口函数签名新增`ThreadpoolIface *tp`参数，用于传递线程池实例。
+
+修改前：
+
+```c
+kdnn_sparse_status_t kdnn_sparse_scsrmm(
+    const kdnn_sparse_operation_t opt, ...);
+```
+
+修改后：
+
+```c
+kdnn_sparse_status_t kdnn_sparse_scsrmm(
+    KDNN::Threading::ThreadpoolIface *tp,
+    const kdnn_sparse_operation_t opt, ...);
+```
+
+**接口源码文件**
+
+`third_party/kdnn/kdnn_adapter.h`和`tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc`。
+
+## kembedding算子库EmbeddingTableLookup算子说明
+
+EmbeddingTableLookup算子是kembedding算子库中的一个自定义算子，用于高效执行稀疏embedding查找操作。
+
+**接口描述**
+
+从资源表`EmbeddingIndexToValueTable`中按key查找稀疏embedding，并输出标准SparseTensor三元组。
+
+- `indices`：包含命中非零元素的坐标。
+- `values`：包含对应的embedding值。
+- `dense_shape`：包含完整embedding矩阵的形状。
+
+**接口类型**
+
+TensorFlow OpKernel类。
+
+**输入参数**
+
+| 参数名称 | 类型 | 描述 |
+|---------|------|------|
+| `keys` | `int64`张量 | 需要查找的embedding key列表，形状为`[key_cnt]`。 |
+| `table_handle` | `resource` | 资源表句柄，通过`EmbeddingIndexToValueTable`创建并已加载embedding数据。 |
+
+**输出参数**
+
+| 参数名称 | 类型 | 描述 |
+|---------|------|------|
+| `indices` | `int64`张量 | SparseTensor的索引，形状为`[N, 2]`，N为命中非零元素总数，第二维为`[row, col]`。 |
+| `values` | `float`张量 | SparseTensor的值，形状为`[N]`，与indices一一对应。 |
+| `dense_shape` | `int64`张量 | 稠密形状，形状为`[2]`，值为`[key_cnt, emb_dim]`。 |
+
+**关键属性**
+
+| 属性名称 | 描述 |
+|---------|------|
+| `emb_dim` | embedding维度，用于构造输出的`dense_shape`。 |
+
+**接口源码文件**
+
+`third_party/kembedding/src/kernels/embedding_table_lookup_op.cc`
+
+**其他相关算子**
+
+- `EmbeddingIndexToValueTable`：创建资源表句柄。
+- `InitializeEmbeddingIndexToValueTableFromTextFile`：从二进制文件初始化资源表。该接口名称中保留
+  `TextFile` 是历史命名，实际读取的输入文件不是文本文件，而是下文所述的 kembedding
+  二进制表文件。
+
+**使用示例**
+
+```python
+import tensorflow as tf
+
+# 加载 kembedding 自定义算子动态库
+kembedding_module = tf.load_op_library(
+    'path/to/bazel-bin/third_party/kembedding/kembedding_embedding_table_lookup.so'
+)
+
+# 创建资源表并初始化
+with tf.compat.v1.Session() as sess:
+    # 步骤1：创建资源表句柄
+    table_handle = kembedding_module.embedding_index_to_value_table()
+
+    # 步骤2：从 kembedding 二进制表文件加载 embedding 表数据。
+    # 注意：接口名包含 text_file 是历史命名，filename 应传入二进制表文件路径。
+    sess.run(
+        kembedding_module.initialize_embedding_index_to_value_table_from_text_file(
+            table_handle=table_handle,
+            filename='path/to/embedding_table.bin'
+        )
+    )
+
+    # 步骤3：执行批量查找
+    keys = tf.constant([101, 202, 999], dtype=tf.int64)
+    indices, values, dense_shape = kembedding_module.embedding_table_lookup(
+        table_handle=table_handle,
+        keys=keys,
+        emb_dim=4
+    )
+
+    # 获取结果
+    result_indices, result_values, result_shape = sess.run(
+        [indices, values, dense_shape]
+    )
+
+    # 结果示例：
+    # indices = [[0, 0], [0, 2], [1, 1]]
+    # values = [1.0, 3.0, 2.5]
+    # dense_shape = [3, 4]
+```
+
 ## TensorFlow ANNC静态图融合特性使用说明
 
 TensorFlow ANNC静态图融合特性开关通过环境变量开关控制，具体说明如[表1 ANNC静态图融合特性开关](#table473618378218)所示。
@@ -413,12 +565,12 @@ os.environ['ANNC_FUSED_ALL'] = '1'
 | ANNC_FUSED_SPS_SELECT | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于KPFusedSparseSelect算子开启ANNC静态图融合。 |
 | ANNC_FUSED_ALL | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于所有ANNC融合算子开启ANNC静态图融合。 |
 
->![](public_sys-resources/icon-note.gif) **说明：** 
+>![icon note](public_sys-resources/icon-note.gif) **说明：**
 >以上算子当且仅当ANNC_FUSED_ALL=0且算子对应的环境变量为0时，该算子不会进行算子融合。
 
 ## 修订记录
 
 | 发布日期 | 修订记录 |
 | ---- | ---- |
-| 2026-06-30 | 第二次正式发布。<ul><li>TensorFlow ANNC图编译优化特性增加常量折叠优化特性接口说明内容。</li><li>新增TensorFlow ANNC静态图融合特性使用说明内容。</li></ul> |
+| 2026-06-30 | 第二次正式发布。<ul><li>TensorFlow ANNC图编译优化特性增加常量折叠优化特性接口说明内容。</li><li>新增TensorFlow ANNC静态图融合特性使用说明内容。</li><li>新增SparseMatmul多线程优化特性使用说明内容。</li><li>新增TensorFlow kembedding算子库EmbeddingTableLookup算子接口说明内容。</li></ul> |
 | 2026-03-30 | 第一次正式发布。 <ul><li>新增TensorFlow KDNN线程直通特性使用说明内容。</li></ul>|

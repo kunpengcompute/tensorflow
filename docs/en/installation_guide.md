@@ -180,8 +180,8 @@ The backend implementation of TensorFlow ANNC for graph compilation optimization
    cp bazel-bin/annc/service/cpu/libannc.so /usr/lib64/
    cp $ANNC/annc/service/cpu/xla/libs/XNNPACK/build/libXNNPACK.so /usr/lib64
    cp $ANNC/bazel-out/aarch64-opt/bin/annc/service/cpu/xla/libs/libblas_mlir.so /usr/lib64
-   mkdir -p /usr/include/annc 
-   cp annc/service/cpu/kdnn_rewriter.h /usr/include/annc/ 
+   mkdir -p /usr/include/annc
+   cp annc/service/cpu/kdnn_rewriter.h /usr/include/annc/
    cp annc/service/cpu/annc_flags.h /usr/include/annc/
    cd python
    python3 setup.py bdist_wheel
@@ -235,8 +235,8 @@ The backend implementation of TensorFlow ANNC for graph compilation optimization
 
    ```bash
    bazel --output_user_root=$BAZEL_COMPILE_CACHE build -c opt --distdir=$DISTDIR --override_repository=org_tensorflow=$TENSORFLOW_DIR \
-   --copt=-march=armv8.3-a+crc --copt=-O3 --copt=-fprefetch-loop-arrays --copt=-Wno-error=maybe-uninitialized  \ 
-   --copt=-Werror=stringop-overflow=0 --config=fused_embedding  \ 
+   --copt=-march=armv8.3-a+crc --copt=-O3 --copt=-fprefetch-loop-arrays --copt=-Wno-error=maybe-uninitialized  \
+   --copt=-Werror=stringop-overflow=0 --config=fused_embedding  \
    --define tflite_with_xnnpack=false tensorflow_serving/model_servers:tensorflow_model_server
    ```
 
@@ -618,7 +618,7 @@ Kunpeng Deep Neural Network Library (KDNN) is a high-performance AI operator lib
 
    After the installation is complete, the header files, static library files, and dynamic library files are stored in `/usr/local/kdnn/include`, `/usr/local/kdnn/lib/threadpool`, and `/usr/local/kdnn/lib/omp directories`, respectively.
 
-   In the preceding command, *xxxx* indicates the version number.
+   In the preceding command, _xxxx_ indicates the version number.
 
 ### Compilation and Installation
 
@@ -755,7 +755,7 @@ Adapt TensorFlow by following the instructions in [Adapting TensorFlow for KDNN]
 1. Install basic software.
 
    ```bash
-   yum install gcc g++ zip python vim tar wget unzip 
+   yum install gcc g++ zip python vim tar wget unzip
    ```
 
 2. Install Bazel.
@@ -766,7 +766,7 @@ Adapt TensorFlow by following the instructions in [Adapting TensorFlow for KDNN]
    Download open-source TensorFlow 2.15.0 from GitHub.
 
    ```bash
-   git clone -b v2.15.0 https://github.com/tensorflow/tensorflow.git 
+   git clone -b v2.15.0 https://github.com/tensorflow/tensorflow.git
    ```
 
 4. Download the optimization patches.
@@ -774,7 +774,7 @@ Adapt TensorFlow by following the instructions in [Adapting TensorFlow for KDNN]
    Download the optimization patch from GitCode and integrate it into the open-source TensorFlow directory.
 
    ```bash
-   git clone -b v1.1.0 https://gitcode.com/boostkit/tensorflow.git sra-tensorflow 
+   git clone -b v1.1.0 https://gitcode.com/boostkit/tensorflow.git sra-tensorflow
    cp /path/to/sra-tensorflow/0001-tensorflow\_2.15.0-optimize.patch /path/to/tensorflow/
    cp /path/to/sra-tensorflow/0002-tensorflow\_2.15.0-annc-optimize.patch /path/to/tensorflow/
    cd /path/to/tensorflow && patch -p1 < 0001-tensorflow\_2.15.0-optimize.patch && patch -p1 < 0002-tensorflow\_2.15.0-annc-optimize.patch

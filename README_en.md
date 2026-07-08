@@ -17,7 +17,7 @@ Kunpeng TensorFlow is a high-performance inference acceleration extension based 
 
 **Figure 1** Project architecture<a name="fig1326111445508"></a>
 
-![](./docs/en/figures/project-architecture.png)
+![project architecture](./docs/en/figures/project-architecture.png)
 
 ## Feature Description
 
@@ -65,7 +65,7 @@ tensorflow
 │       ├── quick_start.md                              # Quick Start
 │       ├── release_notes.md                            # Release Notes
 │       ├── installation_guide.md                       # Installation guide
-│       ├── feature_introduction.md                     # Feature introduction 
+│       ├── feature_introduction.md                     # Feature introduction
 ```
 
 ## Version Description
