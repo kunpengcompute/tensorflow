@@ -111,14 +111,6 @@ load(
     "//third_party/mkl:build_defs.bzl",
     "if_mkl",
 )
-load(
-    "//third_party/ktfop:build_defs.bzl",
-    "if_ktfop",
-)
-load(
-    "//third_party/fused_embedding:build_defs.bzl",
-    "if_fused_embedding",
-)
 load("@local_config_tensorrt//:build_defs.bzl", "if_tensorrt")
 
 package(
@@ -658,11 +650,6 @@ cc_library(
         "//tensorflow/core/kernels/mkl:mkl_matmul_op",
         "//tensorflow/core/kernels/mkl:mkl_tmp_bf16_ops",
         "//tensorflow/core/kernels/mkl:mkl_deprecated_ops",
-    ]) + if_ktfop([
-        "//tensorflow/core/kernels/ktfop:fused_embedding_ops",
-        "//tensorflow/core/kernels/ktfop:softmax_ops",
-    ]) + if_fused_embedding([
-        "//tensorflow/core/kernels/fused_embedding:fused_embedding_ops",
     ]) + if_cuda_or_rocm([
         "//tensorflow/core/kernels:cudnn_rnn_kernels",
     ]) + if_cuda([

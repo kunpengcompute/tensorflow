@@ -58,7 +58,6 @@ tf_cc_test(
     deps = [
         ":embedding_index_to_value_table",
         ":embedding_table_lookup_op",
-        "//tensorflow/core/framework:fake_input",
         "//tensorflow/core:framework",
         "//tensorflow/core:lib",
         "//tensorflow/core/kernels:ops_testutil",
@@ -74,7 +73,6 @@ tf_cc_test(
     deps = [
         ":embedding_index_to_value_table",
         ":embedding_table_lookup_op",
-        "//tensorflow/core/framework:fake_input",
         "//tensorflow/core:framework",
         "//tensorflow/core:lib",
         "//tensorflow/core/kernels:ops_testutil",

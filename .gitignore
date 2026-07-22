@@ -19,7 +19,11 @@ tensorflow/contrib/cmake/_build/
 /build/
 [Bb]uild/
 /build_output/
+/output/
+/output-release/
+/distdir/
 /test_output
+/patches/feature/
 /tensorflow/core/util/version_info.cc
 /tensorflow/python/framework/fast_tensor_util.cpp
 /tensorflow/lite/gen/**
@@ -28,6 +32,10 @@ tensorflow/contrib/cmake/_build/
 /api_init_files_list.txt
 /estimator_api_init_files_list.txt
 *.whl
+
+# Local KDNN source checkout used by build/validation.
+/third_party/KDNN/include/
+/third_party/KDNN/src/
 
 # Android
 .gradle

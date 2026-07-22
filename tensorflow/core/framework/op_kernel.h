@@ -672,7 +672,6 @@ class OpKernelContext {
     StepStatsCollectorInterface* stats_collector = nullptr;
     GraphCollector* graph_collector = nullptr;
     bool run_all_kernels_inline = false;
-    ExecutorPolicy executor_policy = ExecutorPolicy::USE_NORMAL_EXECUTOR;
     const std::string* executor_type = nullptr;
 
     // TensorSliceReaderCache support.
@@ -834,9 +833,6 @@ class OpKernelContext {
     return params_->run_all_kernels_inline;
   }
 
-  ExecutorPolicy executor_policy() const {
-    return params_->executor_policy;
-  }
   // Returns the registered name for the executor type that is executing the
   // current kernel. If empty, the default executor is used.
   const std::string& executor_type() const;

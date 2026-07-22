@@ -31,7 +31,6 @@ limitations under the License.
 #include "tensorflow/core/common_runtime/executor_factory.h"
 #include "tensorflow/core/common_runtime/graph_view.h"
 #include "tensorflow/core/common_runtime/immutable_executor_state.h"
-#include "tensorflow/core/common_runtime/kernel_stat.h"
 #include "tensorflow/core/common_runtime/pending_counts.h"
 #include "tensorflow/core/common_runtime/propagator_state.h"
 #include "tensorflow/core/common_runtime/renamed_device.h"
@@ -156,21 +155,76 @@ class ExecutorImpl : public Executor {
     return OkStatus();
   }
 
-  ImmutableExecutorState& GetImmutableState() {
-    return immutable_state_;
-  }
-
-  ExecutorInternal::KernelStats* GetKernelStat() {
-    return &kernel_stats_;
-  }
  private:
   void RunAsyncInternal(const Args& args, DoneCallback done) override;
 
   template <class PropagatorStateType>
   friend class ExecutorState;
 
+  // Stores execution time information about the kernels in an executor's graph.
+  class KernelStats {
+   public:
+    KernelStats() = default;
+
+    void Initialize(const GraphView& gview) {
+      is_expensive_.resize(gview.num_nodes());
+      cost_estimates_ =
+          std::make_unique<std::atomic_uint_fast64_t[]>(gview.num_nodes());
+      for (int32_t i = 0; i < gview.num_nodes(); ++i) {
+        if (gview.node(i)) {
+          is_expensive_[i] =
+              gview.node(i)->kernel && gview.node(i)->kernel->IsExpensive();
+          cost_estimates_[i] = kInitialCostEstimateCycles;
+        }
+      }
+    }
+
+    // Returns true iff the given node is considered "expensive". The
+    // executor uses this flag to optimize graph execution, for example
+    // by "inlining" inexpensive kernels.
+    bool IsExpensive(const NodeItem& node) const {
+      return is_expensive_[node.node_id] &&
+             (cost_estimates_[node.node_id].load(std::memory_order_relaxed) >
+              kOpIsExpensiveThresholdCycles);
+    }
+
+    // Returns the value of kernel->IsExpensive().
+    bool HasExpensiveMarker(const NodeItem& node) const {
+      return is_expensive_[node.node_id];
+    }
+
+    // Updates the dynamic cost estimate, which is used to determine whether the
+    // given node is expensive. The new cost estimate is a weighted average of
+    // the old cost estimate and the latest cost. We only update cost estimates
+    // for kernels for which IsExpensive() return true.
+    void UpdateCostEstimate(const NodeItem& node, uint64 elapsed_cycles) {
+      // N.B. Updates to `cost_estimate` are atomic but unlocked.  Simultaneous
+      // updates may result in one or more updates being ignored.  This does not
+      // affect correctness but may slow down the update frequency.
+      std::atomic_uint_fast64_t& cost_estimate = cost_estimates_[node.node_id];
+      auto prev_estimate = cost_estimate.load(std::memory_order_relaxed);
+
+      uint64 new_estimate =
+          ((kCostDecay - 1) * prev_estimate + elapsed_cycles) / kCostDecay;
+
+      cost_estimate.store(new_estimate, std::memory_order_relaxed);
+    }
+
+   private:
+    // Initial time (in CPU cycles) we expect an operation to take.  Used to
+    // determine whether an operation should be place in a threadpool.
+    // Operations start out "expensive".
+    static constexpr uint64 kInitialCostEstimateCycles = 100 * 1000 * 1000;
+    static constexpr uint64 kOpIsExpensiveThresholdCycles = 8000;
+    static constexpr uint64 kCostDecay = 10;
+
+    std::vector<bool> is_expensive_;
+    // std::unique_ptr<std::atomic<bool>[]> is_expensive_;
+    std::unique_ptr<std::atomic_uint_fast64_t[]> cost_estimates_;
+  };
+
   ImmutableExecutorState immutable_state_;
-  ExecutorInternal::KernelStats kernel_stats_;
+  KernelStats kernel_stats_;
 
   ExecutorImpl(const ExecutorImpl&) = delete;
   void operator=(const ExecutorImpl&) = delete;
@@ -230,12 +284,12 @@ class ExecutorState {
  public:
   ExecutorState(const Executor::Args& args,
                 const ImmutableExecutorState& immutable_state_,
-                ExecutorInternal::KernelStats* kernel_stats_);
+                ExecutorImpl::KernelStats* kernel_stats_);
   ~ExecutorState();
 
   void RunAsync(Executor::DoneCallback done);
 
- protected:
+ private:
   // Use `TaggedNode` types defined by `PropagatorStateType`.
   typedef typename PropagatorStateType::TaggedNode TaggedNode;
   typedef
@@ -284,7 +338,7 @@ class ExecutorState {
   // This method will clear `*ready` before returning.
   //
   // REQUIRES: `!ready->empty()`.
-  virtual void ScheduleReady(TaggedNodeSeq* ready, TaggedNodeReadyQueue* inline_ready);
+  void ScheduleReady(TaggedNodeSeq* ready, TaggedNodeReadyQueue* inline_ready);
 
   // A wrapper for runner_ to keep track of the pending queue length. Op
   // execution should dispatch work using this function instead of using runner_
@@ -334,7 +388,7 @@ class ExecutorState {
   checkpoint::TensorSliceReaderCacheWrapper* slice_reader_cache_;
   CallFrameInterface* call_frame_;
   const ImmutableExecutorState& immutable_state_;
-  ExecutorInternal::KernelStats* const kernel_stats_;
+  ExecutorImpl::KernelStats* const kernel_stats_;
   CancellationManager* cancellation_manager_;
   tsl::CoordinationServiceAgent* coordination_service_agent_;
   absl::optional<ManagedStackTrace> stack_trace_ = absl::nullopt;
@@ -343,7 +397,6 @@ class ExecutorState {
   Executor::Args::Runner runner_;
   bool sync_on_finish_;
   const bool run_all_kernels_inline_;
-  ExecutorPolicy executor_policy_ = ExecutorPolicy::USE_NORMAL_EXECUTOR;
 
   PropagatorStateType propagator_;
 
@@ -365,7 +418,7 @@ class ExecutorState {
 template <class PropagatorStateType>
 ExecutorState<PropagatorStateType>::ExecutorState(
     const Executor::Args& args, const ImmutableExecutorState& immutable_state,
-    ExecutorInternal::KernelStats* kernel_stats)
+    ExecutorImpl::KernelStats* kernel_stats)
     : vlog_(VLOG_IS_ON(1)),
       log_memory_(LogMemory::IsEnabled()),
       step_id_(args.step_id),
@@ -393,7 +446,6 @@ ExecutorState<PropagatorStateType>::ExecutorState(
       runner_(args.runner),
       sync_on_finish_(args.sync_on_finish),
       run_all_kernels_inline_(args.run_all_kernels_inline),
-      executor_policy_(args.executor_policy),
       propagator_(immutable_state, step_id_, vlog_),
       num_outstanding_ops_(0) {
   if (args.user_intra_op_threadpool != nullptr) {
@@ -410,42 +462,6 @@ ExecutorState<PropagatorStateType>::~ExecutorState() {
   }
   delete slice_reader_cache_;
 }
-
-template <class PropagatorStateType>
-class BatchSchedulingExecutorState : public ExecutorState<PropagatorStateType> {
-  public:
-    BatchSchedulingExecutorState(
-      const Executor::Args& args, const ImmutableExecutorState& immutable_state_,
-      ExecutorInternal::KernelStats* kernel_stats_)
-      : ExecutorState<PropagatorStateType>(args, immutable_state_, kernel_stats_) {}
-    ~BatchSchedulingExecutorState() {}
-
-  protected:
-    typedef typename PropagatorStateType::TaggedNode TaggedNode;
-    typedef
-        typename PropagatorStateType::TaggedNodeReadyQueue TaggedNodeReadyQueue;
-    typedef typename PropagatorStateType::TaggedNodeSeq TaggedNodeSeq;
-
-    virtual void ScheduleReady(TaggedNodeSeq* ready, TaggedNodeReadyQueue* inline_ready);
-};
-
-class ExecutorStateFactory {
-  public:
-    template <class PropagatorStateType>
-    static ExecutorState<PropagatorStateType>* Create(
-      const Executor::Args& args, ExecutorImpl* impl) {
-      ImmutableExecutorState& immutable_state = impl->GetImmutableState();
-      ExecutorInternal::KernelStats* kernel_stats = impl->GetKernelStat();
-
-      if (args.executor_policy == ExecutorPolicy::USE_BATCH_SCHEDULING_EXECUTOR) {
-        return new BatchSchedulingExecutorState<PropagatorStateType>(
-          args, immutable_state, kernel_stats);
-      } else {
-        return new ExecutorState<PropagatorStateType>(
-          args, immutable_state, kernel_stats);
-      }
-    }
-};
 
 template <class PropagatorStateType>
 template <typename Closure>
@@ -495,7 +511,7 @@ void ExecutorState<PropagatorStateType>::RunAsync(Executor::DoneCallback done) {
   } else {
     done_cb_ = std::move(done);
     // Schedule to run all the ready ops in thread pool.
-    this->ScheduleReady(&ready, nullptr);
+    ScheduleReady(&ready, nullptr);
   }
 }
 
@@ -714,7 +730,7 @@ void ExecutorState<PropagatorStateType>::Process(const TaggedNode& tagged_node,
                             profiler::TraceMeLevel::kVerbose);
   TaggedNodeReadyQueue inline_ready;
   inline_ready.push_back(tagged_node);
-  return this->ProcessInline(&inline_ready, scheduled_nsec);
+  return ProcessInline(&inline_ready, scheduled_nsec);
 }
 
 template <class PropagatorStateType>
@@ -757,7 +773,6 @@ void ExecutorState<PropagatorStateType>::ProcessInline(
   params->slice_reader_cache = slice_reader_cache_;
   params->runner = &runner_;
   params->run_all_kernels_inline = run_all_kernels_inline_;
-  params->executor_policy = executor_policy_;
   params->stats_collector = stats_collector_;
   params->inc_num_deferred_ops_function = [this]() {
     mutex_lock lock(num_deferred_ops_mu_);
@@ -871,13 +886,13 @@ void ExecutorState<PropagatorStateType>::ProcessInline(
     if (tagged_node.get_is_dead() && !item.is_transfer_node) {
       if (outputs.size() < item.num_outputs) outputs.resize(item.num_outputs);
     } else if (TF_PREDICT_FALSE(item.is_noop)) {
-      this->ProcessNoop(stats);
+      ProcessNoop(stats);
     } else if (item.const_tensor != nullptr && !params->track_allocations) {
-      this->ProcessConstTensor(item, &outputs, stats);
+      ProcessConstTensor(item, &outputs, stats);
     } else {
       // Prepares inputs.
       bool is_input_dead = false;
-      s = this->PrepareInputs(item, first_input, inputs.get(), &input_alloc_attrs,
+      s = PrepareInputs(item, first_input, inputs.get(), &input_alloc_attrs,
                         &is_input_dead);
       if (!s.ok()) {
         // Clear inputs.
@@ -888,7 +903,7 @@ void ExecutorState<PropagatorStateType>::ProcessInline(
         propagator_.MaybeMarkCompleted(tagged_node);
         activity_watcher::ActivityEnd(activity_id);
         // Continue to process the nodes in 'inline_ready'.
-        completed = this->NodeDone(s, ready.get(), stats, inline_ready);
+        completed = NodeDone(s, ready.get(), stats, inline_ready);
         continue;
       }
 
@@ -903,11 +918,11 @@ void ExecutorState<PropagatorStateType>::ProcessInline(
       params->input_alloc_attrs = input_alloc_attrs;
 
       if (item.kernel_is_async) {
-        this->ProcessAsync(item, *params, tagged_node, first_input, stats,
+        ProcessAsync(item, *params, tagged_node, first_input, stats,
                      activity_id);
         launched_asynchronously = true;
       } else {
-        s = this->ProcessSync(item, params.get(), &outputs, stats);
+        s = ProcessSync(item, params.get(), &outputs, stats);
       }
     }
 
@@ -942,12 +957,12 @@ void ExecutorState<PropagatorStateType>::ProcessInline(
         scheduled_nsec = nodestats::NowInNsec();
       }
       // Postprocess.
-      completed = this->NodeDone(s, ready.get(), stats, inline_ready);
+      completed = NodeDone(s, ready.get(), stats, inline_ready);
     }
   }  // while !inline_ready.empty()
 
   // This thread of computation is done if completed = true.
-  if (completed) this->ScheduleFinish();
+  if (completed) ScheduleFinish();
 }
 
 template <class PropagatorStateType>
@@ -1187,7 +1202,7 @@ bool ExecutorState<PropagatorStateType>::NodeDone(
       }
 
       // Schedule the ready nodes in 'ready'.
-      this->ScheduleReady(ready, inline_ready);
+      ScheduleReady(ready, inline_ready);
 
       return false;
     }
@@ -1373,7 +1388,7 @@ void ExecutorState<PropagatorStateType>::ScheduleFinish() {
   // Finish is always called exactly once per ExecutorState, either here if
   // there aren't any deferred ops, or in the dec_num_deferred_ops_function if
   // there are deferred ops.
-  this->Finish();
+  Finish();
 }
 
 template <class PropagatorStateType>
@@ -1492,44 +1507,17 @@ void ExecutorState<PropagatorStateType>::Finish() {
   }
 }
 
-template <class PropagatorStateType>
-void BatchSchedulingExecutorState<PropagatorStateType>::ScheduleReady(
-    TaggedNodeSeq* ready, TaggedNodeReadyQueue* inline_ready) {
-  DCHECK(!ready->empty());
-
-  int64_t scheduled_nsec = 0;
-  if (this->stats_collector_) {
-    scheduled_nsec = nodestats::NowInNsec();
-  }
-
-  if (inline_ready == nullptr) {
-    // Schedule all ready kernels from a single closure. This ensure that,
-    // regardless of the `runner_` implementation, all kernels will run
-    // sequentially on the same thread, and thread wakeup overhead and
-    // executor mutex contention will be minimized.
-    this->RunTask([this, ready = std::move(*ready), scheduled_nsec]() {
-      for (auto& tagged_node : ready) {
-        this->Process(tagged_node, scheduled_nsec);
-      }
-    });
-  } else {
-    for (auto& tagged_node : *ready) {
-      inline_ready->push_back(tagged_node);
-    }
-  }
-
-  ready->clear();
-}
-
 void ExecutorImpl::RunAsyncInternal(const Args& args, DoneCallback done) {
   if (OpOrderDeterminismRequired()) {
-    (ExecutorStateFactory::Create<OrderedPropagatorState>(args, this))
+    (new ExecutorState<OrderedPropagatorState>(args, immutable_state_,
+                                               &kernel_stats_))
         ->RunAsync(std::move(done));
   } else if (immutable_state_.requires_control_flow_support()) {
-    (ExecutorStateFactory::Create<PropagatorState>(args, this))
+    (new ExecutorState<PropagatorState>(args, immutable_state_, &kernel_stats_))
         ->RunAsync(std::move(done));
   } else {
-    (ExecutorStateFactory::Create<SimplePropagatorState>(args, this))
+    (new ExecutorState<SimplePropagatorState>(args, immutable_state_,
+                                              &kernel_stats_))
         ->RunAsync(std::move(done));
   }
 }

@@ -8,7 +8,6 @@
 
 #include <gtest/gtest.h>
 
-#include "tensorflow/core/framework/fake_input.h"
 #include "tensorflow/core/framework/node_def_builder.h"
 #include "tensorflow/core/framework/resource_handle.h"
 #include "tensorflow/core/framework/tensor.h"
@@ -127,8 +126,8 @@ class EmbeddingTableLookupBenchmark : public OpsTestBase {
                           bool force_ref_impl) {
     TF_RETURN_IF_ERROR(NodeDefBuilder("embedding_lookup_benchmark",
                                       "EmbeddingTableLookup")
-                           .Input(FakeInput(DT_RESOURCE))
-                           .Input(FakeInput(DT_INT64))
+                           .Input("resource", 0, DT_RESOURCE)
+                           .Input("keys", 0, DT_INT64)
                            .Attr("emb_dim", emb_dim)
                            .Attr("max_parallelism", max_parallelism)
                            .Attr("force_ref_impl", force_ref_impl)

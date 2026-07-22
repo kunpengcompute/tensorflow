@@ -88,15 +88,15 @@ class PThread : public Thread {
   static void* ThreadFn(void* params_arg) {
     std::unique_ptr<ThreadParams> params(
         reinterpret_cast<ThreadParams*>(params_arg));
-    
+
     if (!params->name.empty()) {
       /* Linux supports 16 characters max, and will
-        * error if it's longer. */
+       * error if it's longer. */
       char buf[16];
       size_t buf_len = GPR_ARRAY_SIZE(buf) - 1;
       strncpy(buf, params->name.c_str(), buf_len);
       buf[buf_len] = '\0';
-      pthread_setname_np(pthread_self(), buf); 
+      pthread_setname_np(pthread_self(), buf);
     }
     {
       mutex_lock l(name_mutex);

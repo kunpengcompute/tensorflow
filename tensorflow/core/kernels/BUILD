@@ -44,10 +44,6 @@ load(
     "kdnn_deps",
 )
 load(
-    "//third_party/ktfop:build_defs.bzl",
-    "if_ktfop",
-)
-load(
     "@local_config_rocm//rocm:build_defs.bzl",
     "if_rocm",
     "if_rocm_hipblaslt",
