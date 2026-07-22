@@ -1048,6 +1048,7 @@ package_group(
         "//smartass/brain/configure/...",
         "//tensorflow/...",
         "//tensorflow_decision_forests/...",
+        "//third_party/kembedding/...",
         "//tensorflow_federated/...",
         "//third_party/cloud_tpu/convergence_tools/sdc_monitoring/...",
         "//third_party/cloud_tpu/inference_converter/...",

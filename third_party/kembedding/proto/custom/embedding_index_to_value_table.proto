@@ -1,0 +1,19 @@
+syntax = "proto3";
+package sparse_embedding_table;
+option cc_enable_arenas = true;
+
+message TableInfo {
+  fixed64 total_key_size = 2;
+  enum Endianness {
+    LITTLE = 0;
+    BIG = 1;
+  }
+  Endianness endianness = 3;
+  // 删除 key 的数量，data 中删除 key 位于新 key 之前
+  sfixed64 delete_key_size = 5;
+  // 新 key 数量，data 中 key 的排列在更新 key 之前
+  sfixed64 insert_key_size = 6;
+  // 更新 key 数量
+  sfixed64 update_key_size = 7;
+  bool is_inc = 8;
+}
