@@ -421,6 +421,17 @@ struct KDNNSparseMatMulFunctor<CPUDevice, float, Tindices, ADJ_A, ADJ_B> {
         }
       }
     } else {
+      // Validate indices before delegating to KDNN.
+      for (std::size_t i = 0; i < nnz; ++i) {
+        const Tindices m = internal::SubtleMustCopy(a_indices(i, lhs_index_a));
+        const Tindices k = internal::SubtleMustCopy(a_indices(i, rhs_index_a));
+        if (!FastBoundsCheck(k, lhs_right)) {
+          return KOutOfBoundsError(k, i, rhs_index_a, lhs_right);
+        }
+        if (!FastBoundsCheck(m, out.dimension(0))) {
+          return MOutOfBoundsError(m, i, lhs_index_a, out.dimension(0));
+        }
+      }
       const float* b_data = b.data();
       Eigen::Tensor<float, 2, Eigen::ColMajor> col_major_conj_b;
       if (ADJ_B) {

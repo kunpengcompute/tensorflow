@@ -73,25 +73,36 @@ inline void kdnnSparseMatmul(OpKernelContext* ctx,
                       const std::size_t rhs_right, const std::size_t lhs_right,
                       const int lhs_index_a, const int rhs_index_a,
                       typename TTypes<float>::Matrix out,
-                      typename TTypes<Tindices>::ConstMatrix a_indices, 
+                      typename TTypes<Tindices>::ConstMatrix a_indices,
                       typename TTypes<float>::ConstVec a_values,
                       const float* b_data) {
-    std::vector<int> idx(nnz);
     int lhs_left = out.dimension(0);
     std::vector<int> pntrb(lhs_left);
     std::vector<int> pntre(lhs_left);
     std::vector<int> row_counts(lhs_left);
     for (size_t i = 0; i < nnz; ++i) {
-        idx[i] = a_indices(i, rhs_index_a);
         ++row_counts[a_indices(i, lhs_index_a)];
     }
-    
+
     int current_pos = 0;
     for (size_t i = 0; i < lhs_left; ++i) {
         pntrb[i] = current_pos;
         current_pos += row_counts[i];
         pntre[i] = current_pos;
     }
+
+    // Reorder indices and values into row-major order so that CSR row
+    // pointers (pntrb/pntre) correctly map row ranges onto the CSR arrays.
+    std::vector<int> row_pos = pntrb;
+    std::vector<int> idx(nnz);
+    std::vector<float> sorted_values(nnz);
+    for (size_t i = 0; i < nnz; ++i) {
+        int row = a_indices(i, lhs_index_a);
+        int pos = row_pos[row]++;
+        idx[pos] = a_indices(i, rhs_index_a);
+        sorted_values[pos] = a_values(i);
+    }
+
     const KDNN::CsrSparseTensorInfo aInfo = {{lhs_left, lhs_right},
         KDNN::Element::TypeT::F32, KDNN::Layout::AB, pntrb, pntre, idx, nnz};
     const KDNN::TensorInfo bInfo = {{lhs_right, rhs_right},
@@ -103,7 +114,7 @@ inline void kdnnSparseMatmul(OpKernelContext* ctx,
     kdnn::KDNNThreadPool kdnn_tp(thread_pool);
     KDNN::Threading::ActivateThreadpool(&kdnn_tp);
     KDNN::SparseGemm sparse_csr(aInfo, bInfo, dstInfo);
-    sparse_csr.Run(a_values.data(), b_data, out.data());
+    sparse_csr.Run(sorted_values.data(), b_data, out.data());
     KDNN::Threading::DeactivateThreadpool();
 }
 
