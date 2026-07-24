@@ -111,7 +111,7 @@ void EmbeddingTableIterator::Advance() {
 void EmbeddingIndexToValueTable::InitializeBuckets(size_t expected_rows) {
   shards_.resize(bucket_count_);
   if (expected_rows > 0) {
-    size_t per_shard = (expected_rows + bucket_count_ - 1) / bucket_count_;
+    size_t per_shard = (expected_rows - 1) / bucket_count_ + 1;
     for (auto& shard : shards_) {
       shard.reserve(per_shard);
     }
