@@ -1,36 +1,58 @@
 diff --git a/compile_ut.sh b/compile_ut.sh
 new file mode 100644
-index 000000000..691613d83
+index 00000000000..6dde8547b59
 --- /dev/null
 +++ b/compile_ut.sh
-@@ -0,0 +1,70 @@
+@@ -0,0 +1,97 @@
 +#!/usr/bin/env bash
 +
 +set -euo pipefail
 +
 +usage() {
 +  cat <<'EOF'
-+Usage: compile_ut.sh
++Usage: compile_ut.sh [options]
 +
 +  Compile and run the EmbeddingTableLookup operator unit test.
 +
++Options:
++  --dist=<path>   Path to bazel --distdir (offline deps).
++                  If omitted, --distdir is NOT passed to bazel.
++  -h, --help      Show this help.
++
 +Examples:
 +  ./compile_ut.sh
++  ./compile_ut.sh --dist $DIST_DIR
++  DIST_DIR=/home/wzx/download ./compile_ut.sh
 +EOF
 +}
 +
 +SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 +OUTPUT_USER_ROOT="${SCRIPT_DIR}/output_ut"
-+BAZEL_BIN="/home/rrx/bazel-6.5.0"
 +NUMA_NODE="${NUMA_NODE:-2}"
++echo "**************NUMA_NODE=$NUMA_NODE**************"
 +HTTP_PROXY_ADDR="${HTTP_PROXY_ADDR:-}"
 +HTTPS_PROXY_ADDR="${HTTPS_PROXY_ADDR:-}"
++DIST_DIR="${DIST_DIR:-}"
 +
 +while [[ $# -gt 0 ]]; do
 +  case "$1" in
 +    -h|--help)
 +      usage
 +      exit 0
++      ;;
++    --dist=*)
++      DIST_DIR="${1#*=}"
++      shift
++      ;;
++    --dist)
++      shift
++      if [[ $# -eq 0 ]]; then
++        echo "错误：--dist 需要一个参数" >&2
++        usage
++        exit 1
++      fi
++      DIST_DIR="$1"
++      shift
 +      ;;
 +    *)
 +      echo "错误：未知参数 $1" >&2
@@ -48,6 +70,11 @@ index 000000000..691613d83
 +  BAZEL_ENV+=("https_proxy=${HTTPS_PROXY_ADDR}")
 +fi
 +
++DISTDIR_ARGS=()
++if [[ -n "${DIST_DIR}" ]]; then
++  DISTDIR_ARGS+=(--distdir="${DIST_DIR}")
++fi
++
 +TARGET="//third_party/kembedding:embedding_table_lookup_op_test"
 +TARGET_NAME="embedding_table_lookup_op_test"
 +
@@ -58,11 +85,11 @@ index 000000000..691613d83
 +
 +numactl --cpunodebind="${NUMA_NODE}" --membind="${NUMA_NODE}" \
 +  env "${BAZEL_ENV[@]}" \
-+  "${BAZEL_BIN}" --batch \
++  bazel --batch \
 +  --output_user_root="${OUTPUT_USER_ROOT}" \
 +  test \
 +  --experimental_repo_remote_exec \
-+  --distdir=/home/rrx/usr/proxy \
++  "${DISTDIR_ARGS[@]}" \
 +  --cache_test_results=no \
 +  --test_output=all \
 +  "${TARGET}"
@@ -76,7 +103,7 @@ index 000000000..691613d83
 +fi
 diff --git a/experiment_scripts/01_modify_ref_impl.sh b/experiment_scripts/01_modify_ref_impl.sh
 new file mode 100755
-index 000000000..089327b55
+index 00000000000..089327b55ba
 --- /dev/null
 +++ b/experiment_scripts/01_modify_ref_impl.sh
 @@ -0,0 +1,23 @@
@@ -105,7 +132,7 @@ index 000000000..089327b55
 +echo "✓ 完成"
 diff --git a/experiment_scripts/02_compile_benchmark.sh b/experiment_scripts/02_compile_benchmark.sh
 new file mode 100755
-index 000000000..5075c5d52
+index 00000000000..5075c5d5282
 --- /dev/null
 +++ b/experiment_scripts/02_compile_benchmark.sh
 @@ -0,0 +1,47 @@
@@ -158,7 +185,7 @@ index 000000000..5075c5d52
 +fi
 diff --git a/experiment_scripts/03_run_benchmark_with_monitoring.sh b/experiment_scripts/03_run_benchmark_with_monitoring.sh
 new file mode 100755
-index 000000000..6ff81a5be
+index 00000000000..6ff81a5beaf
 --- /dev/null
 +++ b/experiment_scripts/03_run_benchmark_with_monitoring.sh
 @@ -0,0 +1,102 @@
@@ -266,7 +293,7 @@ index 000000000..6ff81a5be
 +echo "  - 实验目录: $RUN_DIR"
 diff --git a/experiment_scripts/04_parse_results.py b/experiment_scripts/04_parse_results.py
 new file mode 100755
-index 000000000..c499f7f61
+index 00000000000..c499f7f61a2
 --- /dev/null
 +++ b/experiment_scripts/04_parse_results.py
 @@ -0,0 +1,209 @@
@@ -481,7 +508,7 @@ index 000000000..c499f7f61
 +    main()
 diff --git a/experiment_scripts/common.sh b/experiment_scripts/common.sh
 new file mode 100755
-index 000000000..af30e7021
+index 00000000000..54631f87978
 --- /dev/null
 +++ b/experiment_scripts/common.sh
 @@ -0,0 +1,30 @@
@@ -512,12 +539,12 @@ index 000000000..af30e7021
 +
 +find_benchmark_binary() {
 +    find "${BAZEL_OUTPUT_ROOT}" \
-+        -path "*/execroot/_main/bazel-out/*/bin/third_party/kembedding/${TARGET_NAME}" \
++        -path "*/execroot/**/bin/third_party/kembedding/${TARGET_NAME}" \
 +        -type f -print -quit
 +}
 diff --git a/experiment_scripts/run_full_experiment.sh b/experiment_scripts/run_full_experiment.sh
 new file mode 100755
-index 000000000..6dda80afb
+index 00000000000..6dda80afb07
 --- /dev/null
 +++ b/experiment_scripts/run_full_experiment.sh
 @@ -0,0 +1,98 @@
@@ -620,7 +647,7 @@ index 000000000..6dda80afb
 +head -20 "${RUN_DIR}/benchmark_comparison.csv"
 +echo ""
 diff --git a/tensorflow/BUILD b/tensorflow/BUILD
-index f72931217..61be9128d 100644
+index f72931217b3..61be9128dcb 100644
 --- a/tensorflow/BUILD
 +++ b/tensorflow/BUILD
 @@ -1048,6 +1048,7 @@ package_group(
@@ -633,7 +660,7 @@ index f72931217..61be9128d 100644
          "//third_party/cloud_tpu/inference_converter/...",
 diff --git a/third_party/kembedding/BUILD b/third_party/kembedding/BUILD
 new file mode 100644
-index 000000000..ac68325e8
+index 00000000000..6a5d361c13e
 --- /dev/null
 +++ b/third_party/kembedding/BUILD
 @@ -0,0 +1,84 @@
@@ -659,7 +686,7 @@ index 000000000..ac68325e8
 +cc_library(
 +    name = "embedding_index_to_value_table",
 +    srcs = ["src/core/embedding_index_to_value_table.cc"],
-+    hdrs = ["kembedding/core/embedding_index_to_value_table.h"],
++    hdrs = ["include/core/embedding_index_to_value_table.h"],
 +    includes = ["."],
 +    deps = [
 +        ":kembedding_embedding_index_to_value_table_cc_proto",
@@ -672,7 +699,7 @@ index 000000000..ac68325e8
 +cc_library(
 +    name = "embedding_table_lookup_op",
 +    srcs = ["src/kernels/embedding_table_lookup_op.cc"],
-+    hdrs = ["kembedding/core/resource_hash_map.h"],
++    hdrs = ["include/core/resource_hash_map.h"],
 +    includes = ["."],
 +    deps = [
 +        ":embedding_index_to_value_table",
@@ -721,11 +748,11 @@ index 000000000..ac68325e8
 +        "//tensorflow/core:test",
 +    ],
 +)
-diff --git a/third_party/kembedding/kembedding/core/embedding_index_to_value_table.h b/third_party/kembedding/kembedding/core/embedding_index_to_value_table.h
+diff --git a/third_party/kembedding/include/core/embedding_index_to_value_table.h b/third_party/kembedding/include/core/embedding_index_to_value_table.h
 new file mode 100644
-index 000000000..d04044584
+index 00000000000..d0404458478
 --- /dev/null
-+++ b/third_party/kembedding/kembedding/core/embedding_index_to_value_table.h
++++ b/third_party/kembedding/include/core/embedding_index_to_value_table.h
 @@ -0,0 +1,181 @@
 +#ifndef KEMBEDDING_CORE_EMBEDDING_INDEX_TO_VALUE_TABLE_H_
 +#define KEMBEDDING_CORE_EMBEDDING_INDEX_TO_VALUE_TABLE_H_
@@ -908,11 +935,11 @@ index 000000000..d04044584
 +}  // namespace tensorflow
 +
 +#endif  // KEMBEDDING_CORE_EMBEDDING_INDEX_TO_VALUE_TABLE_H_
-diff --git a/third_party/kembedding/kembedding/core/resource_hash_map.h b/third_party/kembedding/kembedding/core/resource_hash_map.h
+diff --git a/third_party/kembedding/include/core/resource_hash_map.h b/third_party/kembedding/include/core/resource_hash_map.h
 new file mode 100644
-index 000000000..b493e3546
+index 00000000000..b493e35466b
 --- /dev/null
-+++ b/third_party/kembedding/kembedding/core/resource_hash_map.h
++++ b/third_party/kembedding/include/core/resource_hash_map.h
 @@ -0,0 +1,36 @@
 +#ifndef KEMBEDDING_CORE_RESOURCE_HASH_MAP_H_
 +#define KEMBEDDING_CORE_RESOURCE_HASH_MAP_H_
@@ -952,7 +979,7 @@ index 000000000..b493e3546
 +#endif  // KEMBEDDING_CORE_RESOURCE_HASH_MAP_H_
 diff --git a/third_party/kembedding/proto/custom/embedding_index_to_value_table.proto b/third_party/kembedding/proto/custom/embedding_index_to_value_table.proto
 new file mode 100644
-index 000000000..a90a5b957
+index 00000000000..a90a5b9571f
 --- /dev/null
 +++ b/third_party/kembedding/proto/custom/embedding_index_to_value_table.proto
 @@ -0,0 +1,19 @@
@@ -978,11 +1005,11 @@ index 000000000..a90a5b957
 \ No newline at end of file
 diff --git a/third_party/kembedding/src/core/embedding_index_to_value_table.cc b/third_party/kembedding/src/core/embedding_index_to_value_table.cc
 new file mode 100644
-index 000000000..44029153b
+index 00000000000..780868fe7da
 --- /dev/null
 +++ b/third_party/kembedding/src/core/embedding_index_to_value_table.cc
 @@ -0,0 +1,286 @@
-+#include "kembedding/core/embedding_index_to_value_table.h"
++#include "include/core/embedding_index_to_value_table.h"
 +
 +#include <algorithm>
 +
@@ -1095,7 +1122,7 @@ index 000000000..44029153b
 +void EmbeddingIndexToValueTable::InitializeBuckets(size_t expected_rows) {
 +  shards_.resize(bucket_count_);
 +  if (expected_rows > 0) {
-+    size_t per_shard = (expected_rows + bucket_count_ - 1) / bucket_count_;
++    size_t per_shard = (expected_rows - 1) / bucket_count_ + 1;
 +    for (auto& shard : shards_) {
 +      shard.reserve(per_shard);
 +    }
@@ -1270,7 +1297,7 @@ index 000000000..44029153b
 +}  // namespace tensorflow
 diff --git a/third_party/kembedding/src/kernels/embedding_table_lookup_op.cc b/third_party/kembedding/src/kernels/embedding_table_lookup_op.cc
 new file mode 100644
-index 000000000..41e8bd621
+index 00000000000..38cad2b820c
 --- /dev/null
 +++ b/third_party/kembedding/src/kernels/embedding_table_lookup_op.cc
 @@ -0,0 +1,271 @@
@@ -1282,8 +1309,8 @@ index 000000000..41e8bd621
 +#include "tensorflow/core/framework/tensor_shape.h"
 +#include "tensorflow/core/platform/mutex.h"
 +
-+#include "kembedding/core/embedding_index_to_value_table.h"
-+#include "kembedding/core/resource_hash_map.h"
++#include "include/core/embedding_index_to_value_table.h"
++#include "include/core/resource_hash_map.h"
 +
 +namespace tensorflow {
 +namespace kembedding {
@@ -1547,7 +1574,7 @@ index 000000000..41e8bd621
 +}  // namespace tensorflow
 diff --git a/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_benchmark.cc b/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_benchmark.cc
 new file mode 100644
-index 000000000..376bd435b
+index 00000000000..46a0db85bed
 --- /dev/null
 +++ b/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_benchmark.cc
 @@ -0,0 +1,214 @@
@@ -1572,7 +1599,7 @@ index 000000000..376bd435b
 +#include "tensorflow/core/platform/test.h"
 +#include "tensorflow/core/platform/test_benchmark.h"
 +
-+#include "kembedding/core/embedding_index_to_value_table.h"
++#include "include/core/embedding_index_to_value_table.h"
 +#include "proto/custom/embedding_index_to_value_table.pb.h"
 +
 +namespace tensorflow {
@@ -1767,7 +1794,7 @@ index 000000000..376bd435b
 +}  // namespace tensorflow
 diff --git a/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_op_test.cc b/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_op_test.cc
 new file mode 100644
-index 000000000..53accc6f5
+index 00000000000..dcce440b5ad
 --- /dev/null
 +++ b/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_op_test.cc
 @@ -0,0 +1,215 @@
@@ -1788,7 +1815,7 @@ index 000000000..53accc6f5
 +#include "tensorflow/core/platform/env.h"
 +#include "tensorflow/core/platform/test.h"
 +
-+#include "kembedding/core/embedding_index_to_value_table.h"
++#include "include/core/embedding_index_to_value_table.h"
 +#include "proto/custom/embedding_index_to_value_table.pb.h"
 +
 +namespace tensorflow {
