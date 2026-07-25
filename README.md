@@ -2,7 +2,8 @@
 
 ## 最新消息
 
-- \[2026.06.30\]：新增TensorFlow ANNC静态图融合特性, 适配鲲鹏950 7592C处理器，支持KPFusedGather、KPFusedSparseReshape等算子；TensorFlow ANNC图编译优化特性新增常量折叠优化，适配鲲鹏950 7592C处理器；新增kembedding自定义算子库，提供EmbeddingTableLookup算子；新增KDNN SparseMatmul多线程优化。
+- \[2026.09.30\]：新增kembedding自定义算子库，提供EmbeddingTableLookup算子；新增KDNN SparseMatmul多线程优化。
+- \[2026.06.30\]：新增TensorFlow ANNC静态图融合特性, 适配鲲鹏950 7592C处理器，支持KPFusedGather、KPFusedSparseReshape等算子；TensorFlow ANNC图编译优化特性新增常量折叠优化，适配鲲鹏950 7592C处理器。
 - \[2026.03.30\]：新增TensorFlow KDNN线程直通特性, 支持batchmatmul、concat、softmax等算子对接KDNN。
 - \[2025.09.30\]：新增TensorFlow ANNC图编译优化特性，提供计算图优化，高性能融合算子生成与对接等优化技术。
 - \[2025.06.30\]：TensorFlow Serving线程调度优化特性首次发布。
@@ -15,7 +16,9 @@
 - Kernel层：自定义算子，基于KDNN提供鲲鹏高性能DNN算子。
 - XLA层：基于ANNC提供鲲鹏图编译器。
 
-**图 1**  项目架构<a name="fig1326111445508"></a>
+项目架构如[**图 1**  项目架构](#项目架构)所示
+
+**图 1**  项目架构<a name="fig1326111445508"></a><a id="项目架构"></a>
 
 ![项目架构](./docs/zh/figures/项目架构.png)
 

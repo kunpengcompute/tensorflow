@@ -247,7 +247,13 @@ XLA图融合接口如[**表 2** XLA图融合接口](#XLA图融合接口)所示�
 </tr>
 <tr id="row128426514133"><th class="firstcol" valign="top" width="16.89%" id="mcps1.1.3.7.1"><p id="p88425512131"><a name="p88425512131"></a><a name="p88425512131"></a>使用示例</p>
 </th>
-<td class="cellrowborder" valign="top" width="83.11%" headers="mcps1.1.3.7.1 "><a name="screen130812517152"></a><a name="screen130812517152"></a><pre class="screen" codetype="Linux" id="screen130812517152">/path/to/tensorflow_model_server  --port=8850 --rest_api_port=8851 --model_base_path=/path/to/saved_model/ --model_name=model --tensorflow_intra_op_parallelism=1 --tensorflow_inter_op_parallelism=80 --batch_op_scheduling=true</pre>
+<td class="cellrowborder" valign="top" width="83.11%" headers="mcps1.1.3.7.1 "><a name="screen130812517152"></a><a name="screen130812517152"></a><pre class="screen" codetype="Linux" id="screen130812517152" style="white-space: pre-wrap; word-break: break-all;">/path/to/tensorflow_model_server  --port=8850 \
+  --rest_api_port=8851 \
+  --model_base_path=/path/to/saved_model/ \
+  --model_name=model \
+  --tensorflow_intra_op_parallelism=1 \
+  --tensorflow_inter_op_parallelism=80 \
+  --batch_op_scheduling=true</pre>
 </td>
 </tr>
 </tbody>
@@ -290,9 +296,22 @@ XLA图融合接口如[**表 2** XLA图融合接口](#XLA图融合接口)所示�
 <tr id="row1232011272159"><th class="firstcol" valign="top" width="16.89%" id="mcps1.1.3.7.1"><p id="p1432022761515"><a name="p1432022761515"></a><a name="p1432022761515"></a>使用示例</p>
 </th>
 <td class="cellrowborder" valign="top" width="83.11%" headers="mcps1.1.3.7.1 "><p id="p1152862014166"><a name="p1152862014166"></a><a name="p1152862014166"></a>一台160个物理核的服务器，开启超线程共320个核心，4个NUMA，每个NUMA上80个核心。</p>
-<a name="ul652816204167"></a><a name="ul652816204167"></a><ul id="ul652816204167"><li>如果使用TensorFlow调度方式运行，运行参数可参考：<a name="screen1352813201166"></a><a name="screen1352813201166"></a><pre class="screen" codetype="Linux" id="screen1352813201166">numactl -C 0-79 -m 0 /path/to/tensorflow_model_server  --port=8850 --rest_api_port=8851 --model_base_path=/path/to/saved_model/ --model_name=model --tensorflow_intra_op_parallelism=75 --tensorflow_inter_op_parallelism=75 --task_affinity_isolation="1;0-79;75"</pre>
+<a name="ul652816204167"></a><a name="ul652816204167"></a><ul id="ul652816204167"><li>如果使用TensorFlow调度方式运行，运行参数可参考：<a name="screen1352813201166"></a><a name="screen1352813201166"></a><pre class="screen" codetype="Linux" id="screen1352813201166">numactl -C 0-79 -m 0 /path/to/tensorflow_model_server  --port=8850 \
+  --rest_api_port=8851 \
+  --model_base_path=/path/to/saved_model/ \
+  --model_name=model \
+  --tensorflow_intra_op_parallelism=75 \
+  --tensorflow_inter_op_parallelism=75 \
+  --task_affinity_isolation="1;0-79;75"</pre>
 </li></ul>
-<a name="ul14528172051619"></a><a name="ul14528172051619"></a><ul id="ul14528172051619"><li>如果使能了--batch_op_scheduling选项，--tensorflow_inter_op_parallelism参数推荐设置为物理核数量，其他运行参数可参考：<a name="screen4528020161615"></a><a name="screen4528020161615"></a><pre class="screen" codetype="Linux" id="screen4528020161615">numactl -C 0-79 -m 0 /path/to/tensorflow_model_server  --port=8850 --rest_api_port=8851 --model_base_path=/path/to/saved_model/ --model_name=model --tensorflow_intra_op_parallelism=1 --tensorflow_inter_op_parallelism=40 --batch_op_scheduling=true --task_affinity_isolation="2;0-79"</pre>
+<a name="ul14528172051619"></a><a name="ul14528172051619"></a><ul id="ul14528172051619"><li>如果使能了--batch_op_scheduling选项，--tensorflow_inter_op_parallelism参数推荐设置为物理核数量，其他运行参数可参考：<a name="screen4528020161615"></a><a name="screen4528020161615"></a><pre class="screen" codetype="Linux" id="screen4528020161615">numactl -C 0-79 -m 0 /path/to/tensorflow_model_server  --port=8850 \
+  --rest_api_port=8851 \
+  --model_base_path=/path/to/saved_model/ \
+  --model_name=model \
+  --tensorflow_intra_op_parallelism=1 \
+  --tensorflow_inter_op_parallelism=40 \
+  --batch_op_scheduling=true \
+  --task_affinity_isolation="2;0-79"</pre>
 </li></ul>
 </td>
 </tr>
@@ -342,14 +361,14 @@ XLA图融合接口如[**表 2** XLA图融合接口](#XLA图融合接口)所示�
 </tbody>
 </table>
 
->![icon note](public_sys-resources/icon-note.gif) **说明：**
->numactl是一个在Linux系统上用于控制和管理NUMA（非统一内存访问，Non-Uniform Memory Access）架构的工具。可通过yum工具安装：
+> ![icon note](public_sys-resources/icon-note.gif) **说明：**
+> numactl是一个在Linux系统上用于控制和管理NUMA（非统一内存访问，Non-Uniform Memory Access）架构的工具。可通过yum工具安装：
 >
->```bash
->yum install -y numactl numactl-devel
->```
+> ```bash
+> yum install -y numactl numactl-devel
+> ```
 >
->**numactl -C 0-79 -m 0**是限定TF Serving服务运行在NUMA 0对应的核上，以该方式启动可以充分利用CPU资源，-C指定NUMA 0对应的核，-m指的是使用NUMA 0对应的内存。
+> **numactl -C 0-79 -m 0**是限定TF Serving服务运行在NUMA 0对应的核上，以该方式启动可以充分利用CPU资源，-C指定NUMA 0对应的核，-m指的是使用NUMA 0对应的内存。
 
 ## TensorFlow KDNN线程直通特性使用说明
 
@@ -401,29 +420,21 @@ SparseMatmul算子属于KDNN算子库，用于计算稀疏矩阵与稠密矩阵�
 
 **输入参数**
 
-| 参数名称 | 类型 | 说明 |
-|---------|------|------|
-| `tp` | `KDNN::Threading::ThreadpoolIface *` | KDNN线程池接口，用于多线程并行执行。 |
-| `alpha` | `const FLOAT` | 缩放因子。 |
-| `mat` | `const JOIN(spmat_csr_, _t) *` | 稀疏矩阵（CSR格式）。 |
-| `x` | `const FLOAT *` | 稠密矩阵。 |
-| `columns` | `const KDNN_INT` | 矩阵列数。 |
-| `ldx` | `const KDNN_INT` | 矩阵x的步长。 |
-| `beta` | `const FLOAT` | 累积缩放因子。 |
-| `y` | `FLOAT *` | 输出矩阵。 |
-| `ldy` | `const KDNN_INT` | 矩阵y的步长。 |
+| 参数名称    | 类型                                   | 说明                                 |
+| ----------- | -------------------------------------- | ------------------------------------ |
+| tp      | KDNN::Threading::ThreadpoolIface * | KDNN线程池接口，用于多线程并行执行。 |
+| alpha   | const FLOAT                        | 缩放因子。                           |
+| mat     | const JOIN(spmat_csr_, _t) *       | 稀疏矩阵（CSR格式）。                |
+| x       | const FLOAT *                      | 稠密矩阵。                           |
+| columns | const KDNN_INT                     | 矩阵列数。                           |
+| ldx     | const KDNN_INT                     | 矩阵x的步长。                        |
+| beta    | const FLOAT                        | 累积缩放因子。                       |
+| y       | FLOAT *                            | 输出矩阵。                           |
+| ldy     | const KDNN_INT                     | 矩阵y的步长。                        |
 
 **输出参数**
 
 无直接输出参数，结果通过`y`参数返回。
-
-**接口特性**
-
-- **多线程优化**：按输出矩阵的列维度进行分片，每个线程处理独立的列块。
-- **无锁设计**：为每个线程分配独立缓冲区，避免线程间同步开销。
-- **负载均衡**：采用均匀分片策略，使各线程工作量尽可能均衡。
-- **内存优化**：使用`malloc_align`分配对齐内存，提升SIMD向量化执行效率。
-- **智能回退**：在线程池不可用、存在嵌套并行或仅单线程执行时自动回退到串行算法。
 
 **接口变化**
 
@@ -466,23 +477,23 @@ TensorFlow OpKernel类。
 
 **输入参数**
 
-| 参数名称 | 类型 | 描述 |
-|---------|------|------|
-| `keys` | `int64`张量 | 需要查找的embedding key列表，形状为`[key_cnt]`。 |
-| `table_handle` | `resource` | 资源表句柄，通过`EmbeddingIndexToValueTable`创建并已加载embedding数据。 |
+| 参数名称         | 类型          | 描述                                                                      |
+| ---------------- | ------------- | ------------------------------------------------------------------------- |
+| `keys`         | `int64`张量 | 需要查找的embedding key列表，形状为`[key_cnt]`。                        |
+| `table_handle` | `resource`  | 资源表句柄，通过`EmbeddingIndexToValueTable`创建并已加载embedding数据。 |
 
 **输出参数**
 
-| 参数名称 | 类型 | 描述 |
-|---------|------|------|
-| `indices` | `int64`张量 | SparseTensor的索引，形状为`[N, 2]`，N为命中非零元素总数，第二维为`[row, col]`。 |
-| `values` | `float`张量 | SparseTensor的值，形状为`[N]`，与indices一一对应。 |
-| `dense_shape` | `int64`张量 | 稠密形状，形状为`[2]`，值为`[key_cnt, emb_dim]`。 |
+| 参数名称        | 类型          | 描述                                                                                |
+| --------------- | ------------- | ----------------------------------------------------------------------------------- |
+| `indices`     | `int64`张量 | SparseTensor的索引，形状为`[N, 2]`，N为命中非零元素总数，第二维为`[row, col]`。 |
+| `values`      | `float`张量 | SparseTensor的值，形状为`[N]`，与indices一一对应。                                |
+| `dense_shape` | `int64`张量 | 稠密形状，形状为`[2]`，值为`[key_cnt, emb_dim]`。                               |
 
 **关键属性**
 
-| 属性名称 | 描述 |
-|---------|------|
+| 属性名称    | 描述                                           |
+| ----------- | ---------------------------------------------- |
 | `emb_dim` | embedding维度，用于构造输出的`dense_shape`。 |
 
 **接口源码文件**
@@ -552,25 +563,26 @@ os.environ['ANNC_FUSED_ALL'] = '1'
 
 **表 1**  ANNC静态图融合特性开关
 
-| 开关名 | 类型 | 取值 | 功能 |
-| ---- | -------- | ---- | ---- |
-| ANNC_FUSED_EMB_ACTIONID_GATHER | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于KPFusedEmbeddingActionIdGather算子开启ANNC静态图融合。 |
-| ANNC_FUSED_GATHER | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于KPFusedGather算子开启ANNC静态图融合。 |
-| ANNC_FUSED_EMD_PADDING | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于KPFusedEmbeddingPadding算子开启ANNC静态图融合。 |
-| ANNC_FUSED_EMD_PADDING_FAST | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于KPFusedEmbeddingPaddingFast算子开启ANNC静态图融合。 |
-| ANNC_FUSED_SPS_STITCH | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于KPFusedSparseDynamicStitch算子开启ANNC静态图融合。 |
-| ANNC_FUSED_SPS_RESHAPE | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于KPFusedSparseReshape算子开启ANNC静态图融合。 |
-| ANNC_FUSED_SPS_REDUCE | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于KPFusedSparseSegmentReduce算子开启ANNC静态图融合。 |
-| ANNC_FUSED_SPS_REDUCE_NONZERO | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于KPFusedSparseSegmentReduceNonzero算子开启ANNC静态图融合。 |
-| ANNC_FUSED_SPS_SELECT | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于KPFusedSparseSelect算子开启ANNC静态图融合。 |
-| ANNC_FUSED_ALL | 进程环境变量 | 1：开启 <br> 0：关闭 | 用于所有ANNC融合算子开启ANNC静态图融合。 |
+| 开关名                         | 类型         | 取值            | 功能                                                          |
+| ------------------------------ | ------------ | --------------- | ------------------------------------------------------------- |
+| ANNC_FUSED_EMB_ACTIONID_GATHER | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedEmbeddingActionIdGather算子开启ANNC静态图融合。    |
+| ANNC_FUSED_GATHER              | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedGather算子开启ANNC静态图融合。                     |
+| ANNC_FUSED_EMD_PADDING         | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedEmbeddingPadding算子开启ANNC静态图融合。           |
+| ANNC_FUSED_EMD_PADDING_FAST    | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedEmbeddingPaddingFast算子开启ANNC静态图融合。       |
+| ANNC_FUSED_SPS_STITCH          | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedSparseDynamicStitch算子开启ANNC静态图融合。        |
+| ANNC_FUSED_SPS_RESHAPE         | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedSparseReshape算子开启ANNC静态图融合。              |
+| ANNC_FUSED_SPS_REDUCE          | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedSparseSegmentReduce算子开启ANNC静态图融合。        |
+| ANNC_FUSED_SPS_REDUCE_NONZERO  | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedSparseSegmentReduceNonzero算子开启ANNC静态图融合。 |
+| ANNC_FUSED_SPS_SELECT          | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedSparseSelect算子开启ANNC静态图融合。               |
+| ANNC_FUSED_ALL                 | 进程环境变量 | 1：开启 0：关闭 | 用于所有ANNC融合算子开启ANNC静态图融合。                      |
 
->![icon note](public_sys-resources/icon-note.gif) **说明：**
->以上算子当且仅当ANNC_FUSED_ALL=0且算子对应的环境变量为0时，该算子不会进行算子融合。
+> ![icon note](public_sys-resources/icon-note.gif) **说明：**
+> 以上算子当且仅当ANNC_FUSED_ALL=0且算子对应的环境变量为0时，该算子不会进行算子融合。
 
 ## 修订记录
 
-| 发布日期 | 修订记录 |
-| ---- | ---- |
-| 2026-06-30 | 第二次正式发布。<ul><li>TensorFlow ANNC图编译优化特性增加常量折叠优化特性接口说明内容。</li><li>新增TensorFlow ANNC静态图融合特性使用说明内容。</li><li>新增SparseMatmul多线程优化特性使用说明内容。</li><li>新增TensorFlow kembedding算子库EmbeddingTableLookup算子接口说明内容。</li></ul> |
-| 2026-03-30 | 第一次正式发布。 <ul><li>新增TensorFlow KDNN线程直通特性使用说明内容。</li></ul>|
+| 发布日期   | 修订记录         |
+| ---------- | ---------------- |
+| 2026-09-30 | 第三次正式发布。 |
+| 2026-06-30 | 第二次正式发布。 |
+| 2026-03-30 | 第一次正式发布。 |

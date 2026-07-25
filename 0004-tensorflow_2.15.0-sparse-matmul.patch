@@ -99,7 +99,7 @@ index 00000000000..95deb9e31b6
 +
 +printf '\nSaved benchmark log to %s\n' "${LOG_FILE}"
 diff --git a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc
-index 50544ade430..be14ced7b96 100644
+index 50544ade430..0ecce521846 100644
 --- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc
 +++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc
 @@ -142,14 +142,16 @@ class SparseTensorDenseMatMulOp : public OpKernel {
@@ -131,7 +131,25 @@ index 50544ade430..be14ced7b96 100644
                          typename TTypes<Tindices>::ConstMatrix a_indices,
                          typename TTypes<float>::ConstVec a_values,
                          typename TTypes<float>::ConstMatrix b) {
-@@ -426,7 +428,7 @@ struct KDNNSparseMatMulFunctor<CPUDevice, float, Tindices, ADJ_A, ADJ_B> {
+@@ -419,6 +421,17 @@ struct KDNNSparseMatMulFunctor<CPUDevice, float, Tindices, ADJ_A, ADJ_B> {
+         }
+       }
+     } else {
++      // Validate indices before delegating to KDNN.
++      for (std::size_t i = 0; i < nnz; ++i) {
++        const Tindices m = internal::SubtleMustCopy(a_indices(i, lhs_index_a));
++        const Tindices k = internal::SubtleMustCopy(a_indices(i, rhs_index_a));
++        if (!FastBoundsCheck(k, lhs_right)) {
++          return KOutOfBoundsError(k, i, rhs_index_a, lhs_right);
++        }
++        if (!FastBoundsCheck(m, out.dimension(0))) {
++          return MOutOfBoundsError(m, i, lhs_index_a, out.dimension(0));
++        }
++      }
+       const float* b_data = b.data();
+       Eigen::Tensor<float, 2, Eigen::ColMajor> col_major_conj_b;
+       if (ADJ_B) {
+@@ -426,7 +439,7 @@ struct KDNNSparseMatMulFunctor<CPUDevice, float, Tindices, ADJ_A, ADJ_B> {
          col_major_conj_b = b.swap_layout().shuffle(shuffle).conjugate().eval();
          b_data = col_major_conj_b.data();
        }
@@ -691,10 +709,10 @@ index 00000000000..c730294771d
 +
 +    return test_cases
 diff --git a/third_party/KDNN/kdnn_adapter.h b/third_party/KDNN/kdnn_adapter.h
-index c72e963474c..64f471d04e4 100644
+index c72e963474c..9a641ec5be6 100644
 --- a/third_party/KDNN/kdnn_adapter.h
 +++ b/third_party/KDNN/kdnn_adapter.h
-@@ -68,7 +68,8 @@ inline void kdnnFusedGemm(OpKernelContext* ctx, const Tensor& a, const Tensor& b
+@@ -68,37 +68,54 @@ inline void kdnnFusedGemm(OpKernelContext* ctx, const Tensor& a, const Tensor& b
  }
  
  template<typename Tindices>
@@ -704,7 +722,43 @@ index c72e963474c..64f471d04e4 100644
                        const std::size_t rhs_right, const std::size_t lhs_right,
                        const int lhs_index_a, const int rhs_index_a,
                        typename TTypes<float>::Matrix out,
-@@ -97,8 +98,13 @@ inline void kdnnSparseMatmul(const std::size_t nnz,
+-                      typename TTypes<Tindices>::ConstMatrix a_indices, 
++                      typename TTypes<Tindices>::ConstMatrix a_indices,
+                       typename TTypes<float>::ConstVec a_values,
+                       const float* b_data) {
+-    std::vector<int> idx(nnz);
+     int lhs_left = out.dimension(0);
+     std::vector<int> pntrb(lhs_left);
+     std::vector<int> pntre(lhs_left);
+     std::vector<int> row_counts(lhs_left);
+     for (size_t i = 0; i < nnz; ++i) {
+-        idx[i] = a_indices(i, rhs_index_a);
+         ++row_counts[a_indices(i, lhs_index_a)];
+     }
+-    
++
+     int current_pos = 0;
+     for (size_t i = 0; i < lhs_left; ++i) {
+         pntrb[i] = current_pos;
+         current_pos += row_counts[i];
+         pntre[i] = current_pos;
+     }
++
++    // Reorder indices and values into row-major order so that CSR row
++    // pointers (pntrb/pntre) correctly map row ranges onto the CSR arrays.
++    std::vector<int> row_pos = pntrb;
++    std::vector<int> idx(nnz);
++    std::vector<float> sorted_values(nnz);
++    for (size_t i = 0; i < nnz; ++i) {
++        int row = a_indices(i, lhs_index_a);
++        int pos = row_pos[row]++;
++        idx[pos] = a_indices(i, rhs_index_a);
++        sorted_values[pos] = a_values(i);
++    }
++
+     const KDNN::CsrSparseTensorInfo aInfo = {{lhs_left, lhs_right},
+         KDNN::Element::TypeT::F32, KDNN::Layout::AB, pntrb, pntre, idx, nnz};
+     const KDNN::TensorInfo bInfo = {{lhs_right, rhs_right},
          KDNN::Element::TypeT::F32, KDNN::Layout::AB};
      const KDNN::TensorInfo dstInfo = {{lhs_left, rhs_right},
          KDNN::Element::TypeT::F32, KDNN::Layout::AB};
@@ -713,7 +767,8 @@ index c72e963474c..64f471d04e4 100644
 +    kdnn::KDNNThreadPool kdnn_tp(thread_pool);
 +    KDNN::Threading::ActivateThreadpool(&kdnn_tp);
      KDNN::SparseGemm sparse_csr(aInfo, bInfo, dstInfo);
-     sparse_csr.Run(a_values.data(), b_data, out.data());
+-    sparse_csr.Run(a_values.data(), b_data, out.data());
++    sparse_csr.Run(sorted_values.data(), b_data, out.data());
 +    KDNN::Threading::DeactivateThreadpool();
  }
  

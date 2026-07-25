@@ -3962,30 +3962,30 @@ index 0000000..f6721c1
 +--- include/types/kdnn_tensor_info.hpp	2025-10-25 18:55:04.018830570 +0800
 ++++ include_bak/types/kdnn_tensor_info.hpp	2025-10-25 18:23:18.070830570 +0800
 +@@ -214,7 +214,7 @@
-+                 return Layout::ABCDE;
-+             }
-+             default: {
-+-                throw Service::LogicError {"Tensor Info: tensor dimensionality is incorrect"};
-++                return Layout::UNDEFINED;
-+             }
++             return Layout::ABCDE;
++         }
++         default: {
++-            throw Service::LogicError{"Tensor Info: tensor dimensionality is incorrect"};
+++            return Layout::UNDEFINED;
++         }
 +         }
 +     }
 +@@ -238,7 +238,7 @@
-+                 return Layout::ACDEB;
-+             }
-+             default: {
-+-                throw Service::LogicError {"Tensor Info: tensor dimensionality is incorrect"};
-++                return Layout::UNDEFINED;
-+             }
++             return Layout::ACDEB;
++         }
++         default: {
++-            throw Service::LogicError{"Tensor Info: tensor dimensionality is incorrect"};
+++            return Layout::UNDEFINED;
++         }
 +         }
 +     }
 +@@ -262,7 +262,7 @@
-+                 return Layout::BCDEA;
-+             }
-+             default: {
-+-                throw Service::LogicError {"Tensor Info: tensor dimensionality is incorrect"};
-++                return Layout::UNDEFINED;
-+             }
++             return Layout::BCDEA;
++         }
++         default: {
++-            throw Service::LogicError{"Tensor Info: tensor dimensionality is incorrect"};
+++            return Layout::UNDEFINED;
++         }
 +         }
 +     }
 diff --git a/tensorflow/third_party/fused_embedding/BUILD b/third_party/fused_embedding/BUILD
