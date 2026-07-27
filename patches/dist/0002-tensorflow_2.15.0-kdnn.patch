@@ -1,0 +1,2973 @@
+diff --git a/tensorflow/core/kernels/BUILD b/tensorflow/core/kernels/BUILD
+index 22617ef8ab5a441749cdb7c081c4e6cf2899f181..d3783328ac16c764e659150c36375fe1232e8ae8 100644
+--- a/tensorflow/core/kernels/BUILD
++++ b/tensorflow/core/kernels/BUILD
+@@ -38,6 +38,11 @@ load(
+     "if_mkl",
+     "mkl_deps",
+ )
++load(
++    "//third_party/KDNN:build_defs.bzl",
++    "if_enable_kdnn",
++    "kdnn_deps",
++)
+ load(
+     "@local_config_rocm//rocm:build_defs.bzl",
+     "if_rocm",
+@@ -855,7 +860,7 @@ ARRAY_DEPS = [
+     "//tensorflow/core/framework:bounds_check",
+     "//tensorflow/core/profiler/lib:scoped_memory_debug_annotation",
+     "@eigen_archive//:eigen3",
+-]
++] + kdnn_deps()
+ 
+ tf_kernel_library(
+     name = "immutable_constant_op",
+@@ -3488,7 +3493,7 @@ tf_kernel_library(
+         "//tensorflow/core/protobuf:autotuning_proto_cc",
+         "//tensorflow/core/util/autotune_maps:conv_parameters",
+         "//tensorflow/core/util/proto:proto_utils",
+-    ]),
++    ]) + kdnn_deps(),
+ )
+ 
+ cc_library(
+@@ -3568,7 +3573,7 @@ tf_kernel_library(
+     prefix = "cwise_op",
+     deps = MATH_DEPS + [
+         "//tensorflow/core/kernels/mlir_generated:cwise_op",
+-    ],
++    ] + kdnn_deps(),
+ )
+ 
+ tf_kernel_library(
+@@ -3655,6 +3660,97 @@ tf_kernel_library(
+     ]) + [":fft_impl"],
+ )
+ 
++tf_kernel_library(
++    name = "embedding_fused_action_id_gather_op",
++    srcs = ["embedding_fused_action_id_gather.cc"],
++    deps = MATH_DEPS,
++)
++
++tf_kernel_library(
++    name = "embedding_fused_gather_op",
++    srcs = ["embedding_fused_gather.cc"],
++    deps = MATH_DEPS,
++)
++
++tf_kernel_library(
++    name = "embedding_fused_padding_op",
++    srcs = ["embedding_fused_padding.cc"],
++    deps = MATH_DEPS,
++)
++
++tf_kernel_library(
++    name = "embedding_fused_sparse_dynamic_stitch_op",
++    srcs = ["embedding_fused_sparse_dynamic_stitch.cc"],
++    deps = MATH_DEPS,
++)
++
++tf_kernel_library(
++    name = "embedding_fused_reshape_op",
++    srcs = ["embedding_fused_sparse_reshape.cc"],
++    deps = MATH_DEPS + [
++        ":reshape_util",
++    ],
++)
++
++tf_kernel_library(
++    name = "embedding_fused_sparse_segment_reduce_op",
++    srcs = ["embedding_fused_sparse_segment_reduce.cc"],
++    deps = MATH_DEPS,
++)
++
++tf_kernel_library(
++    name = "embedding_fused_sparse_segment_reduce_nonzero_op",
++    srcs = ["embedding_fused_sparse_segment_reduce_nonzero.cc"],
++    deps = MATH_DEPS + ["@com_google_absl//absl/container:flat_hash_map"],
++)
++
++tf_kernel_library(
++    name = "embedding_fused_sparse_select_op",
++    srcs = ["embedding_fused_sparse_select.cc"],
++    deps = MATH_DEPS,
++)
++
++cc_library(
++    name = "embedding_fused_ops",
++    deps = [
++        ":embedding_fused_action_id_gather_op",
++        ":embedding_fused_gather_op",
++        ":embedding_fused_padding_op",
++        ":embedding_fused_sparse_dynamic_stitch_op",
++        ":embedding_fused_reshape_op",
++        ":embedding_fused_sparse_segment_reduce_op",
++        ":embedding_fused_sparse_segment_reduce_nonzero_op",
++        ":embedding_fused_sparse_select_op",
++    ],
++)
++
++tf_cc_test(
++    name = "embedding_fused_ops_test",
++    size = "small",
++    srcs = [
++        "embedding_fused_action_id_gather_test.cc",
++        "embedding_fused_sparse_dynamic_stitch_test.cc",
++        "embedding_fused_sparse_segment_reduce_test.cc",
++        "embedding_fused_sparse_segment_reduce_nonzero_test.cc",
++        "embedding_fused_padding_test.cc",
++        "embedding_fused_sparse_select_test.cc",
++        "embedding_fused_gather_test.cc",
++        "embedding_fused_sparse_reshape_test.cc",
++    ],
++    deps = [
++        ":ops_testutil",
++        ":ops_util",
++        ":embedding_fused_ops",
++        "//tensorflow/core:core_cpu",
++        "//tensorflow/core:framework",
++        "//tensorflow/core:lib",
++        "//tensorflow/core:protos_all_cc",
++        "//tensorflow/core:test",
++        "//tensorflow/core:test_main",
++        "//tensorflow/core:testlib",
++    ],
++)
++
+ tf_kernel_library(
+     name = "reduction_ops",
+     gpu_srcs = ["reduction_gpu_kernels.cu.h"],
+@@ -4296,7 +4392,7 @@ tf_kernel_library(
+     ]) + [
+         ":gpu_prim_hdrs",
+         ":loose_headers",
+-    ],
++    ] + kdnn_deps(),
+ )
+ 
+ tf_kernel_library(
+@@ -5136,7 +5232,7 @@ tf_kernel_library(
+         "//tensorflow/core/framework:bounds_check",
+         "//tensorflow/core/util:determinism_for_kernels",
+         "@eigen_archive//:eigen3",
+-    ],
++    ] + kdnn_deps(),
+ )
+ 
+ tf_kernel_library(
+diff --git a/tensorflow/core/kernels/concat_op.cc b/tensorflow/core/kernels/concat_op.cc
+index 0b660766f931e66fcb1e9d2d9169af9b4fe10a65..effef10395b9692a004df8b32b9ef01648d1e4eb 100644
+--- a/tensorflow/core/kernels/concat_op.cc
++++ b/tensorflow/core/kernels/concat_op.cc
+@@ -31,6 +31,11 @@ limitations under the License.
+ #include "tensorflow/core/lib/core/status.h"
+ #include "tensorflow/core/platform/errors.h"
+ #include "tensorflow/core/platform/types.h"
++#include "tensorflow/core/util/port.h"
++
++#if defined(ENABLE_KDNN)
++#include "kdnn_adapter.h"
++#endif
+ 
+ namespace tensorflow {
+ 
+@@ -172,6 +177,13 @@ class ConcatBaseOp : public OpKernel {
+         return;
+       }
+ #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
++#if defined(ENABLE_KDNN)
++      KDNN::Element::TypeT kdnnType = KDNN::Element::TypeAdapter<T>::value;
++      if(IsKDNNEnabled() && kdnnType != KDNN::Element::TypeT::UNDEFINED) {
++        KDNNConcatImpl<T>(c, inputs_flat, &output_flat);
++        return;
++      }
++#endif
+       ConcatCPU<T>(c->device(), inputs_flat, &output_flat);
+     }
+   }
+diff --git a/tensorflow/core/kernels/cwise_ops_common.h b/tensorflow/core/kernels/cwise_ops_common.h
+index fd7ee451daadace1a6028857382f5d02461e5761..8d6554af64c820dbeaf65b0bdabb965d2ebe7a7c 100644
+--- a/tensorflow/core/kernels/cwise_ops_common.h
++++ b/tensorflow/core/kernels/cwise_ops_common.h
+@@ -35,6 +35,10 @@ limitations under the License.
+ #include "tensorflow/core/platform/logging.h"
+ #include "tensorflow/core/util/bcast.h"
+ 
++#if defined(ENABLE_KDNN)
++#include "kdnn_adapter.h"
++#endif
++
+ namespace tensorflow {
+ 
+ typedef Eigen::ThreadPoolDevice CPUDevice;
+@@ -109,6 +113,15 @@ class BinaryOp : public BinaryOpShared {
+       Tensor* out;
+       OP_REQUIRES_OK(ctx, ctx->forward_input_or_allocate_output(
+                               {0, 1}, 0, input_0.shape(), &out));
++#if defined(ENABLE_KDNN)
++    if constexpr (std::is_same<Functor, functor::safe_floor_mod<int64_t>>::value ||
++        std::is_same<Functor, functor::floor_fmod<float>>::value) {
++        if (IsKDNNEnabled()) {
++            kdnnFloormodOp<Functor>(ctx, input_0, input_1, out);
++            return;
++        }
++    }
++#endif
+       functor::BinaryFunctor<Device, Functor, 1>()(
+           eigen_device, out->template flat<Tout>(),
+           input_0.template flat<Tin>(), input_1.template flat<Tin>(),
+@@ -322,6 +335,16 @@ class UnaryOp : public OpKernel {
+     } else {
+       OP_REQUIRES_OK(ctx, ctx->allocate_output(0, inp.shape(), &out));
+     }
++
++#if defined(ENABLE_KDNN)
++    if constexpr (std::is_same<Functor, functor::sigmoid<float>>::value) {
++        if (IsKDNNEnabled() & inp.NumElements() > 0) {
++            kdnnSigmoidOp<Functor>(ctx, inp, out);
++            return;
++        }
++    }
++#endif
++
+     functor::UnaryFunctor<Device, Functor>()(
+         ctx->eigen_device<Device>(), out->flat<Tout>(), inp.flat<Tin>());
+   }
+diff --git a/tensorflow/core/kernels/linalg/einsum_op_impl.h b/tensorflow/core/kernels/linalg/einsum_op_impl.h
+index 99c130639332507b3faa473182ef1e351ad6f6e8..8cf4b39d8c315eaf5cd1f5a1c6be38feef2042df 100644
+--- a/tensorflow/core/kernels/linalg/einsum_op_impl.h
++++ b/tensorflow/core/kernels/linalg/einsum_op_impl.h
+@@ -42,6 +42,11 @@ limitations under the License.
+ #include "tensorflow/core/platform/types.h"
+ #include "tensorflow/core/profiler/lib/traceme.h"
+ #include "tensorflow/core/util/einsum_op_util.h"
++#include "tensorflow/core/util/port.h"
++
++#if defined(ENABLE_KDNN)
++#include "kdnn_adapter.h"
++#endif
+ 
+ #if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
+ #include "tensorflow/core/kernels/reduction_ops_common_gpu.h"
+@@ -466,6 +471,16 @@ struct EinsumHelper {
+       set_zero(ctx->eigen_device<Device>(), output->flat<T>());
+       return OkStatus();
+     }
++#if defined(ENABLE_KDNN)
++    if (IsKDNNEnabled()
++        && std::is_same<T, float>::value
++        && inputs.size() == 2
++        && inputs[0].dims() >= 2 && inputs[0].dims() <= 5
++        && inputs[1].dims() >= 2 && inputs[1].dims() <= 5) {
++      kdnnBatchGemm(ctx, inputs[0], inputs[1], output, trans_x, trans_y);
++      return OkStatus();
++    }
++#endif
+     Tensor output_reshaped;
+     TF_RETURN_IF_ERROR(
+         ReshapeToRank3(*output, bcast.output_batch_size(), &output_reshaped));
+diff --git a/tensorflow/core/kernels/matmul_op_fused.cc b/tensorflow/core/kernels/matmul_op_fused.cc
+index 3908c79885264a499e7e97f87b1eb67082c7cb9e..474ee7771590b9e9527268aa9d53e809432c05ee 100644
+--- a/tensorflow/core/kernels/matmul_op_fused.cc
++++ b/tensorflow/core/kernels/matmul_op_fused.cc
+@@ -46,6 +46,7 @@ limitations under the License.
+ #include "tensorflow/core/platform/errors.h"
+ #include "tensorflow/core/util/matmul_autotune.h"
+ #include "tensorflow/core/util/tensor_format.h"
++#include "tensorflow/core/util/port.h"
+ 
+ #if defined(TENSORFLOW_USE_CUSTOM_CONTRACTION_KERNEL)
+ #include "tsl/framework/contraction/eigen_contraction_kernel.h"
+@@ -69,6 +70,10 @@ limitations under the License.
+ #include "tensorflow/core/util/use_cudnn.h"
+ #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
+ 
++#if defined(ENABLE_KDNN)
++#include "kdnn_adapter.h"
++#endif
++
+ namespace tensorflow {
+ 
+ typedef Eigen::ThreadPoolDevice CPUDevice;
+@@ -93,6 +98,16 @@ struct LaunchFusedMatMulOp<CPUDevice, T> {
+     OP_REQUIRES(context, DataTypeToEnum<T>::value != DT_HALF,
+                 errors::InvalidArgument("_FusedMatMul doesn't support DT_HALF "
+                                         "data type on CPU devices."));
++#if defined(ENABLE_KDNN)
++    bool transpose_a_ = dim_pair[0].first == 0;
++    bool transpose_b_ = dim_pair[0].second == 1;
++    bool fusion_relu = fusion == FusedComputationType::kBiasAddWithRelu;
++    bool kdnn_enable_fusion = (fusion == FusedComputationType::kBiasAdd) || fusion_relu;
++    if (IsKDNNEnabled() && std::is_same<T, float>::value && kdnn_enable_fusion && !transpose_a_) {
++      kdnnFusedGemm(context, a, b, output, fusion_relu, transpose_a_, transpose_b_);
++      return;
++    }
++#endif
+     auto lhs = a.matrix<T>();
+     auto rhs = b.matrix<T>();
+     auto out = output->matrix<T>();
+diff --git a/tensorflow/core/kernels/matmul_op_impl.h b/tensorflow/core/kernels/matmul_op_impl.h
+index c647780973efe9929a81cce4eac5876e757ef61d..4ceb42abcfdaeae39212a45162ecb53340ecb238 100644
+--- a/tensorflow/core/kernels/matmul_op_impl.h
++++ b/tensorflow/core/kernels/matmul_op_impl.h
+@@ -41,6 +41,7 @@ limitations under the License.
+ #include "tensorflow/core/util/matmul_autotune.h"
+ #include "tensorflow/core/util/matmul_bcast.h"
+ #include "tensorflow/core/util/work_sharder.h"
++#include "tensorflow/core/util/port.h"
+ 
+ #if defined(TENSORFLOW_USE_CUSTOM_CONTRACTION_KERNEL)
+ #include "tsl/framework/contraction/eigen_contraction_kernel.h"
+@@ -64,6 +65,10 @@ limitations under the License.
+ #endif
+ #endif
+ 
++#if defined(ENABLE_KDNN)
++#include "kdnn_adapter.h"
++#endif
++
+ namespace tensorflow {
+ 
+ typedef Eigen::ThreadPoolDevice CPUDevice;
+@@ -927,6 +932,24 @@ class BaseBatchMatMulOp : public OpKernel {
+       f(ctx->eigen_device<Device>(), out->flat<Tout>());
+       return;
+     }
++#if defined(ENABLE_KDNN)
++    int dims = in0.shape().dims();
++    bool trans_x = (adj_x_ || trans_x_);
++    bool trans_y = (adj_y_ || trans_y_);
++
++    if (IsKDNNEnabled()
++        && std::is_same<Ta, float>::value
++        && std::is_same<Tb, float>::value
++        && std::is_same<Tout, float>::value
++        && dims >= 2 && dims <= 5) {
++      if (batch_size == 1) {
++        kdnnGemm(ctx, in0_reshaped, in1_reshaped, out, trans_x, trans_y);
++      } else {
++        kdnnBatchGemm(ctx, in0, in1, out, trans_x, trans_y);
++      }
++      return;
++    }
++#endif
+     Tensor out_reshaped;
+     OP_REQUIRES(ctx,
+                 out_reshaped.CopyFrom(*out, TensorShape({batch_size, d0, d3})),
+diff --git a/tensorflow/core/kernels/softmax_op.cc b/tensorflow/core/kernels/softmax_op.cc
+index ee99bd2c06e0fc5cc79c8b69184c1b090f0101dd..a403848a4d17eae2504702fc0a7036bb0773f05e 100644
+--- a/tensorflow/core/kernels/softmax_op.cc
++++ b/tensorflow/core/kernels/softmax_op.cc
+@@ -25,6 +25,10 @@ limitations under the License.
+ #include "tensorflow/core/framework/tensor_shape.h"
+ #include "tensorflow/core/kernels/softmax_op_functor.h"
+ 
++#if defined(ENABLE_KDNN)
++#include "kdnn_adapter.h"
++#endif
++
+ namespace tensorflow {
+ 
+ typedef Eigen::ThreadPoolDevice CPUDevice;
+@@ -61,6 +65,15 @@ class SoftmaxOp : public OpKernel {
+     OP_REQUIRES_OK(context, context->forward_input_or_allocate_output(
+                                 {0}, 0, logits_in.shape(), &softmax_out));
+     if (logits_in.NumElements() > 0) {
++#if defined(ENABLE_KDNN)
++    if constexpr (std::is_same<T, float>::value) {
++        if (!log_ && IsKDNNEnabled()) {
++            kdnnSoftmaxOp<T>(context, logits_in, softmax_out);
++            return;
++        }
++    }
++#endif
++
+       functor::SoftmaxFunctor<Device, T> functor;
+       functor(context->eigen_device<Device>(), logits_in.flat_inner_dims<T>(),
+               softmax_out->flat_inner_dims<T>(), log_);
+diff --git a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc
+index 73870c5b37c2b1dbc4419b9497a344dacf567363..0ecce5218469ab1f75d5ecd425484c771b13955e 100644
+--- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc
++++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc
+@@ -24,6 +24,11 @@ limitations under the License.
+ #include "tensorflow/core/framework/op_kernel.h"
+ #include "tensorflow/core/kernels/fill_functor.h"
+ #include "tensorflow/core/platform/bfloat16.h"
++#include "tensorflow/core/util/port.h"
++
++#if defined(ENABLE_KDNN)
++#include "kdnn_adapter.h"
++#endif
+ 
+ namespace tensorflow {
+ 
+@@ -133,6 +138,30 @@ class SparseTensorDenseMatMulOp : public OpKernel {
+       return;
+     }
+ 
++#if defined(ENABLE_KDNN)
++#define KDNN_ADJOINT(ADJ_A, ADJ_B)                                             \
++  if (adjoint_a_ == ADJ_A && adjoint_b_ == ADJ_B) {                            \
++    Status functor_status = functor::KDNNSparseMatMulFunctor<                  \
++        Device, float, Tindices, ADJ_A,                                        \
++        ADJ_B>::Compute(ctx, out->matrix<float>(),                             \
++                        a_indices->matrix<Tindices>(), a_values->vec<float>(), \
++                        b->matrix<float>());                                   \
++    OP_REQUIRES_OK(ctx, functor_status);                                       \
++  }
++    const int int32max = std::numeric_limits<int>::max();
++    if (IsKDNNEnabled() && std::is_same<Device, CPUDevice>::value &&
++        std::is_same<T, float>::value &&
++        adjoint_a_ == false &&
++        FastBoundsCheck(inner_left, int32max) &&
++        FastBoundsCheck(inner_right, int32max) &&
++        FastBoundsCheck(outer_left, int32max)) {
++      KDNN_ADJOINT(false, false);
++      KDNN_ADJOINT(false, true);
++      return;
++    }
++#undef KDNN_ADJOINT
++#endif
++
+ #define MAYBE_ADJOINT(ADJ_A, ADJ_B)                                           \
+   if (adjoint_a_ == ADJ_A && adjoint_b_ == ADJ_B) {                           \
+     Status functor_status = functor::SparseTensorDenseMatMulFunctor<          \
+@@ -355,6 +384,67 @@ struct SparseTensorDenseMatMulFunctor<CPUDevice, T, Tindices, ADJ_A, ADJ_B> {
+   }
+ };
+ 
++#if defined(ENABLE_KDNN)
++template <typename Tindices, bool ADJ_A, bool ADJ_B>
++struct KDNNSparseMatMulFunctor<CPUDevice, float, Tindices, ADJ_A, ADJ_B> {
++  static const std::size_t kNumVectorize = 32;
++
++  static Status Compute(OpKernelContext* ctx, typename TTypes<float>::Matrix out,
++                        typename TTypes<Tindices>::ConstMatrix a_indices,
++                        typename TTypes<float>::ConstVec a_values,
++                        typename TTypes<float>::ConstMatrix b) {
++    const std::size_t nnz = a_values.size();
++    const std::size_t rhs_right = (ADJ_B ? b.dimension(0) : b.dimension(1));
++    const std::size_t lhs_right = (ADJ_B ? b.dimension(1) : b.dimension(0));
++    const int lhs_index_a = ADJ_A ? 1 : 0;
++    const int rhs_index_a = ADJ_A ? 0 : 1;
++
++    out.setZero();
++
++    if (rhs_right < kNumVectorize) {
++      // Disable vectorization if the RHS of output is too small
++      auto maybe_adjoint_b = MaybeAdjoint<decltype(b), ADJ_B>(b);
++
++      for (std::size_t i = 0; i < nnz; ++i) {
++        const Tindices m = internal::SubtleMustCopy(a_indices(i, lhs_index_a));
++        const Tindices k = internal::SubtleMustCopy(a_indices(i, rhs_index_a));
++        if (!FastBoundsCheck(k, lhs_right)) {
++          return KOutOfBoundsError(k, i, rhs_index_a, lhs_right);
++        }
++        if (!FastBoundsCheck(m, out.dimension(0))) {
++          return MOutOfBoundsError(m, i, lhs_index_a, out.dimension(0));
++        }
++        const float a_value = ADJ_A ? MaybeConj(a_values(i)) : a_values(i);
++        for (std::size_t n = 0; n < rhs_right; ++n) {
++          const float b_value = maybe_adjoint_b(k, n);
++          out(m, n) += a_value * b_value;
++        }
++      }
++    } else {
++      // Validate indices before delegating to KDNN.
++      for (std::size_t i = 0; i < nnz; ++i) {
++        const Tindices m = internal::SubtleMustCopy(a_indices(i, lhs_index_a));
++        const Tindices k = internal::SubtleMustCopy(a_indices(i, rhs_index_a));
++        if (!FastBoundsCheck(k, lhs_right)) {
++          return KOutOfBoundsError(k, i, rhs_index_a, lhs_right);
++        }
++        if (!FastBoundsCheck(m, out.dimension(0))) {
++          return MOutOfBoundsError(m, i, lhs_index_a, out.dimension(0));
++        }
++      }
++      const float* b_data = b.data();
++      Eigen::Tensor<float, 2, Eigen::ColMajor> col_major_conj_b;
++      if (ADJ_B) {
++        Eigen::array<int, 2> shuffle(1, 0);
++        col_major_conj_b = b.swap_layout().shuffle(shuffle).conjugate().eval();
++        b_data = col_major_conj_b.data();
++      }
++      kdnnSparseMatmul<Tindices>(ctx, nnz, rhs_right, lhs_right, lhs_index_a, rhs_index_a, out, a_indices, a_values, b_data);
++    }
++    return OkStatus();
++  }
++};
++#endif
+ }  // namespace functor
+ 
+ }  // namespace tensorflow
+diff --git a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h
+index 3cab997c567e87cd518b04bd3e4f9255db67131d..a7713c679055631fcb369320b94393291b657de8 100644
+--- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h
++++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h
+@@ -35,6 +35,17 @@ struct SparseTensorDenseMatMulFunctor {
+       typename TTypes<T>::ConstVec a_values, typename TTypes<T>::ConstMatrix b);
+ };
+ 
++#if defined(ENABLE_KDNN)
++template <typename Device, typename T, typename Tindices, bool ADJ_A,
++          bool ADJ_B>
++struct KDNNSparseMatMulFunctor {
++  static EIGEN_ALWAYS_INLINE Status Compute(
++      OpKernelContext* ctx, typename TTypes<T>::Matrix out,
++      typename TTypes<Tindices>::ConstMatrix a_indices,
++      typename TTypes<T>::ConstVec a_values, typename TTypes<T>::ConstMatrix b);
++};
++#endif
++
+ template <typename MATRIX, bool ADJ>
+ class MaybeAdjoint;
+ 
+diff --git a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc
+index fe856e6b6bba8cb3ae186b9a6f5e452ae19574a0..525613e332fc46897f0d71d0a4427cc5750ea3cf 100644
+--- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc
++++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc
+@@ -16,13 +16,331 @@ limitations under the License.
+ #include <random>
+ 
+ #include "tensorflow/core/common_runtime/kernel_benchmark_testlib.h"
++#include "tensorflow/core/framework/fake_input.h"
++#include "tensorflow/core/framework/node_def_builder.h"
+ #include "tensorflow/core/framework/tensor.h"
+ #include "tensorflow/core/graph/node_builder.h"
++#include "tensorflow/core/kernels/ops_testutil.h"
+ #include "tensorflow/core/platform/test.h"
+ #include "tensorflow/core/platform/test_benchmark.h"
+ 
+ namespace tensorflow {
+ 
++// Fully naive reference for all adjoint combinations
++static void ReferenceSparseMatmulFn(
++    const int nnz,
++    const int64_t* a_indices_data,
++    const float* a_values_data,
++    const float* b_data,
++    int lhs_left, int lhs_right, int rhs_right,
++    bool adjoint_a, bool adjoint_b,
++    float* out_data) {
++  // Initialize output to zero
++  for (int i = 0; i < lhs_left * rhs_right; ++i) out_data[i] = 0.0f;
++
++  const int lhs_index_a = adjoint_a ? 1 : 0;
++  const int rhs_index_a = adjoint_a ? 0 : 1;
++
++  for (int i = 0; i < nnz; ++i) {
++    int row = a_indices_data[i * 2 + lhs_index_a];
++    int col = a_indices_data[i * 2 + rhs_index_a];
++    float a_val = a_values_data[i];
++    if (adjoint_b) {
++      for (int n = 0; n < rhs_right; ++n) {
++        out_data[row * rhs_right + n] += a_val * b_data[col * rhs_right + n];
++      }
++    } else {
++      for (int n = 0; n < rhs_right; ++n) {
++        out_data[row * rhs_right + n] += a_val * b_data[col * rhs_right + n];
++      }
++    }
++  }
++}
++
++// ===========================================================================
++// SparseMatMul accuracy tests (Section 10.1.1 of design doc)
++// ===========================================================================
++
++class SparseMatmulAccuracyTest : public OpsTestBase {
++ protected:
++  void MakeOp(bool adjoint_a, bool adjoint_b) {
++    TF_CHECK_OK(NodeDefBuilder("sparse_matmul", "SparseTensorDenseMatMul")
++                     .Input(FakeInput(DT_INT64))    // a_indices
++                     .Input(FakeInput(DT_FLOAT))    // a_values
++                     .Input(FakeInput(DT_INT64))    // a_shape
++                     .Input(FakeInput(DT_FLOAT))    // b
++                     .Attr("T", DT_FLOAT)
++                     .Attr("adjoint_a", adjoint_a)
++                     .Attr("adjoint_b", adjoint_b)
++                     .Finalize(node_def()));
++    TF_CHECK_OK(InitOp());
++  }
++
++  // Set up and run the SparseTensorDenseMatMul op.
++  Tensor RunOp(const Tensor& a_indices, const Tensor& a_values,
++               const Tensor& a_shape, const Tensor& b,
++               bool adjoint_a, bool adjoint_b) {
++    MakeOp(adjoint_a, adjoint_b);
++
++    *AddInput(DT_INT64, a_indices.shape()) = a_indices;
++    *AddInput(DT_FLOAT, a_values.shape()) = a_values;
++    *AddInput(DT_INT64, a_shape.shape()) = a_shape;
++    *AddInput(DT_FLOAT, b.shape()) = b;
++
++    TF_CHECK_OK(RunOpKernel());
++
++    return *GetOutput(0);
++  }
++
++  // Compare two matrices with a tolerance
++  void ExpectClose(const Tensor& actual, const Tensor& expected,
++                   float rtol = 1e-5, float atol = 1e-5) {
++    ASSERT_EQ(actual.shape(), expected.shape());
++    auto actual_m = actual.matrix<float>();
++    auto expected_m = expected.matrix<float>();
++    int rows = actual.dim_size(0);
++    int cols = actual.dim_size(1);
++    for (int i = 0; i < rows; ++i) {
++      for (int j = 0; j < cols; ++j) {
++        float diff = std::abs(actual_m(i, j) - expected_m(i, j));
++        float tol = rtol * std::max(std::abs(expected_m(i, j)), 1.0f) + atol;
++        EXPECT_LE(diff, tol)
++            << "(" << i << "," << j << "): actual=" << actual_m(i, j)
++            << " expected=" << expected_m(i, j);
++      }
++    }
++  }
++
++  // Helper: create a deterministic sparse matrix with given sparsity
++  void CreateSparseMatrix(int rows, int cols, int nnz, int seed,
++                          Tensor* a_indices, Tensor* a_values,
++                          Tensor* a_shape) {
++    *a_indices = Tensor(DT_INT64, TensorShape({nnz, 2}));
++    *a_values = Tensor(DT_FLOAT, TensorShape({nnz}));
++    *a_shape = Tensor(DT_INT64, TensorShape({2}));
++    a_shape->vec<int64_t>()(0) = rows;
++    a_shape->vec<int64_t>()(1) = cols;
++
++    std::mt19937 gen(seed);
++    std::uniform_int_distribution<> row_dist(0, rows - 1);
++    std::uniform_int_distribution<> col_dist(0, cols - 1);
++    std::uniform_real_distribution<float> val_dist(-1.0, 1.0);
++
++    auto idx_m = a_indices->matrix<int64_t>();
++    auto val_v = a_values->vec<float>();
++    for (int i = 0; i < nnz; ++i) {
++      idx_m(i, 0) = row_dist(gen);
++      idx_m(i, 1) = col_dist(gen);
++      val_v(i) = val_dist(gen);
++    }
++  }
++};
++
++// ---------------------------------------------------------------------------
++// 1. Basic functionality: different sparsity levels
++// ---------------------------------------------------------------------------
++TEST_F(SparseMatmulAccuracyTest, BasicSparsity) {
++  const int m = 8, k = 16, n = 4;
++  const int nnz = 20;
++
++  Tensor a_indices, a_values, a_shape;
++  CreateSparseMatrix(m, k, nnz, /*seed=*/42, &a_indices, &a_values, &a_shape);
++
++  Tensor b(DT_FLOAT, TensorShape({k, n}));
++  b.flat<float>().setRandom();
++
++  // Compute reference
++  Tensor ref(DT_FLOAT, TensorShape({m, n}));
++  ReferenceSparseMatmulFn(
++      nnz, a_indices.matrix<int64_t>().data(), a_values.vec<float>().data(),
++      b.matrix<float>().data(), m, k, n,
++      /*adjoint_a=*/false, /*adjoint_b=*/false,
++      ref.matrix<float>().data());
++
++  // Compute via TF op (KDNN path when ENABLE_KDNN is on)
++  Tensor result = RunOp(a_indices, a_values, a_shape, b,
++                        /*adjoint_a=*/false, /*adjoint_b=*/false);
++
++  ExpectClose(result, ref);
++}
++
++// ---------------------------------------------------------------------------
++// 2. Boundary conditions
++// ---------------------------------------------------------------------------
++TEST_F(SparseMatmulAccuracyTest, ZeroNonZeroEntries) {
++  const int m = 4, k = 8, n = 2;
++  const int nnz = 0;
++
++  Tensor a_indices(DT_INT64, TensorShape({0, 2}));
++  Tensor a_values(DT_FLOAT, TensorShape({0}));
++  Tensor a_shape(DT_INT64, TensorShape({2}));
++  a_shape.vec<int64_t>()(0) = m;
++  a_shape.vec<int64_t>()(1) = k;
++
++  Tensor b(DT_FLOAT, TensorShape({k, n}));
++  b.flat<float>().setRandom();
++
++  Tensor result = RunOp(a_indices, a_values, a_shape, b,
++                        /*adjoint_a=*/false, /*adjoint_b=*/false);
++
++  // All zeros
++  auto result_m = result.matrix<float>();
++  for (int i = 0; i < m; ++i)
++    for (int j = 0; j < n; ++j)
++      EXPECT_EQ(result_m(i, j), 0.0f);
++}
++
++TEST_F(SparseMatmulAccuracyTest, IdentityMatrix) {
++  const int m = 4, k = 4, n = 4;
++  // A = I (identity sparse), A * B = B
++  Tensor a_indices(DT_INT64, TensorShape({4, 2}));
++  Tensor a_values(DT_FLOAT, TensorShape({4}));
++  Tensor a_shape(DT_INT64, TensorShape({2}));
++  a_shape.vec<int64_t>()(0) = m;
++  a_shape.vec<int64_t>()(1) = k;
++
++  auto idx = a_indices.matrix<int64_t>();
++  auto val = a_values.vec<float>();
++  for (int i = 0; i < 4; ++i) {
++    idx(i, 0) = i;
++    idx(i, 1) = i;
++    val(i) = 1.0f;
++  }
++
++  Tensor b(DT_FLOAT, TensorShape({k, n}));
++  b.flat<float>().setRandom();
++
++  Tensor result = RunOp(a_indices, a_values, a_shape, b,
++                        /*adjoint_a=*/false, /*adjoint_b=*/false);
++
++  ExpectClose(result, b);
++}
++
++TEST_F(SparseMatmulAccuracyTest, AllZeroMatrix) {
++  const int m = 4, k = 8, n = 4;
++  // A = zeros, so result = zeros
++  Tensor a_indices(DT_INT64, TensorShape({0, 2}));
++  Tensor a_values(DT_FLOAT, TensorShape({0}));
++  Tensor a_shape(DT_INT64, TensorShape({2}));
++  a_shape.vec<int64_t>()(0) = m;
++  a_shape.vec<int64_t>()(1) = k;
++
++  Tensor b(DT_FLOAT, TensorShape({k, n}));
++  b.flat<float>().setRandom();
++
++  Tensor result = RunOp(a_indices, a_values, a_shape, b,
++                        /*adjoint_a=*/false, /*adjoint_b=*/false);
++
++  auto result_m = result.matrix<float>();
++  for (int i = 0; i < m; ++i)
++    for (int j = 0; j < n; ++j)
++      EXPECT_EQ(result_m(i, j), 0.0f);
++}
++
++// ---------------------------------------------------------------------------
++// 3. Transpose semantics
++// ---------------------------------------------------------------------------
++TEST_F(SparseMatmulAccuracyTest, AdjointA) {
++  const int m = 8, k = 16, n = 4;
++  const int nnz = 30;
++
++  Tensor a_indices, a_values, a_shape;
++  CreateSparseMatrix(k, m, nnz, /*seed=*/123, &a_indices, &a_values, &a_shape);
++  // adjoint_a=true: A is k×m but treated as A^T which is m×k
++  // So the sparse matrix shape is (k, m) with indices in (k, m) space.
++  // The op with adjoint_a treats it as: A^T (m×k) * B (k×n) → (m×n)
++
++  Tensor b(DT_FLOAT, TensorShape({k, n}));
++  b.flat<float>().setRandom();
++
++  // Reference: manually transpose
++  Tensor ref(DT_FLOAT, TensorShape({m, n}));
++  auto a_shape_v = a_shape.vec<int64_t>();
++  int rows_a = a_shape_v(0);  // k
++  int cols_a = a_shape_v(1);  // m
++  auto a_idx = a_indices.matrix<int64_t>();
++  auto a_val = a_values.vec<float>();
++  auto b_m = b.matrix<float>();
++  auto ref_m = ref.matrix<float>();
++  ref_m.setZero();
++  for (int i = 0; i < nnz; ++i) {
++    // With adjoint_a=true: A_orig is k×m, index(i,0)=row_in_orig(=k_dim), index(i,1)=col_in_orig(=m_dim)
++    // A^T has dimension m×k: A^T(col_in_orig, row_in_orig) = A_orig(row_in_orig, col_in_orig)
++    int orig_row = a_idx(i, 0);  // k dimension
++    int orig_col = a_idx(i, 1);  // m dimension
++    // In A^T, result row = orig_col, A^T's k-index = orig_row
++    for (int j = 0; j < n; ++j) {
++      ref_m(orig_col, j) += a_val(i) * b_m(orig_row, j);
++    }
++  }
++
++  Tensor result = RunOp(a_indices, a_values, a_shape, b,
++                        /*adjoint_a=*/true, /*adjoint_b=*/false);
++  ExpectClose(result, ref);
++}
++
++// ---------------------------------------------------------------------------
++// 4. Large scale data (stability test)
++// ---------------------------------------------------------------------------
++TEST_F(SparseMatmulAccuracyTest, LargeScale) {
++  const int m = 64, k = 128, n = 16;
++  const int nnz = 200;
++
++  Tensor a_indices(DT_INT64, TensorShape({nnz, 2}));
++  Tensor a_values(DT_FLOAT, TensorShape({nnz}));
++  Tensor a_shape(DT_INT64, TensorShape({2}));
++  a_shape.vec<int64_t>()(0) = m;
++  a_shape.vec<int64_t>()(1) = k;
++
++  auto idx = a_indices.matrix<int64_t>();
++  auto val = a_values.vec<float>();
++  for (int i = 0; i < nnz; ++i) {
++    idx(i, 0) = (i * 7) % m;
++    idx(i, 1) = (i * 13) % k;
++    val(i) = static_cast<float>((i % 100) - 50) / 50.0f;
++  }
++
++  Tensor b(DT_FLOAT, TensorShape({k, n}));
++  auto b_m = b.matrix<float>();
++  for (int i = 0; i < k; ++i)
++    for (int j = 0; j < n; ++j)
++      b_m(i, j) = static_cast<float>((i * 3 + j * 7) % 20 - 10) / 10.0f;
++
++  Tensor result = RunOp(a_indices, a_values, a_shape, b,
++                        /*adjoint_a=*/false, /*adjoint_b=*/false);
++  EXPECT_EQ(result.shape(), TensorShape({m, n}));
++}
++
++// ---------------------------------------------------------------------------
++// 5. Multi-thread path consistency (env var set before binary start)
++// ---------------------------------------------------------------------------
++// Note: TF_ENABLE_KDNN_SPARSE_MATMUL_PARALLEL controls parallel vs serial
++// in the KDNN SparseGemm path (see kdnn_adapter.h). It is read once at
++// first invocation. To test with parallel=0, run:
++//   TF_ENABLE_KDNN_SPARSE_MATMUL_PARALLEL=0 ... --benchmark_filter=...
++TEST_F(SparseMatmulAccuracyTest, KdnnPathMatchesReference) {
++  const int m = 32, k = 64, n = 8;
++  const int nnz = 80;
++
++  Tensor a_indices, a_values, a_shape;
++  CreateSparseMatrix(m, k, nnz, /*seed=*/99, &a_indices, &a_values, &a_shape);
++
++  Tensor b(DT_FLOAT, TensorShape({k, n}));
++  b.flat<float>().setRandom();
++
++  Tensor ref(DT_FLOAT, TensorShape({m, n}));
++  ReferenceSparseMatmulFn(
++      nnz, a_indices.matrix<int64_t>().data(), a_values.vec<float>().data(),
++      b.matrix<float>().data(), m, k, n,
++      false, false, ref.matrix<float>().data());
++
++  Tensor result = RunOp(a_indices, a_values, a_shape, b,
++                        /*adjoint_a=*/false, /*adjoint_b=*/false);
++
++  ExpectClose(result, ref);
++}
++
++
+ Node* SparseTensorDenseMatMulNode(Graph* g, Node* a_indices, Node* a_values,
+                                   Node* a_shape, Node* b, bool adjoint_a,
+                                   bool adjoint_b) {
+@@ -120,4 +438,43 @@ BM_SparseTensorDenseMatmul(16384, 4096, 4096, 4096, false, true);
+ BM_SparseTensorDenseMatmul(16384, 4096, 4096, 4096, true, false);
+ BM_SparseTensorDenseMatmul(16384, 4096, 4096, 4096, true, true);
+ 
++// NOLINTBEGIN
++#define BM_SparseTensorDenseMatmulDevT(NNZ, M, K, N, TA, TB, DEVICE, T)                \
++  static void                                                                           \
++      BM_SparseTensorDenseMatmul_##NNZ##_##M##_##K##_##N##_##TA##_##TB##_##DEVICE##_t##T( \
++          ::testing::benchmark::State& state) {                                         \
++    int64_t items_per_iter = (static_cast<int64_t>(NNZ) * (TB ? K : N));                \
++    test::Benchmark(#DEVICE, SparseTensorDenseMatmul(NNZ, M, K, N, TA, TB),             \
++                    /*old_benchmark_api*/ false)                                        \
++        .Run(state);                                                                    \
++    state.SetItemsProcessed(state.iterations() * items_per_iter);                       \
++    state.SetBytesProcessed(state.iterations() * items_per_iter *                       \
++                            sizeof(float));                                             \
++  }                                                                                     \
++  BENCHMARK(                                                                            \
++      BM_SparseTensorDenseMatmul_##NNZ##_##M##_##K##_##N##_##TA##_##TB##_##DEVICE##_t##T) \
++      ->Threads(T);
++// NOLINTEND
++
++#define BM_SparseTensorDenseMatmulT(NNZ, M, K, N, TA, TB, T)    \
++  BM_SparseTensorDenseMatmulDevT(NNZ, M, K, N, TA, TB, cpu, T);
++
++#define BM_SparseTensorDenseMatmulAllThreads(NNZ, M, K, N, TA, TB) \
++  BM_SparseTensorDenseMatmulT(NNZ, M, K, N, TA, TB, 1);           \
++  BM_SparseTensorDenseMatmulT(NNZ, M, K, N, TA, TB, 4);           \
++  BM_SparseTensorDenseMatmulT(NNZ, M, K, N, TA, TB, 8);           \
++  BM_SparseTensorDenseMatmulT(NNZ, M, K, N, TA, TB, 16);
++
++BM_SparseTensorDenseMatmulAllThreads(128,  16,   1024,   1, false, false);
++BM_SparseTensorDenseMatmulAllThreads(128,  16,   1024,   8, false, false);
++BM_SparseTensorDenseMatmulAllThreads(256,  128,  4096,   1, false, false);
++BM_SparseTensorDenseMatmulAllThreads(128,  128,  1024,   8, false, false);
++BM_SparseTensorDenseMatmulAllThreads(128,  16,   1024,  64, false, false);
++BM_SparseTensorDenseMatmulAllThreads(256,  128,  4096,  16, false, false);
++BM_SparseTensorDenseMatmulAllThreads(128,  128,  1024,  64, false, false);
++BM_SparseTensorDenseMatmulAllThreads(256,  128,  4096, 128, false, false);
++BM_SparseTensorDenseMatmulAllThreads(128,  128,  1024,   1, false, false);
++BM_SparseTensorDenseMatmulAllThreads(1024, 256,  4096,   1, false, false);
++BM_SparseTensorDenseMatmulAllThreads(128,  4096, 4096, 512, false, false);
++
+ }  // end namespace tensorflow
+diff --git a/tensorflow/core/util/port.cc b/tensorflow/core/util/port.cc
+index bcc5f6a3ddd5fa236604f195b10c60fa5a6b32c3..f1c7598f3e4f10b0ee5336ff0c8322af6cf70eb1 100644
+--- a/tensorflow/core/util/port.cc
++++ b/tensorflow/core/util/port.cc
+@@ -148,4 +148,31 @@ bool IsZenDnnEnabled() {
+ #endif  // !AMD_ZENDNN
+ }
+ 
++bool IsKDNNEnabled() {
++#ifndef ENABLE_KDNN
++  return false;
++#else
++  static absl::once_flag once;
++  static bool KDNN_enabled = true;
++  absl::call_once(once, [&] {
++    auto status = ReadBoolFromEnvVar("TF_ENABLE_KDNN_OPTS", KDNN_enabled,
++                                     &KDNN_enabled);
++
++    if (!status.ok()) {
++      LOG(WARNING) << "TF_ENABLE_KDNN_OPTS is not set to either '0', 'false',"
++                   << " '1', or 'true'. Using the default setting: "
++                   << KDNN_enabled;
++    }
++    if (KDNN_enabled) {
++      LOG(INFO) << "KDNN custom operations are on. "
++                << "You may see slightly different numerical results due to "
++                << "floating-point round-off errors from different computation "
++                << "orders. To turn them off, set the environment variable "
++                << "`TF_ENABLE_KDNN_OPTS=0`.";
++    }
++  });
++  return KDNN_enabled;
++#endif  // !KDNN
++}
++
+ }  // namespace tensorflow
+diff --git a/tensorflow/core/util/port.h b/tensorflow/core/util/port.h
+index d0a755c2de7dd7b893eb781597bec5fbc8f8ee60..ea13ffb1f778920ca0badf6b556e9823c97c506d 100644
+--- a/tensorflow/core/util/port.h
++++ b/tensorflow/core/util/port.h
+@@ -47,6 +47,8 @@ bool IsMklEnabled();
+ // Returns true if TF_ENABLE_ZENDNN_OPTS is set to 1
+ bool IsZenDnnEnabled();
+ 
++// Returns true if TF_ENABLE_KDNN_OPTS is set to 1
++bool IsKDNNEnabled();
+ }  // end namespace tensorflow
+ 
+ #endif  // TENSORFLOW_CORE_UTIL_PORT_H_
+diff --git a/tensorflow/patch_features/BUILD b/tensorflow/patch_features/BUILD
+new file mode 100644
+index 0000000000000000000000000000000000000000..ffd0fb0cdc5bc3ecb62d3cbb5b502b353073615f
+--- /dev/null
++++ b/tensorflow/patch_features/BUILD
+@@ -0,0 +1 @@
++package(default_visibility = ["//visibility:public"])
+diff --git a/tensorflow/patch_features/kdnn_copts.bzl b/tensorflow/patch_features/kdnn_copts.bzl
+new file mode 100644
+index 0000000000000000000000000000000000000000..e7cdcc1d46d2524db31856a51e4169df132274c2
+--- /dev/null
++++ b/tensorflow/patch_features/kdnn_copts.bzl
+@@ -0,0 +1,4 @@
++load("//third_party/KDNN:build_defs.bzl", "if_enable_kdnn")
++
++def kdnn_copts():
++    return if_enable_kdnn(["-DENABLE_KDNN"])
+diff --git a/tensorflow/python/kernel_tests/benchmark/framework/_init_.py b/tensorflow/python/kernel_tests/benchmark/framework/_init_.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/tensorflow/python/kernel_tests/benchmark/framework/runner.py b/tensorflow/python/kernel_tests/benchmark/framework/runner.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..bcb6c88ffd7e314f2294a2519c345f0fb0ecbbeb
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/benchmark/framework/runner.py
+@@ -0,0 +1,330 @@
++import os
++import time
++import shutil
++import glob
++import json
++import sys
++import re
++import struct
++import tensorflow.compat.v1 as tf
++from dataclasses import dataclass, field
++from typing import List, Callable, Dict, Any, Union, Optional
++from tensorflow.python.profiler.internal import _pywrap_profiler
++from tensorflow.python.profiler import profiler_v2 as profiler
++from tensorflow.python.profiler.profiler_v2 import ProfilerOptions
++from tensorflow.core.profiler.protobuf.xplane_pb2 import XSpace
++import numpy as np
++import multiprocessing as mp
++import pickle
++
++tf.disable_eager_execution()
++
++
++@dataclass
++class TestCase:
++    name: str
++    op_fn: Callable
++    input_fn: Callable
++    check_fn: Optional[Callable] = None
++    num_iters: int = 0
++    optimize_percent: int = 0
++    operator_name: str = ""
++    meta: Dict = field(default_factory=dict)
++
++class CheckFuncClass:
++    def check_fn_float(A, B, meta):
++        atol = meta.get('atol')
++        rtol = meta.get('rtol')
++        if rtol is None:
++            rtol = 1e-3
++        if atol is None:
++            atol = 1e-4
++        # ∣a−b∣≤ atol + rtol ×∣b∣
++        return np.allclose(A, B, rtol=rtol, atol=atol)
++
++    def check_fn_equal(A, B, meta):
++        np.testing.assert_array_equal(A, B) # 如果失败抛出异常, 如果成功无返回值,
++        return True
++
++class UniversalOpBenchmark:
++    def __init__(self, log_dir="bench_logs", intra_threads=16):
++        self.log_dir = log_dir
++        self.intra_threads = intra_threads
++        self.results = []
++
++    def _subprocess_worker(
++        self,
++        queue: mp.Queue,
++        func: Callable,
++        is_kdnn_enable: bool,
++        raw_inputs: list,
++        func_args: TestCase,
++        temp_dir: str
++    ) -> None:
++        """
++        子进程工作函数：创建临时目录，执行目标函数，将结果/异常放入队列
++        """
++        try:
++            # 1. 自动创建临时目录（不存在则创建，存在则不报错）
++            os.makedirs(temp_dir, exist_ok=True)
++            
++            # 2. 执行目标函数A
++            result = func(is_kdnn_enable, raw_inputs, func_args)
++            try:
++                pickle.dumps(result)
++            except Exception as e:
++                raise Exception(f"返回结果无法序列化，无法传递给主进程：{str(e)}") from e
++            # 3. 将执行结果放入队列（传递给主进程）
++            try:
++                queue.put(('success', result), block=True, timeout=10)
++            except mp.Queue.Full:
++                raise Exception("队列缓冲区已满，无法写入执行结果")
++        
++        except Exception as e:
++            # 捕获所有异常，传递给主进程
++            queue.put(('error', e))
++            return
++
++    def run_func_in_subprocess(
++        self,
++        func_A: Callable,
++        is_kdnn_enable: bool,
++        raw_inputs: list,
++        func_args: TestCase,
++        temp_dir: str = "./temp_workdir"
++    ) -> str | np.ndarray:
++        
++        # 2. 创建进程间通信队列（用于传递子进程执行结果/异常）
++        result_queue = mp.Queue()
++        
++        # 3. 构建子进程
++        sub_process = mp.Process(
++            target=self._subprocess_worker,
++            args=(result_queue, func_A, is_kdnn_enable, raw_inputs, func_args, temp_dir)
++        )
++        
++        # 4. 启动并等待子进程执行完成
++        sub_process.start()
++        
++        # 5. 从队列中获取子进程执行结果
++        process_status, result = result_queue.get()
++        if process_status == 'error':
++            raise Exception(f"子进程中函数执行失败：{str(result)}") from result
++
++        sub_process.join()  # 阻塞主进程，等待子进程退出
++        return result
++
++    def _get_event_name_by_metadata_id(self, metadata_id, plane):
++        if not hasattr(plane, 'event_metadata'):
++            return f"unknown_operator_{metadata_id}"
++
++        metadata=plane.event_metadata[metadata_id]
++        if metadata.id == metadata_id:
++            return metadata.name if (metadata.name and metadata.name.strip()) else f"unknown_operator_{metadata_id}"
++        
++        # 未匹配到返回默认名称
++        return f"unknown_operator_{metadata_id}"
++
++    def parse_xplane_file_optimized(self, dir_path):
++        if not os.path.isdir(dir_path):
++            print(f"dir is not exist: {dir_path}")
++            return None
++
++        xplane_files = []
++        for file_name in os.listdir(dir_path):
++            if file_name.endswith(".xplane.pb"):
++                xplane_files.append(os.path.join(dir_path, file_name))
++
++        if not xplane_files:
++            print(f"file is not exist in {dir_path}")
++            return None
++        elif len(xplane_files) > 1:
++            print(f"Found multiple.xplane.pb files: {xplane_files}; the first file will be used.")
++
++        file_path = xplane_files[0]
++        with open(file_path, 'rb') as f:
++            content = f.read()
++    
++        xspace = XSpace()
++        xspace.ParseFromString(content)
++        if len(xspace.planes) > 0:
++            return xspace
++
++        print("parse_xplane_file_optimized failed")
++        return None
++
++    def get_average_wall_during(self, input_dir, operator_name, test_case: TestCase):
++        # 1.提取数据
++        xplane_data = self.parse_xplane_file_optimized(input_dir)
++        if not xplane_data:
++            return 0.0
++
++        op_name_list = []
++        # 2. 获取wall_duration
++        wall_durations_us_list = []
++        for plane in xplane_data.planes:
++            if hasattr(plane, 'lines') and len(plane.lines) > 0:
++                for line in plane.lines:
++                    if hasattr(line, 'events') and len(line.events) > 0:
++                        for event in line.events:
++                            # 1. 获取事件时长（ps转换为us）
++                            duration_ps = event.duration_ps if hasattr(event, 'duration_ps') else 0
++                            if duration_ps <= 0:
++                                continue  # 过滤无效时长事件
++                            #转换成us
++                            wall_duration_us = duration_ps / 1000000
++
++                            # 2. 通过metadata_id获取算子名称
++                            metadata_id = event.metadata_id if hasattr(event, 'metadata_id') else 0
++                            op_name = self._get_event_name_by_metadata_id(metadata_id, plane)
++                            if op_name not in op_name_list:
++                                op_name_list.append(op_name)
++                            if operator_name in op_name:
++                                wall_durations_us_list.append(wall_duration_us)
++        # print(f"解析到的算子名称列表:{op_name_list}") # 打印所有算子名称
++        if test_case.num_iters != np.size(wall_durations_us_list):
++            print(f"解析到有效数据{np.size(wall_durations_us_list)}条, 预期{test_case.num_iters}条")
++            return 0.0
++
++        return float(np.mean(wall_durations_us_list)), np.var(wall_durations_us_list, ddof=1)
++
++    def parse_performance_data(self, kdnn_enable, raw_inputs, test_case: TestCase):
++        print(f"Testing: {test_case.name} ...")
++        os.environ['TF_ENABLE_KDNN_OPTS'] = str(kdnn_enable)
++        
++        placeholders = []
++        feed_dict = {}
++        
++        for i, val in enumerate(raw_inputs):
++            np_val = np.array(val)
++            
++            p = tf.placeholder(
++                dtype=tf.as_dtype(np_val.dtype),
++                shape=np_val.shape,
++                name=f"input_{i}"
++            )
++            placeholders.append(p)
++            feed_dict[p] = np_val
++
++        res_node = test_case.op_fn(placeholders, test_case.meta)
++        config = tf.ConfigProto(
++            inter_op_parallelism_threads=16,
++            intra_op_parallelism_threads=self.intra_threads
++        )
++        options = ProfilerOptions(
++            host_tracer_level=2,
++            device_tracer_level=1,
++            python_tracer_level=0  # 建议保持 0 以减少对 Kernel 测量的干扰
++        )
++        with tf.Session(config=config) as sess:
++            for _ in range(10):
++                sess.run(res_node, feed_dict=feed_dict)
++
++            profiler.start(self.log_dir, options)
++            time.sleep(3)
++            for _ in range(test_case.num_iters):
++                sess.run(res_node, feed_dict=feed_dict)
++            profiler.stop()
++
++        try:
++            kdnn_status = os.environ.get('TF_ENABLE_KDNN_OPTS', '1')
++            tag = f"{test_case.name}_kdnn_{kdnn_status}"  # 结果为 kdnn_0 或 kdnn_1
++            profile_root = os.path.join(self.log_dir, "plugins", "profile")
++            timestamp_dirs = [d for d in os.listdir(profile_root) 
++                             if os.path.isdir(os.path.join(profile_root, d)) and d.startswith("202")]
++            
++            if timestamp_dirs:
++                src_dir = os.path.join(profile_root, timestamp_dirs[0])
++                # 目标路径: bench_logs/MatMul_Test/plugins/profile/kdnn_1
++                target_dir = os.path.join(profile_root, tag)
++                
++                if os.path.exists(target_dir):
++                    shutil.rmtree(target_dir)
++                
++                os.rename(src_dir, target_dir)
++                print(f"✅ Profile 已固化至: {target_dir}")
++                return target_dir
++
++                # 可选：清理掉空的时间戳父目录或日志文件
++                # (TensorFlow 有时会留下一些空的 event 文件，通常不影响解析)
++        except Exception as e:
++            print(f"⚠️ 路径固化失败: {e}")
++
++    def run_performance_test(self, test_case: TestCase):
++        if test_case.num_iters == 0:
++            return True
++
++        print(f"Performance testing: {test_case.name} ...")
++
++        optimize_percent = test_case.optimize_percent
++        operator_name = test_case.operator_name
++        raw_inputs = test_case.input_fn()
++        if not isinstance(raw_inputs, (list, tuple)):
++            raw_inputs = [raw_inputs]
++
++        no_kdnn_path = self.run_func_in_subprocess(self.parse_performance_data, 0, raw_inputs, test_case)
++        no_kdnn_wall_during, _ = self.get_average_wall_during(no_kdnn_path, operator_name, test_case)
++        kdnn_path = self.run_func_in_subprocess(self.parse_performance_data, 1, raw_inputs, test_case)
++        kdnn_wall_during, _ = self.get_average_wall_during(kdnn_path, operator_name, test_case)
++        if kdnn_wall_during <= 0.0 or no_kdnn_wall_during <= 0.0:
++            print(f"⚠️ 获取平均运行时长失败, 无法进行比较")
++            return False
++        real_percent = 100 * (no_kdnn_wall_during/kdnn_wall_during - 1)
++        if real_percent < optimize_percent:
++            raise Exception(f"⚠️ 性能提升{real_percent:.2f}%, 低于预期{optimize_percent}%, KDNN开启状态下耗时{kdnn_wall_during:.2f}us, 关闭状态下耗时{no_kdnn_wall_during:.2f}us")
++            return False
++
++        print(f"性能测试通过, 性能提升{real_percent:.2f}%, KDNN开启状态下耗时{kdnn_wall_during:.2f}us, 关闭状态下耗时{no_kdnn_wall_during:.2f}us")
++        return True
++
++    def run_function_test(self, test_case: TestCase):
++        print(f"Function testing: {test_case.name} ...")
++        
++        raw_inputs = test_case.input_fn()
++        if not isinstance(raw_inputs, list):
++            raw_inputs = [raw_inputs]
++
++        def execute_variant(enable_kdnn, raw_inputs, test_case: TestCase):
++            os.environ['TF_ENABLE_KDNN_OPTS'] = str(enable_kdnn)
++            tf.reset_default_graph()
++
++            placeholders = []
++            feed_dict = {}
++
++            for i, val in enumerate(raw_inputs):
++                np_val = np.array(val)
++                
++                p = tf.placeholder(
++                    dtype=tf.as_dtype(np_val.dtype),
++                    shape=np_val.shape,
++                    name=f"input_{i}"
++                )
++                placeholders.append(p)
++                feed_dict[p] = np_val
++            res_node = test_case.op_fn(placeholders, test_case.meta)
++            config = tf.ConfigProto(
++                inter_op_parallelism_threads=16,
++                intra_op_parallelism_threads=self.intra_threads
++            )
++            options = ProfilerOptions(
++                host_tracer_level=2,
++                device_tracer_level=1,
++                python_tracer_level=0  # 建议保持 0 以减少对 Kernel 测量的干扰
++            )
++            with tf.Session(config=config) as sess:
++                return sess.run(res_node, feed_dict=feed_dict)
++            return
++
++        kdnn_data = self.run_func_in_subprocess(execute_variant, 1, raw_inputs, test_case)
++        no_kdnn_data = self.run_func_in_subprocess(execute_variant, 0, raw_inputs, test_case)
++        if test_case.check_fn is None:
++            is_correct = CheckFuncClass.check_fn_float(no_kdnn_data, kdnn_data, test_case.meta)
++        else:
++            is_correct = test_case.check_fn(no_kdnn_data, kdnn_data, test_case.meta)
++
++        if not is_correct:
++            print(f"⚠️ 误差较大")
++            raise Exception(f"⚠️ 误差较大")
++            return False
++        print("功能测试通过")
++        return True
+diff --git a/tensorflow/python/kernel_tests/benchmark/main.py b/tensorflow/python/kernel_tests/benchmark/main.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..1ee592efd85d940fe014a8e1a70e854f9db14b0d
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/benchmark/main.py
+@@ -0,0 +1,52 @@
++import argparse
++import importlib
++import pkgutil
++import traceback
++import os
++
++def main():
++    parser = argparse.ArgumentParser(description="TF Op Benchmark Framework with KDNN Control")
++    parser.add_argument('--op', type=str, help='指定要运行的算子模块名')
++    parser.add_argument('--list', action='store_true', help='列出所有模块')
++    parser.add_argument('--intra', type=int, default=16, help='intra_op_parallelism_threads, 默认16')
++    parser.add_argument('--performance_test', choices=['True', 'False'], default='True', help='是否运行性能测试模块')
++
++    args = parser.parse_args()
++    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1' #日志太多, 关掉
++
++    import tensorflow as TF
++    from framework.runner import UniversalOpBenchmark
++    import ops
++
++    # 4. 扫描模块
++    available_ops = {
++        name: f'ops.{name}' 
++        for loader, name, is_pkg in pkgutil.iter_modules(ops.__path__)
++    }
++
++    if args.list:
++        print("📁 可用算子列表:")
++        for name in available_ops: print(f"  - {name}")
++        return
++
++    target_modules = [available_ops[args.op]] if args.op else list(available_ops.values())
++    root_log_dir = "bench_logs"
++    bench = UniversalOpBenchmark(log_dir=root_log_dir, intra_threads=args.intra)
++    
++    for module_path in target_modules:
++        try:
++            module = importlib.import_module(module_path)
++            if hasattr(module, 'get_test_cases'):
++                cases = module.get_test_cases()
++                for case in cases:
++                    bench.run_function_test(case)
++                if args.performance_test == "True":
++                    for case in cases:
++                        bench.run_performance_test(case)
++        except Exception as e:
++            print(f"❌ 运行模块 {module_path} 失败: {e}")
++            traceback.print_exc()
++
++
++if __name__ == "__main__":
++    main()
+\ No newline at end of file
+diff --git a/tensorflow/python/kernel_tests/benchmark/ops/batchmatmul_ops.py b/tensorflow/python/kernel_tests/benchmark/ops/batchmatmul_ops.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..00469662ef3b341eb4e2a0ebe5adace77f5bd4eb
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/benchmark/ops/batchmatmul_ops.py
+@@ -0,0 +1,176 @@
++import tensorflow as tf
++import numpy as np
++from functools import partial
++from framework.runner import TestCase
++
++def get_test_cases():
++    """每个算子文件都统一实现这个接口"""
++    
++    def matmul_op(inputs, meta):
++        return tf.matmul(inputs[0], inputs[1], transpose_a=meta.get('trans_a', False), transpose_b=meta.get('trans_b', False))
++
++    def input_2D_float(m, k, n):
++        return [
++            np.random.uniform(0, 1, (m, k)).astype(np.float32), 
++            np.random.uniform(0, 1, (k, n)).astype(np.float32),
++        ]
++    
++    def input_3D_no_broadcast_float(b1, m, k, n):
++        return [
++            np.random.uniform(0, 1, (b1, m, k)).astype(np.float32), 
++            np.random.uniform(0, 1, (b1, k, n)).astype(np.float32),
++        ]
++    
++    def input_3D_broadcast_float(b1, m, k, n):
++        return [
++            np.random.uniform(0, 1, (b1, m, k)).astype(np.float32), 
++            np.random.uniform(0, 1, (1, k, n)).astype(np.float32),
++        ]
++
++    def build_batch_matmul_input(shape_a, shape_b, trans_a, trans_b, dtype):
++        """
++        构造满足矩阵乘法条件的两个输入 Tensor
++        """
++        # 如果转置，需要交换最后两个维度来生成原始数据
++        final_shape_a = list(shape_a)
++        if trans_a:
++            final_shape_a[-1], final_shape_a[-2] = final_shape_a[-2], final_shape_a[-1]
++            
++        final_shape_b = list(shape_b)
++        if trans_b:
++            final_shape_b[-1], final_shape_b[-2] = final_shape_b[-2], final_shape_b[-1]
++
++        a = np.random.uniform(-1, 1, final_shape_a).astype(dtype)
++        b = np.random.uniform(-1, 1, final_shape_b).astype(dtype)
++        return [a, b]
++
++    class BatchMatMulTestCaseFactory:
++        @staticmethod
++        def create_func_test():
++            # 基础组合维度定义
++            dims_to_test = [2, 3, 4, 5]
++            trans_options = [True, False]
++            broadcast_options = [True, False]
++            dtypes = {"fp32": np.float32}
++            
++            # 矩阵乘法的核心维度 M, K, N
++            M, K, N = 64, 32, 48
++            
++            all_cases = []
++            
++            for dim in dims_to_test:
++                for is_bc in broadcast_options:
++                    # 2D 场景不存在广播概念，跳过重复
++                    if dim == 2 and is_bc: continue 
++                    
++                    for ta in trans_options:
++                        for tb in trans_options:
++                            for dt_name, dt_val in dtypes.items():
++                                
++                                # 构造形状逻辑
++                                # A: (..., M, K), B: (..., K, N)
++                                # 如果转置参数为真，op内部会处理，但输入生成需匹配
++                                batch_dims_a = [2, 3, 1][:dim-2] if dim > 2 else []
++                                if is_bc:
++                                    # 构造广播场景：A的batch维有1，B的batch维正常
++                                    batch_dims_a = [1] * (dim - 2)
++                                    batch_dims_b = [2] * (dim - 2)
++                                else:
++                                    batch_dims_b = batch_dims_a
++                                    
++                                shape_a = tuple(batch_dims_a + [M, K])
++                                shape_b = tuple(batch_dims_b + [K, N])
++                                
++                                case_name = f"batch_matmul_{dim}D_{dt_name}_bc{is_bc}_ta{ta}_tb{tb}"
++                                
++                                # 预绑定输入构造函数
++                                input_fn = partial(
++                                    build_batch_matmul_input,
++                                    shape_a=shape_a,
++                                    shape_b=shape_b,
++                                    trans_a=ta,
++                                    trans_b=tb,
++                                    dtype=dt_val
++                                )
++                                
++                                all_cases.append(TestCase(
++                                    name=case_name,
++                                    op_fn=matmul_op,
++                                    input_fn=input_fn,
++                                    num_iters=0,
++                                    meta={
++                                        'trans_a': ta, # 对应算子属性：是否转置第一个输入
++                                        'trans_b': tb  # 对应算子属性：是否转置第二个输入
++                                    }
++                                ))
++            return all_cases
++    test_case = []
++    test_case.extend(BatchMatMulTestCaseFactory.create_func_test())
++    # perf test case
++    test_case.extend([
++        TestCase(
++            name="MatMul_2D_79_1570_256_False_False",
++            op_fn=matmul_op,
++            input_fn=partial(input_2D_float, m=79, k=1570, n=256),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "MatMul",
++            meta={'trans_a': False, 'trans_b': False},
++        ),
++        TestCase(
++            name="MatMul_2D_79_1570_128_False_False",
++            op_fn=matmul_op,
++            input_fn=partial(input_2D_float, m=79, k=1570, n=128),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "MatMul",
++            meta={'trans_a': False, 'trans_b': False},
++        ),
++        TestCase(
++            name="MatMul_2D_4480_32_16_False_False",
++            op_fn=matmul_op,
++            input_fn=partial(input_2D_float, m=4480, k=32, n=16),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "MatMul",
++            meta={'trans_a': False, 'trans_b': False},
++        ),
++        TestCase(
++            name="MatMul_2D_64_256_128_False_False",
++            op_fn=matmul_op,
++            input_fn=partial(input_2D_float, m=64, k=256, n=128),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "MatMul",
++            meta={'trans_a': False, 'trans_b': False},
++        ),
++        TestCase(
++            name="MatMul_2D_128_592_128_False_False",
++            op_fn=matmul_op,
++            input_fn=partial(input_2D_float, m=128, k=592, n=128),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "MatMul",
++            meta={'trans_a': False, 'trans_b': False},
++        ),
++        TestCase(
++            name="MatMul_3D_No_Broadcast_64_64_256_256_False",
++            op_fn=matmul_op,
++            input_fn=partial(input_3D_no_broadcast_float, b1=64, m=64, k=256, n=256),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "MatMul",
++            meta={'trans_a': False, 'trans_b': False},
++        ),
++        TestCase(
++            name="MatMul_3D_No_Broadcast_64_32_64_64_False",
++            op_fn=matmul_op,
++            input_fn=partial(input_3D_no_broadcast_float, b1=64, m=32, k=64, n=64),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "MatMul",
++            meta={'trans_a': False, 'trans_b': False},
++        ),
++        
++    ])
++    return test_case
+\ No newline at end of file
+diff --git a/tensorflow/python/kernel_tests/benchmark/ops/concat_ops.py b/tensorflow/python/kernel_tests/benchmark/ops/concat_ops.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..4cbc14c2a8e21b26a5f9309b9ff88f75d2512bbc
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/benchmark/ops/concat_ops.py
+@@ -0,0 +1,278 @@
++import tensorflow as tf
++import numpy as np
++from functools import partial
++from framework.runner import TestCase, CheckFuncClass
++
++def get_test_cases():
++    """每个算子文件都统一实现这个接口"""
++    def concat_op(inputs, meta):
++        return tf.concat(inputs, meta["axis"])
++
++    def build_18input_2D(dtype=np.float32):
++        batch = 150
++        shapes = [
++            (batch, 960),
++            (batch, 24),
++            (batch, 4),
++            (batch, 4),
++            (batch, 4),
++            (batch, 64),
++            (batch, 4),
++            (batch, 4),
++            (batch, 32),
++            (batch, 4),
++            (batch, 4),
++            (batch, 24),
++            (batch, 4),
++            (batch, 4),
++            (batch, 24),
++            (batch, 4),
++            (batch, 4),
++            (batch, 16),
++        ]
++        return [np.random.uniform(0, 1, shape).astype(dtype) for shape in shapes]
++
++    def build_12input_2D(dtype=np.float32):
++        batch = 150
++        shapes = [
++            (batch, 192),
++            (batch, 288),
++            (batch, 64),
++            (batch, 48),
++            (batch, 48),
++            (batch, 8),
++            (batch, 48),
++            (batch, 48),
++            (batch, 8),
++            (batch, 256),
++            (batch, 128),
++            (batch, 128),
++        ]
++        return [np.random.uniform(0, 1, shape).astype(dtype) for shape in shapes]
++
++    def build_8input_3D(dtype=np.float32):
++        batch = 16
++        seq = 64
++        shapes = [
++            (batch, seq, 32),
++            (batch, seq, 64),
++            (batch, seq, 16),
++            (batch, seq, 16),
++            (batch, seq, 16),
++            (batch, seq, 16),
++            (batch, seq, 16),
++            (batch, seq, 16),
++        ]
++        return [np.random.uniform(0, 1, shape).astype(dtype) for shape in shapes]
++
++    def build_4input_2D(dtype=np.float32):
++        batch = 256
++        shapes = [
++            (batch, 192),
++            (batch, 288),
++            (batch, 64),
++            (batch, 48),
++        ]
++        return [np.random.uniform(0, 1, shape).astype(dtype) for shape in shapes]
++    
++    def build_3input_2D(dtype=np.float32):
++        shapes = [
++            (128, 1510),
++            (128, 36),
++            (128, 24),
++        ]
++        return [np.random.uniform(0, 1, shape).astype(dtype) for shape in shapes]
++    
++    def build_2input_2D(batch, input1_dim, input2_dim, dtype=np.float32):
++        shapes = [
++            (batch, input1_dim),
++            (batch, input2_dim),
++        ]
++        return [np.random.uniform(0, 1, shape).astype(dtype) for shape in shapes]
++
++    def build_dynamic_input(num_inputs, dtype, shape_template, concat_axis):
++        """
++        通用输入构造器
++        :param num_inputs: 输入 Tensor 的个数 (1, 2, 8, 12, 18)
++        :param dtype: 数据类型 (np.float32, np.int32 等)
++        :param shape_template: 基础 3D 形状，例如 (batch, seq, feature)
++        :param concat_axis: 拼接的轴，用于微调形状确保可以 concat
++        """
++        inputs = []
++        for i in range(num_inputs):
++            curr_shape = list(shape_template)
++            # 为了模拟真实情况，我们可以让拼接轴上的长度略有不同
++            curr_shape[concat_axis] = np.random.randint(1, 10) # 如果需要动态长度可开启
++            
++            if np.issubdtype(dtype, np.integer):
++                data = np.random.randint(0, 100, curr_shape).astype(dtype)
++            else:
++                data = np.random.uniform(0, 1, curr_shape).astype(dtype)
++            inputs.append(data)
++        return inputs
++
++    class ConcatTestCaseFactory:
++        @staticmethod
++        def create_func_test():
++            all_cases = []
++            input_counts = [1, 2, 8, 12, 18]
++            dtypes = {
++                "fp32": np.float32, 
++                "bf16": np.uint16, # 工业界常用 uint16 模拟 bf16 存储
++                "int32": np.int32, 
++                "int8": np.int8, 
++                "uint8": np.uint8
++            }
++            axes = [0, 1, 2, -1, -2, -3]
++            base_3d_shape = (32, 64, 128) # 示例 3D 基础形状
++            for num in input_counts:
++                for dtype_name, dtype_val in dtypes.items():
++                    for axis in axes:
++                        case_name = f"concat_3D_{num}in_{dtype_name}_axis{axis}"
++                        
++                        # 使用 partial 预绑定所有参数
++                        input_fn = partial(
++                            build_dynamic_input, 
++                            num_inputs=num, 
++                            dtype=dtype_val, 
++                            shape_template=base_3d_shape, 
++                            concat_axis=axis
++                        )
++                        
++                        case = TestCase(
++                            name=case_name,
++                            op_fn=concat_op,
++                            input_fn=input_fn,
++                            num_iters=0,
++                            check_fn=CheckFuncClass.check_fn_equal,
++                            meta={'axis': axis}
++                        )
++                        all_cases.append(case)
++            return all_cases
++    
++    test_case = []
++    test_case.extend(ConcatTestCaseFactory.create_func_test())
++    # perf test case
++    test_case.extend([
++        TestCase(
++            name="concat_18input_2D_float",
++            op_fn=concat_op,
++            input_fn=partial(build_18input_2D, dtype=np.float32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_12input_2D_float",
++            op_fn=concat_op,
++            input_fn=partial(build_12input_2D, dtype=np.float32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_8input_3D_float",
++            op_fn=concat_op,
++            input_fn=partial(build_8input_3D, dtype=np.float32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_4input_2D_float",
++            op_fn=concat_op,
++            input_fn=partial(build_4input_2D, dtype=np.float32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_3input_2D_float",
++            op_fn=concat_op,
++            input_fn=partial(build_3input_2D, dtype=np.float32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_2input_2D_small_float",
++            op_fn=concat_op,
++            input_fn=partial(build_2input_2D, batch=128, input1_dim=400, input2_dim=400, dtype=np.float32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_18input_2D_int32",
++            op_fn=concat_op,
++            input_fn=partial(build_18input_2D, dtype=np.int32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_12input_2D_int32",
++            op_fn=concat_op,
++            input_fn=partial(build_12input_2D, dtype=np.int32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_8input_3D_int32",
++            op_fn=concat_op,
++            input_fn=partial(build_8input_3D, dtype=np.int32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_4input_2D_int32",
++            op_fn=concat_op,
++            input_fn=partial(build_4input_2D, dtype=np.int32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_3input_2D_int32",
++            op_fn=concat_op,
++            input_fn=partial(build_3input_2D, dtype=np.int32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_2input_2D_small_int32",
++            op_fn=concat_op,
++            input_fn=partial(build_2input_2D, batch=128, input1_dim=400, input2_dim=400, dtype=np.int32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++    ])
++    return test_case
+\ No newline at end of file
+diff --git a/tensorflow/python/kernel_tests/benchmark/ops/einsum_ops.py b/tensorflow/python/kernel_tests/benchmark/ops/einsum_ops.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..7ad3695c929a0ce9c86a6f3b7d53d5d0274d44d5
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/benchmark/ops/einsum_ops.py
+@@ -0,0 +1,118 @@
++import tensorflow as tf
++import numpy as np
++from functools import partial
++from framework.runner import TestCase
++
++def get_test_cases():
++    """每个算子文件都统一实现这个接口"""
++    
++    def einsum_op(inputs, meta):
++        return tf.einsum(meta["label"], inputs[0], inputs[1])
++
++    def input_3D_bh_bsh_bs_float(B, H, S):
++        return [
++            np.random.uniform(0, 1, (B, H)).astype(np.float32),
++            np.random.uniform(0, 1, (B, S, H)).astype(np.float32),
++        ]
++    
++    def input_3D_bs_bsh_bh_float(B, H, S):
++        return [
++            np.random.uniform(0, 1, (B, S)).astype(np.float32),
++            np.random.uniform(0, 1, (B, S, H)).astype(np.float32),
++        ]
++    
++    def build_einsum_input(shapes, dtype):
++        """
++        根据 einsum 表达式和形状列表构造输入
++        """
++        inputs = []
++        for shape in shapes:
++            if np.issubdtype(dtype, np.integer):
++                data = np.random.randint(0, 10, shape).astype(dtype)
++            else:
++                data = np.random.uniform(-1, 1, shape).astype(dtype)
++            inputs.append(data)
++        return inputs
++
++    class EinsumTestCaseFactory:
++        @staticmethod
++        def create_func_test():
++            all_cases = []
++            # 定义 B, H, S 的测试点
++            B_list = [1, 79, 256]
++            H_list = [1, 79, 128]
++            S_list = [1, 79, 512]
++            
++            # 1. Scoring 场景: bh, bsh -> bs
++            for b in B_list:
++                for h in H_list:
++                    for s in S_list:
++                        eq = "bh,bsh->bs"
++                        shapes = [(b, h), (b, s, h)]
++                        all_cases.append(EinsumTestCaseFactory._create_case(
++                            "Scoring", eq, shapes, np.float32, b, h, s
++                        ))
++
++            # 2. Pooling 场景: bs, bsh -> bh
++            for b in B_list:
++                for h in H_list:
++                    for s in S_list:
++                        eq = "bs,bsh->bh"
++                        shapes = [(b, s), (b, s, h)]
++                        all_cases.append(EinsumTestCaseFactory._create_case(
++                            "Pooling", eq, shapes, np.float32, b, h, s
++                        ))
++
++            # 3. 批量矩阵乘法场景: bij, bjk -> bik
++            ikj_variants = [
++                (64, 128, 64), (79, 128, 64), (1, 128, 64), 
++                (128, 1, 64), (128, 128, 1)
++            ]
++            for b in B_list:
++                for i, k, j in ikj_variants:
++                    eq = "bij,bjk->bik"
++                    shapes = [(b, i, j), (b, j, k)]
++                    all_cases.append(EinsumTestCaseFactory._create_case(
++                        "BatchMatMul", eq, shapes, np.float32, b, i, j, k
++                    ))
++            
++            return all_cases
++
++        @staticmethod
++        def _create_case(scene, eq, shapes, dtype, *args):
++            dims_str = "_".join([str(a) for a in args])
++            case_name = f"einsum_{scene}_{eq.replace(',', '_').replace('->', '_')}_params_{dims_str}"
++            
++            return TestCase(
++                name=case_name,
++                op_fn=einsum_op,
++                input_fn=partial(build_einsum_input, shapes=shapes, dtype=dtype),
++                num_iters=0,
++                operator_name="Einsum",
++                meta={'label': eq}
++            )
++
++    test_case = []
++    test_case.extend(EinsumTestCaseFactory.create_func_test())
++    # perf test case
++    test_case.extend([
++        TestCase(
++            name="Einsum_3D_float_bh_bsh_bs_128_256_512",
++            op_fn=einsum_op,
++            input_fn=partial(input_3D_bh_bsh_bs_float, B=128, H=256, S=512),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "Einsum",
++            meta={'label': "bh,bsh->bs"}
++        ),
++        TestCase(
++            name="Einsum_3D_float_bs_bsh_bh_128_128_512",
++            op_fn=einsum_op,
++            input_fn=partial(input_3D_bs_bsh_bh_float, B=128, H=128, S=512),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "Einsum",
++            meta={'label': "bs,bsh->bh"}
++        ),
++    ])
++    return test_case
+\ No newline at end of file
+diff --git a/tensorflow/python/kernel_tests/benchmark/ops/floormod_ops.py b/tensorflow/python/kernel_tests/benchmark/ops/floormod_ops.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..fe92a3674eaa9c7c7a94547a9c4ff517e1f2cd76
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/benchmark/ops/floormod_ops.py
+@@ -0,0 +1,67 @@
++import tensorflow as tf
++import numpy as np
++from framework.runner import TestCase
++from framework.runner import CheckFuncClass
++
++def get_test_cases():
++    """每个算子文件都统一实现这个接口"""
++    
++    def reduce_floormod_op(inputs, meta):
++        return tf.math.floormod(inputs[0], inputs[1])
++
++    def build_input_1D_float():
++        shape = [500000]
++        return [np.random.uniform(-1, 1, shape).astype(np.float32) for i in range(2)]
++
++    def build_input_3D_float():
++        shape = [64, 64, 128]
++        return [np.random.uniform(0, 1, shape).astype(np.float32) for i in range(2)]
++
++    def build_input_1D_int64():
++        shape = [1000000]
++        return [np.random.randint(-2**63, 2**63-1, size = shape, dtype=np.int64) for i in range(2)]
++
++    def build_input_3D_int64():
++        shape = [128, 64, 128]
++        return [np.random.randint(0, 2**63-1, size = shape, dtype=np.int64) for i in range(2)]
++
++    return [
++        TestCase(
++            name="floormod_input_1D_float",
++            op_fn=reduce_floormod_op,
++            input_fn=build_input_3D_float,
++            num_iters=1000,
++            optimize_percent = 150,
++            operator_name = "FloorMod:FloorMod",
++            meta={}
++        ),
++        TestCase(
++            name="floormod_input_3D_float",
++            op_fn=reduce_floormod_op,
++            input_fn=build_input_3D_float,
++            num_iters=1000,
++            optimize_percent = 150,
++            operator_name = "FloorMod:FloorMod",
++            meta={}
++        ),
++        TestCase(
++            name="floormod_input_1D_int64",
++            op_fn=reduce_floormod_op,
++            input_fn=build_input_1D_int64,
++            check_fn=CheckFuncClass.check_fn_equal,
++            num_iters=1000,
++            optimize_percent = 25,
++            operator_name = "FloorMod:FloorMod",
++            meta={}
++        ),
++        TestCase(
++            name="floormod_input_3D_int64",
++            op_fn=reduce_floormod_op,
++            input_fn=build_input_3D_int64,
++            check_fn=CheckFuncClass.check_fn_equal,
++            num_iters=1000,
++            optimize_percent = 25,
++            operator_name = "FloorMod:FloorMod",
++            meta={}
++        ),
++    ]
+\ No newline at end of file
+diff --git a/tensorflow/python/kernel_tests/benchmark/ops/sigmoid_ops.py b/tensorflow/python/kernel_tests/benchmark/ops/sigmoid_ops.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..c48e47e10565950435487ec06d599c8fa97b0fc0
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/benchmark/ops/sigmoid_ops.py
+@@ -0,0 +1,44 @@
++import tensorflow as tf
++import numpy as np
++from framework.runner import TestCase
++
++def get_test_cases():
++    """每个算子文件都统一实现这个接口"""
++    
++    def sigmoid_op(inputs, meta):
++        return tf.nn.sigmoid(inputs)
++
++    def build_input_1D_float():
++        shape = [1024]
++        return [np.random.uniform(-10, 10, shape).astype(np.float32)]
++
++    def build_input_3D_float():
++        shape = [128, 64, 128]
++        return [np.random.uniform(-10, 10, shape).astype(np.float32)]
++
++    def build_input_empty():
++        return [np.array([]).astype(np.float32)]
++
++
++    return [
++        TestCase(
++            name="sigmoid_input_1D_float",
++            op_fn=sigmoid_op,
++            num_iters=0,
++            input_fn=build_input_1D_float
++        ),
++        TestCase(
++            name="sigmoid_input_3D_float",
++            op_fn=sigmoid_op,
++            num_iters=1000,
++            input_fn=build_input_3D_float,
++            optimize_percent = 50,
++            operator_name = "Sigmoid:Sigmoid"
++        ),
++        TestCase(
++            name="sigmoid_input_empty",
++            op_fn=sigmoid_op,
++            num_iters=0,
++            input_fn=build_input_empty
++        ),
++    ]
+\ No newline at end of file
+diff --git a/tensorflow/python/kernel_tests/benchmark/ops/softmax_ops.py b/tensorflow/python/kernel_tests/benchmark/ops/softmax_ops.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..f0157ef5002d1782dd0ef93877206a57e4a3d948
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/benchmark/ops/softmax_ops.py
+@@ -0,0 +1,53 @@
++import tensorflow as tf
++import numpy as np
++from framework.runner import TestCase
++
++def get_test_cases():
++    """每个算子文件都统一实现这个接口"""
++
++    def softmax_op(inputs, meta):
++        return tf.nn.softmax(inputs, axis=meta["axis"])
++
++    def logsoftmax_op(inputs, meta):
++        return tf.nn.log_softmax(inputs, axis=meta["axis"])
++
++    def build_input_2D_float():
++        shape = [1024, 128]
++        return [np.random.uniform(-100, 100, shape).astype(np.float32)]
++
++    def build_input_3D_float():
++        shape = [64, 64, 128]
++        return [np.random.uniform(-10, 10, shape).astype(np.float32)]
++
++    return [
++        TestCase(
++            name="softmax_input_2D_float",
++            op_fn=softmax_op,
++            input_fn=build_input_2D_float,
++            num_iters=0,
++            meta={'axis': 2,}
++        ),
++        TestCase(
++            name="softmax_input_3D_float_axis_1",
++            op_fn=softmax_op,
++            input_fn=build_input_3D_float,
++            num_iters=0,
++            meta={'axis': 1,}
++        ),
++        TestCase(
++            name="softmax_input_3D_float_axis_2",
++            op_fn=softmax_op,
++            input_fn=build_input_3D_float,
++            num_iters=1000,
++            optimize_percent = 200,
++            operator_name = "Softmax:Softmax",
++            meta={'axis': 2,}
++        ),
++        TestCase(
++            name="logsoftmax_input_2D_float",
++            op_fn=logsoftmax_op,
++            input_fn=build_input_2D_float,
++            num_iters=0,
++            meta={'axis': -1,}
++        ),
++    ]
+\ No newline at end of file
+diff --git a/tensorflow/python/kernel_tests/benchmark/ops/sparse_dense_matmul_ops.py b/tensorflow/python/kernel_tests/benchmark/ops/sparse_dense_matmul_ops.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..c730294771d7a833f14fc05a206f47631ef4ceca
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/benchmark/ops/sparse_dense_matmul_ops.py
+@@ -0,0 +1,97 @@
++import tensorflow as tf
++import numpy as np
++from functools import partial
++from framework.runner import TestCase
++from tensorflow.python.framework import sparse_tensor
++
++
++def get_test_cases():
++    """sparse_tensor_dense_matmul 算子测试用例
++
++    测试 shape (M x K x N) & 稀疏度 sparsity 的组合:
++        - 128 x 1668 x 400, 0.7
++        - 256 x 1668 x 400, 0.7
++        - 128 x  492 x 400, 0.0
++        - 256 x  492 x 400, 0.0 
++    - sp_a: SparseTensor, shape (M, K)
++    - b:    DenseTensor,  shape (K, N)
++    - out:  DenseTensor,  shape (M, N)
++    """
++
++    SHAPES_SPARSITY = [
++        (128, 1668, 400, 0.7),
++        (256, 1668, 400, 0.7),
++        (128,  492, 400, 0.0),
++        (256,  492, 400, 0.0),
++    ]
++
++    def build_sparse_input(M, K, N, sparsity, dtype=np.float32):
++        """构造稀疏矩阵输入
++
++        Returns:
++            [indices, values, dense_shape, b_dense] — 四个独立的 numpy 数组，
++            以适配 benchmark framework 的 graph-mode placeholder 机制。
++        """
++        np.random.seed(42)
++
++        a_dense = np.random.randn(M, K).astype(dtype)
++
++        if sparsity > 0.0:
++            threshold = np.quantile(np.abs(a_dense), sparsity)
++            a_dense[np.abs(a_dense) <= threshold] = 0.0
++
++        nonzero_mask = a_dense != 0
++        indices = np.vstack(np.where(nonzero_mask)).astype(np.int64).T
++        values = a_dense[nonzero_mask]
++        dense_shape = np.array(a_dense.shape).astype(np.int64)
++
++        b_dense = np.random.randn(K, N).astype(dtype)
++
++        # 返回 4 个独立数组，framework 会逐个包装为 placeholder
++        return [indices, values, dense_shape, b_dense]
++
++    def sparse_op_fn(inputs, meta):
++        """算子函数：从 4 个 placeholder 构造 SparseTensor 并执行 sparse_dense_matmul
++
++        inputs[0]: indices   placeholder, shape (nnz, 2), dtype int64
++        inputs[1]: values    placeholder, shape (nnz,),  dtype float32
++        inputs[2]: dense_shape placeholder, shape (2,),   dtype int64
++        inputs[3]: b         placeholder, shape (K, N),   dtype float32
++        """
++        indices, values, dense_shape, b = inputs[0], inputs[1], inputs[2], inputs[3]
++        sp_a = sparse_tensor.SparseTensor(
++            indices=indices,
++            values=values,
++            dense_shape=dense_shape
++        )
++        adjoint_a = meta.get('adjoint_a', False)
++        adjoint_b = meta.get('adjoint_b', False)
++        return tf.sparse.sparse_dense_matmul(sp_a, b,
++                                             adjoint_a=adjoint_a,
++                                             adjoint_b=adjoint_b)
++
++    def make_name(M, K, N, sparsity, suffix=''):
++        """生成统一的测试用例名称"""
++        sp_str = f'{sparsity}'.replace('.', '_')
++        name = f'sparse_tensor_dense_matmul_{M}_{K}_{N}_sparsity_{sp_str}'
++        return name + suffix if suffix else name
++
++    test_cases = []
++
++    for M, K, N, sparsity in SHAPES_SPARSITY:
++        sp_str = f'{sparsity}'.replace('.', '_')
++
++        # 绑定 shape 参数
++        input_fn = partial(build_sparse_input, M=M, K=K, N=N, sparsity=sparsity)
++
++        test_cases.append(TestCase(
++            name=make_name(M, K, N, sp_str, suffix='_perf'),
++            op_fn=sparse_op_fn,
++            input_fn=input_fn,
++            num_iters=1000,
++            optimize_percent=5,
++            operator_name='SparseTensorDenseMatMul',
++            meta={}
++        ))
++
++    return test_cases
+diff --git a/third_party/KDNN/BUILD b/third_party/KDNN/BUILD
+new file mode 100644
+index 0000000000000000000000000000000000000000..d3667eaa02f254b517095005c670e907236354b5
+--- /dev/null
++++ b/third_party/KDNN/BUILD
+@@ -0,0 +1,34 @@
++licenses(["notice"])
++
++load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
++
++config_setting(
++    name = "enable_kdnn",
++    define_values = {
++        "enable_kdnn": "true",
++    },
++    visibility = ["//visibility:public"],
++)
++
++cc_library(
++    name = "kdnn",
++    hdrs = glob(["include/**/*.hpp"]),
++    includes = ["include"],
++    srcs = glob(["src/libkdnn.a"]),
++    linkopts = ["-lgomp"],
++    alwayslink = 1,
++)
++
++cc_library(
++    name = "kdnn_adapter",
++    hdrs = ["kdnn_adapter.h", "kdnn_threadpool.h", "kdnn_types_adapter.h", "kdnn_layout_adapter.h"],
++    strip_include_prefix = "/third_party/KDNN",
++    visibility = ["//visibility:public"],
++    deps = [":kdnn"],
++)
++
++bzl_library(
++    name = "build_defs_bzl",
++    srcs = ["build_defs.bzl"],
++    visibility = ["//visibility:public"],
++)
+\ No newline at end of file
+diff --git a/third_party/KDNN/build_defs.bzl b/third_party/KDNN/build_defs.bzl
+new file mode 100644
+index 0000000000000000000000000000000000000000..da1748fc95a8780d8ec1584ef40799d0f6dc8346
+--- /dev/null
++++ b/third_party/KDNN/build_defs.bzl
+@@ -0,0 +1,24 @@
++def if_enable_kdnn(if_true, if_false = []):
++    """Shorthand to select() if we are building with KDNN and KDNN is enabled.
++
++    This is only effective when built with KDNN.
++
++    Args:
++        if_true: expression to evaluate if building with KDNN and KDNN is enabled      
++        if_false: expression to evaluate if building without KDNN or KDNN is not enabled.
++
++    Returns:
++        A select evaluating to either if_true or if_false as appropriate.
++    """
++    return select({
++        "@org_tensorflow//third_party/KDNN:enable_kdnn": if_true,
++        "//conditions:default": if_false,
++    })
++
++def kdnn_deps():
++    """Shorthand for select() to pull in the correct set of KDNN library deps.
++    """
++    return select({
++        "@org_tensorflow//third_party/KDNN:enable_kdnn": ["//third_party/KDNN:kdnn_adapter"],
++        "//conditions:default": [],
++    })
+\ No newline at end of file
+diff --git a/third_party/KDNN/kdnn_adapter.h b/third_party/KDNN/kdnn_adapter.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..9a641ec5be6cfebc514489561237d8325b1e4056
+--- /dev/null
++++ b/third_party/KDNN/kdnn_adapter.h
+@@ -0,0 +1,306 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
++
++#ifndef TENSORFLOW_CORE_UTIL_KDNN_ADAPTER_H_
++#define TENSORFLOW_CORE_UTIL_KDNN_ADAPTER_H_
++#include "kdnn.hpp"
++#include "tensorflow/core/framework/op_kernel.h"
++#include "tensorflow/core/util/matmul_bcast.h"
++#include "tensorflow/core/util/work_sharder.h"
++#include "kdnn_threadpool.h"
++#include "kdnn_types_adapter.h"
++#include "kdnn_layout_adapter.h"
++#include "tensorflow/core/util/port.h"
++#include "tensorflow/core/framework/tensor.h"
++#include "operations/kdnn_softmax.hpp"
++#include "operations/kdnn_eltwise.hpp"
++
++namespace tensorflow {
++
++inline void kdnnFusedGemm(OpKernelContext* ctx, const Tensor& a, const Tensor& b, Tensor* out,
++                    bool fusion_relu, bool trans_x, bool trans_y) {
++  int m = a.dim_size(0);
++  int n = b.dim_size(trans_y ? 0 : 1);
++  int k = b.dim_size(trans_y ? 1 : 0);
++  const float *A = a.flat<float>().data();
++  const float *B = b.flat<float>().data();
++  float *C = out->flat<float>().data();
++  const Tensor& bias = ctx->input(2);
++  const float *Bias = bias.flat<float>().data();
++  if (bias.dims() != 1 || bias.dim_size(0) != n) {
++    OP_REQUIRES_OK(ctx, errors::InvalidArgument("bias must be 1-dimensional and match n",
++                            bias.shape().DebugString()));
++  }
++  KDNN::PostOpsDataPtrs po_ptrs;
++  KDNN::PostOps post_ops;
++  if (fusion_relu) {
++    post_ops.AppendEltwise(KDNN::ActivationFunction::RELU);
++    po_ptrs.push_back(&post_ops);
++  }
++  // intra_op thread_pool
++  thread::ThreadPool* thread_pool = 
++    ctx->device()
++    ->tensorflow_cpu_worker_threads()
++    ->workers;
++  kdnn::KDNNThreadPool kdnn_tp(thread_pool);
++  KDNN::Threading::ActivateThreadpool(&kdnn_tp);
++  const KDNN::TensorInfo srcInfo = {{m, k}, KDNN::Element::TypeT::F32, KDNN::Layout::AB};
++  const KDNN::TensorInfo weightsInfo = {{k, n}, KDNN::Element::TypeT::F32, trans_y ? KDNN::Layout::BA : KDNN::Layout::AB};
++  const KDNN::TensorInfo dstInfo = {{m, n}, KDNN::Element::TypeT::F32, KDNN::Layout::AB};
++  const KDNN::TensorInfo biasInfo = {{1, n}, KDNN::Element::TypeT::F32, KDNN::Layout::AB};
++  KDNN::Attributes attr;
++  attr.SetPostOps(post_ops);
++  KDNN::Gemm gemm(srcInfo, weightsInfo, dstInfo, biasInfo, attr);
++  gemm.Run(A, B, C, Bias, po_ptrs); 
++  KDNN::Threading::DeactivateThreadpool();
++}
++
++template<typename Tindices>
++inline void kdnnSparseMatmul(OpKernelContext* ctx,
++                      const std::size_t nnz,
++                      const std::size_t rhs_right, const std::size_t lhs_right,
++                      const int lhs_index_a, const int rhs_index_a,
++                      typename TTypes<float>::Matrix out,
++                      typename TTypes<Tindices>::ConstMatrix a_indices,
++                      typename TTypes<float>::ConstVec a_values,
++                      const float* b_data) {
++    int lhs_left = out.dimension(0);
++    std::vector<int> pntrb(lhs_left);
++    std::vector<int> pntre(lhs_left);
++    std::vector<int> row_counts(lhs_left);
++    for (size_t i = 0; i < nnz; ++i) {
++        ++row_counts[a_indices(i, lhs_index_a)];
++    }
++
++    int current_pos = 0;
++    for (size_t i = 0; i < lhs_left; ++i) {
++        pntrb[i] = current_pos;
++        current_pos += row_counts[i];
++        pntre[i] = current_pos;
++    }
++
++    // Reorder indices and values into row-major order so that CSR row
++    // pointers (pntrb/pntre) correctly map row ranges onto the CSR arrays.
++    std::vector<int> row_pos = pntrb;
++    std::vector<int> idx(nnz);
++    std::vector<float> sorted_values(nnz);
++    for (size_t i = 0; i < nnz; ++i) {
++        int row = a_indices(i, lhs_index_a);
++        int pos = row_pos[row]++;
++        idx[pos] = a_indices(i, rhs_index_a);
++        sorted_values[pos] = a_values(i);
++    }
++
++    const KDNN::CsrSparseTensorInfo aInfo = {{lhs_left, lhs_right},
++        KDNN::Element::TypeT::F32, KDNN::Layout::AB, pntrb, pntre, idx, nnz};
++    const KDNN::TensorInfo bInfo = {{lhs_right, rhs_right},
++        KDNN::Element::TypeT::F32, KDNN::Layout::AB};
++    const KDNN::TensorInfo dstInfo = {{lhs_left, rhs_right},
++        KDNN::Element::TypeT::F32, KDNN::Layout::AB};
++    // intra_op thread_pool
++    thread::ThreadPool* thread_pool = ctx->device()->tensorflow_cpu_worker_threads()->workers;
++    kdnn::KDNNThreadPool kdnn_tp(thread_pool);
++    KDNN::Threading::ActivateThreadpool(&kdnn_tp);
++    KDNN::SparseGemm sparse_csr(aInfo, bInfo, dstInfo);
++    sparse_csr.Run(sorted_values.data(), b_data, out.data());
++    KDNN::Threading::DeactivateThreadpool();
++}
++
++template<typename T>
++inline void KDNNConcatImpl(OpKernelContext* ctx,
++                    const std::vector<std::unique_ptr<typename TTypes<T, 2>::ConstMatrix>>& inputs,
++                    typename TTypes<T, 2>::Matrix* output) {
++  KDNN::Element::TypeT kdnnType = KDNN::Element::TypeAdapter<T>::value;
++  KDNN::Layout kdnnLayout = KDNN::LayoutAdapter<2, false>::value;
++  OP_REQUIRES(ctx, kdnnType != KDNN::Element::TypeT::UNDEFINED,
++    errors::InvalidArgument("unsupported kdnn data type"));
++  OP_REQUIRES(ctx, kdnnLayout != KDNN::Layout::UNDEFINED,
++    errors::InvalidArgument("unsupported kdnn layout"));
++  std::vector<KDNN::TensorInfo> inputInfos;
++  std::vector<const void *> input_ptrs;
++  inputInfos.reserve(inputs.size());
++  input_ptrs.reserve(inputs.size());
++  for (size_t i = 0; i < inputs.size(); ++i) {
++    auto dim0 = inputs[i]->dimension(0);
++    auto dim1 = inputs[i]->dimension(1);
++    inputInfos.emplace_back(KDNN::TensorInfo{{dim0, dim1}, kdnnType, kdnnLayout});
++    input_ptrs.push_back(static_cast<const void*>(inputs[i]->data()));
++  }
++  void* output_ptr = static_cast<void *>(output->data());
++  thread::ThreadPool* thread_pool = 
++    ctx->device()
++    ->tensorflow_cpu_worker_threads()
++    ->workers;
++  kdnn::KDNNThreadPool kdnn_tp(thread_pool);
++  KDNN::Threading::ActivateThreadpool(&kdnn_tp);
++  KDNN::TensorInfo outputInfo({output->dimension(0), output->dimension(1)}, kdnnType, kdnnLayout);
++  KDNN::ConcatLayer concat(inputInfos, 1, outputInfo);
++  concat.Run(input_ptrs.data(), output_ptr);
++  KDNN::Threading::DeactivateThreadpool();
++}
++
++inline KDNN::TensorInfo MakeInfo(const tensorflow::Tensor* tensor, bool transposed) {
++  const tensorflow::TensorShape& shape = tensor->shape();
++  int dims = shape.dims();
++
++  std::vector<int64_t> d5 = {1, 1, 1, 1, 1};
++  for (int i = 0; i < dims; ++i) {
++    d5[4 - i] = shape.dim_size(dims - 1 - i);
++  }
++
++  if (transposed) {
++    std::swap(d5[3], d5[4]);
++  }
++
++  return KDNN::TensorInfo(
++    {d5[0], d5[1], d5[2], d5[3], d5[4]},
++    KDNN::Element::TypeT::F32,
++    transposed ? KDNN::Layout::ABCED : KDNN::Layout::ABCDE
++  );
++}
++
++inline KDNN::TensorInfo MakeOutputInfo(const KDNN::TensorInfo &tensorA, const KDNN::TensorInfo &tensorB) {
++  int dims = tensorA.GetNumDims();
++  std::vector<int64_t> d5 = {1, 1, 1, 1, 1};
++  for (int i = 0; i < dims - 2; ++i) {
++    d5[i] = std::max(tensorA.GetDims()[i], tensorB.GetDims()[i]);
++  }
++  d5[3] = tensorA.GetDims()[3];
++  d5[4] = tensorB.GetDims()[4];
++  return KDNN::TensorInfo(
++    {d5[0], d5[1], d5[2], d5[3], d5[4]},
++    KDNN::Element::TypeT::F32, KDNN::Layout::ABCDE
++  );
++}
++
++inline void kdnnGemm(const OpKernelContext* ctx, const Tensor& a, const Tensor& b, Tensor* out,
++                     bool trans_x, bool trans_y) {
++  int m = a.dim_size(trans_x ? 2 : 1);
++  int n = b.dim_size(trans_y ? 1 : 2);
++  int k = b.dim_size(trans_y ? 2 : 1);
++  const float *A = a.flat<float>().data();
++  const float *B = b.flat<float>().data();
++  float *C = out->flat<float>().data();
++  thread::ThreadPool* thread_pool = 
++    ctx->device()
++    ->tensorflow_cpu_worker_threads()
++    ->workers;
++  kdnn::KDNNThreadPool kdnn_tp(thread_pool);
++  KDNN::Threading::ActivateThreadpool(&kdnn_tp);
++  const KDNN::TensorInfo srcInfo = {{m, k}, KDNN::Element::TypeT::F32, trans_x ? KDNN::Layout::BA : KDNN::Layout::AB};
++  const KDNN::TensorInfo weightsInfo = {{k, n}, KDNN::Element::TypeT::F32, trans_y ? KDNN::Layout::BA : KDNN::Layout::AB};
++  const KDNN::TensorInfo dstInfo = {{m, n}, KDNN::Element::TypeT::F32, KDNN::Layout::AB};
++  KDNN::Gemm gemm(srcInfo, weightsInfo, dstInfo);
++  gemm.Run(A, B, C); 
++  KDNN::Threading::DeactivateThreadpool();
++}
++
++inline void kdnnBatchGemm(const OpKernelContext* ctx, const Tensor& a, const Tensor& b, Tensor* out,
++                          bool trans_x, bool trans_y) {
++  const float *A = a.flat<float>().data();
++  const float *B = b.flat<float>().data();
++  float *C = out->flat<float>().data();
++  thread::ThreadPool* thread_pool = 
++    ctx->device()
++    ->tensorflow_cpu_worker_threads()
++    ->workers;
++  kdnn::KDNNThreadPool kdnn_tp(thread_pool);
++  KDNN::Threading::ActivateThreadpool(&kdnn_tp);
++  const KDNN::TensorInfo srcInfo = MakeInfo(&a, trans_x);
++  const KDNN::TensorInfo weightsInfo = MakeInfo(&b, trans_y);
++  const KDNN::TensorInfo dstInfo = MakeOutputInfo(srcInfo, weightsInfo);
++  KDNN::Gemm gemm(srcInfo, weightsInfo, dstInfo);
++  gemm.Run(A, B, C); 
++  KDNN::Threading::DeactivateThreadpool();
++}
++
++template <typename Functor>
++inline void kdnnFloormodOp(OpKernelContext* ctx, const Tensor &input_0, const Tensor &input_1, Tensor *output) {
++    typedef typename Functor::in_type Tin;    // Input scalar data type.
++    const Tin* src = input_0.flat<Tin>().data();
++    const Tin* src_1 = input_1.flat<Tin>().data();
++    Tin* dst = output->flat<Tin>().data();
++
++    KDNN::Shape tensorShape({input_0.shape().num_elements()});
++    thread::ThreadPool* thread_pool = 
++        ctx->device()
++        ->tensorflow_cpu_worker_threads()
++        ->workers;
++    kdnn::KDNNThreadPool kdnn_tp(thread_pool);
++    KDNN::Threading::ActivateThreadpool(&kdnn_tp);
++
++    if (std::is_same<Tin, int64_t>::value) {
++        KDNN::TensorInfo inputTensorInfo(tensorShape, KDNN::Element::TypeT::S64, KDNN::Layout::A);
++        KDNN::TensorInfo inputTensorInfo_1(tensorShape, KDNN::Element::TypeT::S64, KDNN::Layout::A);
++        KDNN::TensorInfo outputTensorInfo(tensorShape, KDNN::Element::TypeT::S64, KDNN::Layout::A);
++        KDNN::BinaryLayer layer(inputTensorInfo, inputTensorInfo_1, outputTensorInfo, KDNN::BinaryFunction::FLOORMOD);
++        layer.Run(src, src_1, dst);
++    } else {
++        KDNN::TensorInfo inputTensorInfo(tensorShape, KDNN::Element::TypeT::F32, KDNN::Layout::A);
++        KDNN::TensorInfo inputTensorInfo_1(tensorShape, KDNN::Element::TypeT::F32, KDNN::Layout::A);
++        KDNN::TensorInfo outputTensorInfo(tensorShape, KDNN::Element::TypeT::F32, KDNN::Layout::A);
++        KDNN::BinaryLayer layer(inputTensorInfo, inputTensorInfo_1, outputTensorInfo, KDNN::BinaryFunction::FLOORMOD);
++        layer.Run(src, src_1, dst);
++    }
++
++    KDNN::Threading::DeactivateThreadpool();
++    return;
++}
++
++template <typename Functor>
++inline void kdnnSigmoidOp(OpKernelContext* ctx, const Tensor &input, Tensor *output)
++{
++    typedef typename Functor::in_type Tin;
++    const Tin* src = input.flat<Tin>().data();
++    Tin* dst = output->flat<Tin>().data();
++    KDNN::Shape tensorShape({input.shape().num_elements()});
++    KDNN::TensorInfo inputTensorInfo(tensorShape, KDNN::Element::TypeT::F32, KDNN::Layout::A);
++    KDNN::TensorInfo outputTensorInfo(tensorShape, KDNN::Element::TypeT::F32, KDNN::Layout::A);
++
++    thread::ThreadPool* thread_pool = 
++        ctx->device()
++        ->tensorflow_cpu_worker_threads()
++        ->workers;
++    kdnn::KDNNThreadPool kdnn_tp(thread_pool);
++    KDNN::Threading::ActivateThreadpool(&kdnn_tp);
++    KDNN::ActivationLayerFWD layer(inputTensorInfo, outputTensorInfo, KDNN::ActivationFunction::SIGMOID);
++    layer.Run(src, dst);
++    KDNN::Threading::DeactivateThreadpool();
++    return;
++}
++
++template <typename T>
++inline void kdnnSoftmaxOp(OpKernelContext* ctx, const Tensor &input, Tensor *output)
++{
++    const T* src = input.flat_inner_dims<T>().data();
++    T* dst = output->flat_inner_dims<T>().data();
++    KDNN::Shape tensorShape({input.flat_inner_dims<T>().dimension(0), input.flat_inner_dims<T>().dimension(1)});
++    KDNN::TensorInfo inputTensorInfo(tensorShape, KDNN::Element::TypeT::F32, KDNN::Layout::AB);
++    KDNN::TensorInfo outputTensorInfo(tensorShape, KDNN::Element::TypeT::F32, KDNN::Layout::AB);
++
++    thread::ThreadPool* thread_pool = 
++        ctx->device()
++        ->tensorflow_cpu_worker_threads()
++        ->workers;
++    kdnn::KDNNThreadPool kdnn_tp(thread_pool);
++    KDNN::Threading::ActivateThreadpool(&kdnn_tp);
++    KDNN::SoftmaxLayerFWD layer(inputTensorInfo, outputTensorInfo, 1, KDNN::AlgorithmKind::SOFTMAX);
++    layer.Run(src, dst);
++    KDNN::Threading::DeactivateThreadpool();
++    return;
++}
++
++}// namespace tensorflow
++#endif
+\ No newline at end of file
+diff --git a/third_party/KDNN/kdnn_layout_adapter.h b/third_party/KDNN/kdnn_layout_adapter.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..8ec1547615ae5691cc29997df9a922d8cc2a2dc5
+--- /dev/null
++++ b/third_party/KDNN/kdnn_layout_adapter.h
+@@ -0,0 +1,42 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++    
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
++
++#ifndef TENSORFLOW_CORE_UTIL_KDNN_LAYOUT_ADAPTER_H_
++#define TENSORFLOW_CORE_UTIL_KDNN_LAYOUT_ADAPTER_H_
++#include "kdnn.hpp"
++
++namespace KDNN {
++
++template <int Rank, bool Transposed = false>
++struct LayoutAdapter {
++    static constexpr Layout value = Layout::UNDEFINED;
++};
++
++template <>
++struct LayoutAdapter<1, false> {
++    static constexpr Layout value = Layout::A;
++};
++
++template <>
++struct LayoutAdapter<2, false> {
++    static constexpr Layout value = Layout::AB;
++};
++
++template <>
++struct LayoutAdapter<2, true> {
++    static constexpr Layout value = Layout::BA;
++};
++} // KDNN
++#endif  // TENSORFLOW_CORE_UTIL_KDNN_LAYOUT_ADAPTER_H
+\ No newline at end of file
+diff --git a/third_party/KDNN/kdnn_threadpool.h b/third_party/KDNN/kdnn_threadpool.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..0c76b4ffe2fb9e006e67b572b9a9b615978af678
+--- /dev/null
++++ b/third_party/KDNN/kdnn_threadpool.h
+@@ -0,0 +1,72 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
++
++#ifndef TENSORFLOW_CORE_UTIL_KDNN_THREADPOOL_H_
++#define TENSORFLOW_CORE_UTIL_KDNN_THREADPOOL_H_
++
++#include <list>
++#include <memory>
++#include <string>
++#include <unordered_map>
++#include <utility>
++#include <vector>
++
++#define EIGEN_USE_THREADS
++
++#include "kdnn.hpp"
++#include "tensorflow/core/platform/blocking_counter.h"
++#include "tensorflow/core/platform/threadpool.h"
++
++namespace kdnn {
++
++using tensorflow::thread::ThreadPool;
++
++class KDNNThreadPool : public KDNN::Threading::ThreadpoolIface {
++ public:
++  KDNNThreadPool() = default;
++
++  KDNNThreadPool(ThreadPool* thread_pool,
++                int num_threads = -1)
++      : thread_pool_(thread_pool), 
++      eigen_interface_(thread_pool->AsEigenThreadPool()) {
++    set_num_and_max_threads(num_threads);
++  }
++  
++  int GetNumThreads() const override { return num_threads_; }
++
++  void ParallelFor(int n, int64_t cost_per_unit,
++                const std::function<void(int, int)>& fn) override {
++    thread_pool_->ParallelFor(n, cost_per_unit, fn);
++  }
++
++  bool IsInParallel() const override {
++    return eigen_interface_->CurrentThreadId() != -1;
++  }
++
++  ~KDNNThreadPool() {}
++
++ private:
++  ThreadPool* thread_pool_ = nullptr;
++  Eigen::ThreadPoolInterface* eigen_interface_ = nullptr;
++  int num_threads_ = 1;
++  inline void set_num_and_max_threads(int num_threads) {
++    num_threads_ =
++        num_threads == -1 ? eigen_interface_->NumThreads() : num_threads;
++  }
++};
++
++}  // namespace kdnn
++
++#endif  // TENSORFLOW_CORE_UTIL_KDNN_THREADPOOL_H_
+diff --git a/third_party/KDNN/kdnn_types_adapter.h b/third_party/KDNN/kdnn_types_adapter.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..698c40d17dcc5846d41a8d84070c88c826f5232e
+--- /dev/null
++++ b/third_party/KDNN/kdnn_types_adapter.h
+@@ -0,0 +1,60 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
++
++#ifndef TENSORFLOW_CORE_UTIL_KDNN_TYPES_ADAPTER_H_
++#define TENSORFLOW_CORE_UTIL_KDNN_TYPES_ADAPTER_H_
++#include "kdnn.hpp"
++
++namespace KDNN {
++namespace Element {
++
++template <typename T>
++struct TypeAdapter {
++    static constexpr TypeT value = TypeT::UNDEFINED;
++};
++
++template <>
++struct TypeAdapter<float> {
++    static constexpr TypeT value = TypeT::F32;
++};
++
++template <>
++struct TypeAdapter<Eigen::half> {
++    static constexpr TypeT value = TypeT::F16;
++};
++
++template <>
++struct TypeAdapter<tensorflow::bfloat16> {
++    static constexpr TypeT value = TypeT::BF16;
++};
++
++template <>
++struct TypeAdapter<int32_t> {
++    static constexpr TypeT value = TypeT::S32;
++};
++
++template <>
++struct TypeAdapter<int8_t> {
++    static constexpr TypeT value = TypeT::S8;
++};
++
++template <>
++struct TypeAdapter<uint8_t> {
++    static constexpr TypeT value = TypeT::U8;
++};
++} // Element
++} // KDNN
++
++#endif  // TENSORFLOW_CORE_UTIL_KDNN_TYPES_ADAPTER_H_
+\ No newline at end of file
+diff --git a/third_party/KDNN/tensorflow_kdnn_include_adapter.patch b/third_party/KDNN/tensorflow_kdnn_include_adapter.patch
+new file mode 100644
+index 0000000000000000000000000000000000000000..08920229b74cd150f5b7194776acecad13792c86
+--- /dev/null
++++ b/third_party/KDNN/tensorflow_kdnn_include_adapter.patch
+@@ -0,0 +1,137 @@
++diff -ruN include/service/kdnn_service.hpp include_bak/service/kdnn_service.hpp
++--- include/service/kdnn_service.hpp	2025-10-25 18:55:04.018830570 +0800
+++++ include_bak/service/kdnn_service.hpp	2025-10-25 18:23:18.074830570 +0800
++@@ -107,7 +107,7 @@
++     T *allocate(SizeType n) const noexcept(false)
++     {
++         if (n > std::numeric_limits<SizeType>::max() / sizeof(T)) {
++-            throw BadArrayNewLength();
+++            return nullptr;
++         }
++         return static_cast<T*>(AlignedAlloc(n * sizeof(T), alignment));
++     }
++diff -ruN include/types/kdnn_data_type.hpp include_bak/types/kdnn_data_type.hpp
++--- include/types/kdnn_data_type.hpp	2025-10-25 18:55:04.018830570 +0800
+++++ include_bak/types/kdnn_data_type.hpp	2025-10-25 18:23:18.066830570 +0800
++@@ -65,9 +65,6 @@
++             }
++             default: {}
++         }
++-        if (type == TypeT::UNDEFINED) {
++-            throw Service::LogicError {"Type: unsupported data type"};
++-        }
++     }
++     SizeType GetSize() const noexcept
++     {
++diff -ruN include/types/kdnn_shape.hpp include_bak/types/kdnn_shape.hpp
++--- include/types/kdnn_shape.hpp	2025-10-25 18:55:04.018830570 +0800
+++++ include_bak/types/kdnn_shape.hpp	2025-10-25 18:23:18.070830570 +0800
++@@ -36,7 +36,7 @@
++     Shape(T *ptr, const SizeType size) noexcept(false) : numDims(size)
++     {
++         if (ptr == nullptr) {
++-            throw Service::LogicError("Shape: ptr is nullptr");
+++            return;
++         }
++         CheckNumDims(numDims);
++         for (SizeType i = 0; i < numDims; ++i) {
++@@ -83,7 +83,7 @@
++     Shape& ResetShape(T *ptr, const SizeType size) noexcept(false)
++     {
++         if (ptr == nullptr) {
++-            throw Service::LogicError("Shape: ptr is nullptr");
+++            return *this;
++         }
++         CheckNumDims(size);
++         numDims = size;
++@@ -99,7 +99,7 @@
++     Shape& operator+=(const Shape &adder) noexcept(false)
++     {
++         if (adder.GetNumDims() !=  this->GetNumDims()) {
++-            throw Service::LogicError("Shape: different size of base and adder shapes");
+++            return *this;
++         }
++         for (SizeType i = 0; i < adder.GetNumDims(); ++i) {
++             this->operator[](i) += adder[i];
++@@ -109,9 +109,6 @@
++ 
++     Shape operator+(const Shape &adder) const noexcept(false)
++     {
++-        if (adder.GetNumDims() != this->GetNumDims()) {
++-            throw Service::LogicError("Shape: different size of base and adder shapes");
++-        }
++         std::array<SizeType, NUM_MAX_DIMENSIONS> tmp;
++         for (SizeType i = 0; i < adder.GetNumDims(); ++i) {
++             tmp[i] = this->operator[](i) + adder[i];
++@@ -121,17 +118,11 @@
++ 
++     SizeType operator[](SizeType id) const noexcept(false)
++     {
++-        if (id >= numDims) {
++-            throw Service::LogicError("Shape: index >= num_dims");
++-        }
++         return dimsArray[id];
++     }
++ 
++     SizeType& operator[](SizeType id) noexcept(false)
++     {
++-        if (id >= numDims) {
++-            throw Service::LogicError("Shape: index >= num_dims");
++-        }
++         return dimsArray[id];
++     }
++ 
++@@ -142,9 +133,6 @@
++ 
++     SizeType GetTotalDimsSize() const noexcept(false)
++     {
++-        if (Service::WillIntMultOverflow(dimsArray.begin(), dimsArray.begin() + numDims)) {
++-            throw Service::LogicError("Shape: computing total size will cause overflow");
++-        }
++         SizeType accum = 1;
++         for (SizeType i = 0; i < numDims; ++i) {
++             accum *= dimsArray[i];
++@@ -153,12 +141,7 @@
++     }
++ 
++ private:
++-    void CheckNumDims(SizeType nDims) const noexcept(false)
++-    {
++-        if (nDims > NUM_MAX_DIMENSIONS) {
++-            throw Service::LogicError("Shape: dims is greater than NUM_MAX_DIMENSIONS");
++-        }
++-    }
+++    void CheckNumDims(SizeType nDims) const noexcept(false) {}
++     std::array<SizeType, NUM_MAX_DIMENSIONS> dimsArray;
++     SizeType numDims;
++ };
++diff -ruN include/types/kdnn_tensor_info.hpp include_bak/types/kdnn_tensor_info.hpp
++--- include/types/kdnn_tensor_info.hpp	2025-10-25 18:55:04.018830570 +0800
+++++ include_bak/types/kdnn_tensor_info.hpp	2025-10-25 18:23:18.070830570 +0800
++@@ -214,7 +214,7 @@
++             return Layout::ABCDE;
++         }
++         default: {
++-            throw Service::LogicError{"Tensor Info: tensor dimensionality is incorrect"};
+++            return Layout::UNDEFINED;
++         }
++         }
++     }
++@@ -238,7 +238,7 @@
++             return Layout::ACDEB;
++         }
++         default: {
++-            throw Service::LogicError{"Tensor Info: tensor dimensionality is incorrect"};
+++            return Layout::UNDEFINED;
++         }
++         }
++     }
++@@ -262,7 +262,7 @@
++             return Layout::BCDEA;
++         }
++         default: {
++-            throw Service::LogicError{"Tensor Info: tensor dimensionality is incorrect"};
+++            return Layout::UNDEFINED;
++         }
++         }
++     }

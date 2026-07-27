@@ -1,8 +1,8 @@
 diff --git a/tensorflow/core/BUILD b/tensorflow/core/BUILD
-index b916623fdd..071a82a4ef 100644
+index 538574360ba6cb1a6549e97483e6e6d8be0a0eee..b3be7a10950533080c2f08722fafc20805e145d9 100644
 --- a/tensorflow/core/BUILD
 +++ b/tensorflow/core/BUILD
-@@ -673,7 +673,13 @@ cc_library(
+@@ -660,7 +660,13 @@ cc_library(
      ]) + if_tensorrt([
          "//tensorflow/compiler/tf2tensorrt:trt_engine_resource_op_kernels",
          "//tensorflow/compiler/tf2tensorrt:trt_op_kernels",
@@ -17,7 +17,7 @@ index b916623fdd..071a82a4ef 100644
  )
  
  cc_library(
-@@ -920,6 +926,7 @@ filegroup(
+@@ -907,6 +913,7 @@ filegroup(
          "candidate_sampling_ops_op_lib",
          "checkpoint_ops_op_lib",
          "clustering_ops_op_lib",
@@ -27,7 +27,7 @@ index b916623fdd..071a82a4ef 100644
          "count_ops_op_lib",
 diff --git a/tensorflow/core/api_def/base_api/api_def_KPFusedEmbeddingActionIdGather.pbtxt b/tensorflow/core/api_def/base_api/api_def_KPFusedEmbeddingActionIdGather.pbtxt
 new file mode 100644
-index 0000000000..bb221ad0ba
+index 0000000000000000000000000000000000000000..bb221ad0ba65899d3701f85e14f533c68692066d
 --- /dev/null
 +++ b/tensorflow/core/api_def/base_api/api_def_KPFusedEmbeddingActionIdGather.pbtxt
 @@ -0,0 +1,3 @@
@@ -36,7 +36,7 @@ index 0000000000..bb221ad0ba
 +}
 diff --git a/tensorflow/core/api_def/base_api/api_def_KPFusedEmbeddingPadding.pbtxt b/tensorflow/core/api_def/base_api/api_def_KPFusedEmbeddingPadding.pbtxt
 new file mode 100644
-index 0000000000..5aef3786a6
+index 0000000000000000000000000000000000000000..5aef3786a6218c8e3a452174c3509a86880b4165
 --- /dev/null
 +++ b/tensorflow/core/api_def/base_api/api_def_KPFusedEmbeddingPadding.pbtxt
 @@ -0,0 +1,3 @@
@@ -45,7 +45,7 @@ index 0000000000..5aef3786a6
 +}
 diff --git a/tensorflow/core/api_def/base_api/api_def_KPFusedEmbeddingPaddingFast.pbtxt b/tensorflow/core/api_def/base_api/api_def_KPFusedEmbeddingPaddingFast.pbtxt
 new file mode 100644
-index 0000000000..17e7ebc3c2
+index 0000000000000000000000000000000000000000..17e7ebc3c20dcf230c995007ebee7a54fa1d37f4
 --- /dev/null
 +++ b/tensorflow/core/api_def/base_api/api_def_KPFusedEmbeddingPaddingFast.pbtxt
 @@ -0,0 +1,3 @@
@@ -54,7 +54,7 @@ index 0000000000..17e7ebc3c2
 +}
 diff --git a/tensorflow/core/api_def/base_api/api_def_KPFusedGather.pbtxt b/tensorflow/core/api_def/base_api/api_def_KPFusedGather.pbtxt
 new file mode 100644
-index 0000000000..63c4eef845
+index 0000000000000000000000000000000000000000..63c4eef845d088da395ee176c47c93cc1c99b366
 --- /dev/null
 +++ b/tensorflow/core/api_def/base_api/api_def_KPFusedGather.pbtxt
 @@ -0,0 +1,3 @@
@@ -63,7 +63,7 @@ index 0000000000..63c4eef845
 +}
 diff --git a/tensorflow/core/api_def/base_api/api_def_KPFusedSparseDynamicStitch.pbtxt b/tensorflow/core/api_def/base_api/api_def_KPFusedSparseDynamicStitch.pbtxt
 new file mode 100644
-index 0000000000..5b01d70cfe
+index 0000000000000000000000000000000000000000..5b01d70cfe77e638d813bcfdd50d34eb06ce2643
 --- /dev/null
 +++ b/tensorflow/core/api_def/base_api/api_def_KPFusedSparseDynamicStitch.pbtxt
 @@ -0,0 +1,3 @@
@@ -72,7 +72,7 @@ index 0000000000..5b01d70cfe
 +}
 diff --git a/tensorflow/core/api_def/base_api/api_def_KPFusedSparseReshape.pbtxt b/tensorflow/core/api_def/base_api/api_def_KPFusedSparseReshape.pbtxt
 new file mode 100644
-index 0000000000..8fe3c2f6da
+index 0000000000000000000000000000000000000000..8fe3c2f6dab8b548772ed800b69851c2e317178c
 --- /dev/null
 +++ b/tensorflow/core/api_def/base_api/api_def_KPFusedSparseReshape.pbtxt
 @@ -0,0 +1,3 @@
@@ -81,7 +81,7 @@ index 0000000000..8fe3c2f6da
 +}
 diff --git a/tensorflow/core/api_def/base_api/api_def_KPFusedSparseSegmentReduce.pbtxt b/tensorflow/core/api_def/base_api/api_def_KPFusedSparseSegmentReduce.pbtxt
 new file mode 100644
-index 0000000000..b13aa7dc5f
+index 0000000000000000000000000000000000000000..b13aa7dc5f4c74e5befb4b00f0bfc13019bb2b54
 --- /dev/null
 +++ b/tensorflow/core/api_def/base_api/api_def_KPFusedSparseSegmentReduce.pbtxt
 @@ -0,0 +1,3 @@
@@ -90,7 +90,7 @@ index 0000000000..b13aa7dc5f
 +}
 diff --git a/tensorflow/core/api_def/base_api/api_def_KPFusedSparseSegmentReduceNonzero.pbtxt b/tensorflow/core/api_def/base_api/api_def_KPFusedSparseSegmentReduceNonzero.pbtxt
 new file mode 100644
-index 0000000000..c0945afe20
+index 0000000000000000000000000000000000000000..c0945afe201887c3abae5c435943dafddc3d1c55
 --- /dev/null
 +++ b/tensorflow/core/api_def/base_api/api_def_KPFusedSparseSegmentReduceNonzero.pbtxt
 @@ -0,0 +1,3 @@
@@ -99,7 +99,7 @@ index 0000000000..c0945afe20
 +}
 diff --git a/tensorflow/core/api_def/base_api/api_def_KPFusedSparseSelect.pbtxt b/tensorflow/core/api_def/base_api/api_def_KPFusedSparseSelect.pbtxt
 new file mode 100644
-index 0000000000..bafc9157e8
+index 0000000000000000000000000000000000000000..bafc9157e878826831a1295af4db7d7fb282eccf
 --- /dev/null
 +++ b/tensorflow/core/api_def/base_api/api_def_KPFusedSparseSelect.pbtxt
 @@ -0,0 +1,3 @@
@@ -108,7 +108,7 @@ index 0000000000..bafc9157e8
 +}
 diff --git a/tensorflow/core/api_def/python_api/api_def_KPFusedEmbeddingActionIdGather.pbtxt b/tensorflow/core/api_def/python_api/api_def_KPFusedEmbeddingActionIdGather.pbtxt
 new file mode 100644
-index 0000000000..bb221ad0ba
+index 0000000000000000000000000000000000000000..bb221ad0ba65899d3701f85e14f533c68692066d
 --- /dev/null
 +++ b/tensorflow/core/api_def/python_api/api_def_KPFusedEmbeddingActionIdGather.pbtxt
 @@ -0,0 +1,3 @@
@@ -117,7 +117,7 @@ index 0000000000..bb221ad0ba
 +}
 diff --git a/tensorflow/core/api_def/python_api/api_def_KPFusedEmbeddingPadding.pbtxt b/tensorflow/core/api_def/python_api/api_def_KPFusedEmbeddingPadding.pbtxt
 new file mode 100644
-index 0000000000..5aef3786a6
+index 0000000000000000000000000000000000000000..5aef3786a6218c8e3a452174c3509a86880b4165
 --- /dev/null
 +++ b/tensorflow/core/api_def/python_api/api_def_KPFusedEmbeddingPadding.pbtxt
 @@ -0,0 +1,3 @@
@@ -126,7 +126,7 @@ index 0000000000..5aef3786a6
 +}
 diff --git a/tensorflow/core/api_def/python_api/api_def_KPFusedEmbeddingPaddingFast.pbtxt b/tensorflow/core/api_def/python_api/api_def_KPFusedEmbeddingPaddingFast.pbtxt
 new file mode 100644
-index 0000000000..17e7ebc3c2
+index 0000000000000000000000000000000000000000..17e7ebc3c20dcf230c995007ebee7a54fa1d37f4
 --- /dev/null
 +++ b/tensorflow/core/api_def/python_api/api_def_KPFusedEmbeddingPaddingFast.pbtxt
 @@ -0,0 +1,3 @@
@@ -135,7 +135,7 @@ index 0000000000..17e7ebc3c2
 +}
 diff --git a/tensorflow/core/api_def/python_api/api_def_KPFusedGather.pbtxt b/tensorflow/core/api_def/python_api/api_def_KPFusedGather.pbtxt
 new file mode 100644
-index 0000000000..63c4eef845
+index 0000000000000000000000000000000000000000..63c4eef845d088da395ee176c47c93cc1c99b366
 --- /dev/null
 +++ b/tensorflow/core/api_def/python_api/api_def_KPFusedGather.pbtxt
 @@ -0,0 +1,3 @@
@@ -144,7 +144,7 @@ index 0000000000..63c4eef845
 +}
 diff --git a/tensorflow/core/api_def/python_api/api_def_KPFusedSparseDynamicStitch.pbtxt b/tensorflow/core/api_def/python_api/api_def_KPFusedSparseDynamicStitch.pbtxt
 new file mode 100644
-index 0000000000..5b01d70cfe
+index 0000000000000000000000000000000000000000..5b01d70cfe77e638d813bcfdd50d34eb06ce2643
 --- /dev/null
 +++ b/tensorflow/core/api_def/python_api/api_def_KPFusedSparseDynamicStitch.pbtxt
 @@ -0,0 +1,3 @@
@@ -153,7 +153,7 @@ index 0000000000..5b01d70cfe
 +}
 diff --git a/tensorflow/core/api_def/python_api/api_def_KPFusedSparseReshape.pbtxt b/tensorflow/core/api_def/python_api/api_def_KPFusedSparseReshape.pbtxt
 new file mode 100644
-index 0000000000..8fe3c2f6da
+index 0000000000000000000000000000000000000000..8fe3c2f6dab8b548772ed800b69851c2e317178c
 --- /dev/null
 +++ b/tensorflow/core/api_def/python_api/api_def_KPFusedSparseReshape.pbtxt
 @@ -0,0 +1,3 @@
@@ -162,7 +162,7 @@ index 0000000000..8fe3c2f6da
 +}
 diff --git a/tensorflow/core/api_def/python_api/api_def_KPFusedSparseSegmentReduce.pbtxt b/tensorflow/core/api_def/python_api/api_def_KPFusedSparseSegmentReduce.pbtxt
 new file mode 100644
-index 0000000000..b13aa7dc5f
+index 0000000000000000000000000000000000000000..b13aa7dc5f4c74e5befb4b00f0bfc13019bb2b54
 --- /dev/null
 +++ b/tensorflow/core/api_def/python_api/api_def_KPFusedSparseSegmentReduce.pbtxt
 @@ -0,0 +1,3 @@
@@ -171,7 +171,7 @@ index 0000000000..b13aa7dc5f
 +}
 diff --git a/tensorflow/core/api_def/python_api/api_def_KPFusedSparseSegmentReduceNonzero.pbtxt b/tensorflow/core/api_def/python_api/api_def_KPFusedSparseSegmentReduceNonzero.pbtxt
 new file mode 100644
-index 0000000000..c0945afe20
+index 0000000000000000000000000000000000000000..c0945afe201887c3abae5c435943dafddc3d1c55
 --- /dev/null
 +++ b/tensorflow/core/api_def/python_api/api_def_KPFusedSparseSegmentReduceNonzero.pbtxt
 @@ -0,0 +1,3 @@
@@ -180,7 +180,7 @@ index 0000000000..c0945afe20
 +}
 diff --git a/tensorflow/core/api_def/python_api/api_def_KPFusedSparseSelect.pbtxt b/tensorflow/core/api_def/python_api/api_def_KPFusedSparseSelect.pbtxt
 new file mode 100644
-index 0000000000..bafc9157e8
+index 0000000000000000000000000000000000000000..bafc9157e878826831a1295af4db7d7fb282eccf
 --- /dev/null
 +++ b/tensorflow/core/api_def/python_api/api_def_KPFusedSparseSelect.pbtxt
 @@ -0,0 +1,3 @@
@@ -188,7 +188,7 @@ index 0000000000..bafc9157e8
 +  graph_op_name: "KPFusedSparseSelect"
 +}
 diff --git a/tensorflow/core/grappler/optimizers/BUILD b/tensorflow/core/grappler/optimizers/BUILD
-index ecd559734e..52fa9abbbc 100644
+index ecd559734ea8709e8b251a791f8c19c4a471713e..52fa9abbbcbab14dd6673a5596bf25e777dd6672 100644
 --- a/tensorflow/core/grappler/optimizers/BUILD
 +++ b/tensorflow/core/grappler/optimizers/BUILD
 @@ -904,7 +904,11 @@ tf_kernel_library(
@@ -206,7 +206,7 @@ index ecd559734e..52fa9abbbc 100644
  tf_cuda_cc_test(
 diff --git a/tensorflow/core/grappler/optimizers/graph_optimizer/BUILD b/tensorflow/core/grappler/optimizers/graph_optimizer/BUILD
 new file mode 100644
-index 0000000000..7d5ee228cf
+index 0000000000000000000000000000000000000000..7d5ee228cf5d4da3c3745c0e58d250ab0ea84430
 --- /dev/null
 +++ b/tensorflow/core/grappler/optimizers/graph_optimizer/BUILD
 @@ -0,0 +1,21 @@
@@ -234,7 +234,7 @@ index 0000000000..7d5ee228cf
 \ No newline at end of file
 diff --git a/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.cc b/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.cc
 new file mode 100644
-index 0000000000..9371a942c4
+index 0000000000000000000000000000000000000000..9371a942c4b41044c384a4bffe78472c31e87679
 --- /dev/null
 +++ b/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.cc
 @@ -0,0 +1,809 @@
@@ -1049,7 +1049,7 @@ index 0000000000..9371a942c4
 +}  // namespace annc
 diff --git a/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.h b/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.h
 new file mode 100644
-index 0000000000..59ed34af09
+index 0000000000000000000000000000000000000000..59ed34af09c947dddaff98ee8b0896bb43f86dda
 --- /dev/null
 +++ b/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.h
 @@ -0,0 +1,196 @@
@@ -1250,7 +1250,7 @@ index 0000000000..59ed34af09
 +}  // namespace annc
 +#endif  // ANNC_TF_GRAPH_OPT_H_
 diff --git a/tensorflow/core/grappler/optimizers/remapper.cc b/tensorflow/core/grappler/optimizers/remapper.cc
-index 3c37150f49..f6a59a68ff 100644
+index 3c37150f496aa4e70acb9d3f8a5f3d33f1a134ee..f6a59a68ffcc0320d328fe0ba0f9e6ae43636c3f 100644
 --- a/tensorflow/core/grappler/optimizers/remapper.cc
 +++ b/tensorflow/core/grappler/optimizers/remapper.cc
 @@ -43,6 +43,9 @@ limitations under the License.
@@ -1283,111 +1283,9 @@ index 3c37150f49..f6a59a68ff 100644
    *optimized_graph = std::move(mutable_item.graph);
  
    return OkStatus();
-diff --git a/tensorflow/core/kernels/BUILD b/tensorflow/core/kernels/BUILD
-index 7cdceb5491..1844f0322f 100644
---- a/tensorflow/core/kernels/BUILD
-+++ b/tensorflow/core/kernels/BUILD
-@@ -3664,6 +3664,97 @@ tf_kernel_library(
-     ]) + [":fft_impl"],
- )
- 
-+tf_kernel_library(
-+    name = "embedding_fused_action_id_gather_op",
-+    srcs = ["embedding_fused_action_id_gather.cc"],
-+    deps = MATH_DEPS,
-+)
-+
-+tf_kernel_library(
-+    name = "embedding_fused_gather_op",
-+    srcs = ["embedding_fused_gather.cc"],
-+    deps = MATH_DEPS,
-+)
-+
-+tf_kernel_library(
-+    name = "embedding_fused_padding_op",
-+    srcs = ["embedding_fused_padding.cc"],
-+    deps = MATH_DEPS,
-+)
-+
-+tf_kernel_library(
-+    name = "embedding_fused_sparse_dynamic_stitch_op",
-+    srcs = ["embedding_fused_sparse_dynamic_stitch.cc"],
-+    deps = MATH_DEPS,
-+)
-+
-+tf_kernel_library(
-+    name = "embedding_fused_reshape_op",
-+    srcs = ["embedding_fused_sparse_reshape.cc"],
-+    deps = MATH_DEPS + [
-+        ":reshape_util",
-+    ],
-+)
-+
-+tf_kernel_library(
-+    name = "embedding_fused_sparse_segment_reduce_op",
-+    srcs = ["embedding_fused_sparse_segment_reduce.cc"],
-+    deps = MATH_DEPS,
-+)
-+
-+tf_kernel_library(
-+    name = "embedding_fused_sparse_segment_reduce_nonzero_op",
-+    srcs = ["embedding_fused_sparse_segment_reduce_nonzero.cc"],
-+    deps = MATH_DEPS + ["@com_google_absl//absl/container:flat_hash_map"],
-+)
-+
-+tf_kernel_library(
-+    name = "embedding_fused_sparse_select_op",
-+    srcs = ["embedding_fused_sparse_select.cc"],
-+    deps = MATH_DEPS,
-+)
-+
-+cc_library(
-+    name = "embedding_fused_ops",
-+    deps = [
-+        ":embedding_fused_action_id_gather_op",
-+        ":embedding_fused_gather_op",
-+        ":embedding_fused_padding_op",
-+        ":embedding_fused_sparse_dynamic_stitch_op",
-+        ":embedding_fused_reshape_op",
-+        ":embedding_fused_sparse_segment_reduce_op",
-+        ":embedding_fused_sparse_segment_reduce_nonzero_op",
-+        ":embedding_fused_sparse_select_op",
-+    ],
-+)
-+
-+tf_cc_test(
-+    name = "embedding_fused_ops_test",
-+    size = "small",
-+    srcs = [
-+        "embedding_fused_action_id_gather_test.cc",
-+        "embedding_fused_sparse_dynamic_stitch_test.cc",
-+        "embedding_fused_sparse_segment_reduce_test.cc",
-+        "embedding_fused_sparse_segment_reduce_nonzero_test.cc",
-+        "embedding_fused_padding_test.cc",
-+        "embedding_fused_sparse_select_test.cc",
-+        "embedding_fused_gather_test.cc",
-+        "embedding_fused_sparse_reshape_test.cc",
-+    ],
-+    deps = [
-+        ":ops_testutil",
-+        ":ops_util",
-+        ":embedding_fused_ops",
-+        "//tensorflow/core:core_cpu",
-+        "//tensorflow/core:framework",
-+        "//tensorflow/core:lib",
-+        "//tensorflow/core:protos_all_cc",
-+        "//tensorflow/core:test",
-+        "//tensorflow/core:test_main",
-+        "//tensorflow/core:testlib",
-+    ],
-+)
-+
- tf_kernel_library(
-     name = "reduction_ops",
-     gpu_srcs = ["reduction_gpu_kernels.cu.h"],
 diff --git a/tensorflow/core/kernels/embedding_fused_action_id_gather.cc b/tensorflow/core/kernels/embedding_fused_action_id_gather.cc
 new file mode 100644
-index 0000000000..e49f984f05
+index 0000000000000000000000000000000000000000..e49f984f05b8e2f184fe775289c07e1efebc0a0f
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_action_id_gather.cc
 @@ -0,0 +1,263 @@
@@ -1657,7 +1555,7 @@ index 0000000000..e49f984f05
 \ No newline at end of file
 diff --git a/tensorflow/core/kernels/embedding_fused_action_id_gather_test.cc b/tensorflow/core/kernels/embedding_fused_action_id_gather_test.cc
 new file mode 100644
-index 0000000000..16d96eff35
+index 0000000000000000000000000000000000000000..16d96eff355738a791dab980fa205ceec01184e0
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_action_id_gather_test.cc
 @@ -0,0 +1,369 @@
@@ -2032,7 +1930,7 @@ index 0000000000..16d96eff35
 +}  // namespace tensorflow
 diff --git a/tensorflow/core/kernels/embedding_fused_gather.cc b/tensorflow/core/kernels/embedding_fused_gather.cc
 new file mode 100644
-index 0000000000..14de30e35a
+index 0000000000000000000000000000000000000000..14de30e35ac8edc821dcb8d59e14e23ba5b860d1
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_gather.cc
 @@ -0,0 +1,90 @@
@@ -2129,7 +2027,7 @@ index 0000000000..14de30e35a
 \ No newline at end of file
 diff --git a/tensorflow/core/kernels/embedding_fused_gather_test.cc b/tensorflow/core/kernels/embedding_fused_gather_test.cc
 new file mode 100644
-index 0000000000..c94770910f
+index 0000000000000000000000000000000000000000..c94770910fec821986eda72b2d0571688b46c012
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_gather_test.cc
 @@ -0,0 +1,186 @@
@@ -2322,7 +2220,7 @@ index 0000000000..c94770910f
 \ No newline at end of file
 diff --git a/tensorflow/core/kernels/embedding_fused_padding.cc b/tensorflow/core/kernels/embedding_fused_padding.cc
 new file mode 100644
-index 0000000000..1030d6e87e
+index 0000000000000000000000000000000000000000..1030d6e87e6d0f17a9752f56c5e7660caa81f7f2
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_padding.cc
 @@ -0,0 +1,126 @@
@@ -2455,7 +2353,7 @@ index 0000000000..1030d6e87e
 \ No newline at end of file
 diff --git a/tensorflow/core/kernels/embedding_fused_padding_test.cc b/tensorflow/core/kernels/embedding_fused_padding_test.cc
 new file mode 100644
-index 0000000000..5137d51300
+index 0000000000000000000000000000000000000000..5137d51300ad862d7ffabd425bf549f07a172ae3
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_padding_test.cc
 @@ -0,0 +1,307 @@
@@ -2768,7 +2666,7 @@ index 0000000000..5137d51300
 +}  // end namespace tensorflow
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch.cc b/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch.cc
 new file mode 100644
-index 0000000000..05c7b2fa93
+index 0000000000000000000000000000000000000000..05c7b2fa93375f7f8849ca010ae1e7f78c0f894b
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch.cc
 @@ -0,0 +1,87 @@
@@ -2861,7 +2759,7 @@ index 0000000000..05c7b2fa93
 +                        KPFusedSparseDynamicStitchOp);
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch_test.cc b/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch_test.cc
 new file mode 100644
-index 0000000000..74fdd25033
+index 0000000000000000000000000000000000000000..74fdd250336f6e12382ffc7cef64dcf1b63cdecf
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch_test.cc
 @@ -0,0 +1,108 @@
@@ -2975,7 +2873,7 @@ index 0000000000..74fdd25033
 +}  // namespace tensorflow
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_reshape.cc b/tensorflow/core/kernels/embedding_fused_sparse_reshape.cc
 new file mode 100644
-index 0000000000..9b03e429b6
+index 0000000000000000000000000000000000000000..9b03e429b67ec4563518d08a516c80311726a2fd
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_reshape.cc
 @@ -0,0 +1,203 @@
@@ -3184,7 +3082,7 @@ index 0000000000..9b03e429b6
 +#undef REGISTER_KERNEL
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_reshape_test.cc b/tensorflow/core/kernels/embedding_fused_sparse_reshape_test.cc
 new file mode 100644
-index 0000000000..874d48a5ed
+index 0000000000000000000000000000000000000000..874d48a5ed83720900d055999a23d7730ed01cd8
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_reshape_test.cc
 @@ -0,0 +1,281 @@
@@ -3471,7 +3369,7 @@ index 0000000000..874d48a5ed
 +}  // namespace
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce.cc b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce.cc
 new file mode 100644
-index 0000000000..33bbd312be
+index 0000000000000000000000000000000000000000..33bbd312bea3f388707cb57a23a1c27eb2c2bb4a
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce.cc
 @@ -0,0 +1,165 @@
@@ -3643,7 +3541,7 @@ index 0000000000..33bbd312be
 \ No newline at end of file
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_nonzero.cc b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_nonzero.cc
 new file mode 100644
-index 0000000000..3f0a4dfd8f
+index 0000000000000000000000000000000000000000..3f0a4dfd8f48019581071e4ed4130e69bfdeb015
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_nonzero.cc
 @@ -0,0 +1,387 @@
@@ -4036,7 +3934,7 @@ index 0000000000..3f0a4dfd8f
 +#undef REGISTER_KERNEL
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_nonzero_test.cc b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_nonzero_test.cc
 new file mode 100644
-index 0000000000..1a83beb994
+index 0000000000000000000000000000000000000000..1a83beb99484b175f3f5704f6385d473be83b29b
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_nonzero_test.cc
 @@ -0,0 +1,183 @@
@@ -4225,7 +4123,7 @@ index 0000000000..1a83beb994
 +}  // namespace tensorflow
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_test.cc b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_test.cc
 new file mode 100644
-index 0000000000..558ab85505
+index 0000000000000000000000000000000000000000..558ab85505bb57559dc499c0510b39c6ee542f52
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_test.cc
 @@ -0,0 +1,205 @@
@@ -4436,7 +4334,7 @@ index 0000000000..558ab85505
 +}  // namespace tensorflow
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_select.cc b/tensorflow/core/kernels/embedding_fused_sparse_select.cc
 new file mode 100644
-index 0000000000..dd175c8c5b
+index 0000000000000000000000000000000000000000..dd175c8c5bb19a4030b33310098998d8857e911d
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_select.cc
 @@ -0,0 +1,112 @@
@@ -4555,7 +4453,7 @@ index 0000000000..dd175c8c5b
 \ No newline at end of file
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_select_test.cc b/tensorflow/core/kernels/embedding_fused_sparse_select_test.cc
 new file mode 100644
-index 0000000000..d649d63e60
+index 0000000000000000000000000000000000000000..d649d63e60b2ed574e0dd44cdad28313aae83523
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_select_test.cc
 @@ -0,0 +1,182 @@
@@ -4743,10 +4641,18 @@ index 0000000000..d649d63e60
 +}
 \ No newline at end of file
 diff --git a/tensorflow/core/ops/BUILD b/tensorflow/core/ops/BUILD
-index 4659963e95..cf99e340fb 100644
+index 91d80b6c2b541534f655e4d9fdc1e3564efd1556..509f7eabb82094912d43dd3404a340b7bdde2ee6 100644
 --- a/tensorflow/core/ops/BUILD
 +++ b/tensorflow/core/ops/BUILD
-@@ -62,6 +62,7 @@ tf_gen_op_libs(
+@@ -18,7 +18,6 @@ load(
+     "//third_party/mkl:build_defs.bzl",
+     "if_mkl",
+ )
+-
+ # A lot of packages try to minimize binary size by depending on individual ops,\
+ # so they need access here.
+ package(
+@@ -55,6 +54,7 @@ tf_gen_op_libs(
          "decode_proto_ops",
          "encode_proto_ops",
          "experimental_dataset_ops",
@@ -4754,10 +4660,10 @@ index 4659963e95..cf99e340fb 100644
          "filesystem_ops",
          "function_ops",
          "functional_ops",
-@@ -357,7 +358,12 @@ cc_library(
-         ":ktfop_ops_op_lib",
-     ]) + if_fused_embedding([
-         ":fused_embedding_ops_op_lib",
+@@ -344,7 +344,12 @@ cc_library(
+     }) + if_mkl([
+         ":mkl_array_ops_op_lib",
+         ":mkl_nn_ops_op_lib",
 -    ]),
 +    ]) + select({
 +        "@platforms//cpu:aarch64": [
@@ -4770,7 +4676,7 @@ index 4659963e95..cf99e340fb 100644
  
 diff --git a/tensorflow/core/ops/embedding_fused_ops.cc b/tensorflow/core/ops/embedding_fused_ops.cc
 new file mode 100644
-index 0000000000..547e60eee2
+index 0000000000000000000000000000000000000000..547e60eee21afd60ba6d5afa8b98da5517234149
 --- /dev/null
 +++ b/tensorflow/core/ops/embedding_fused_ops.cc
 @@ -0,0 +1,132 @@
@@ -4908,7 +4814,7 @@ index 0000000000..547e60eee2
 +}  // namespace tensorflow
 \ No newline at end of file
 diff --git a/tensorflow/python/BUILD b/tensorflow/python/BUILD
-index 9810f8acd2..2bf06943e9 100644
+index 9810f8acd2e83c487facbf96dadb780efe52525f..2bf06943e97d7df97a33de24f807812548e0fbbd 100644
 --- a/tensorflow/python/BUILD
 +++ b/tensorflow/python/BUILD
 @@ -314,7 +314,12 @@ py_strict_library(
@@ -4941,7 +4847,7 @@ index 9810f8acd2..2bf06943e9 100644
  # Necessary for the pywrap inclusion below.
 diff --git a/tensorflow/python/grappler/embedding_fused_test/framework/runner.py b/tensorflow/python/grappler/embedding_fused_test/framework/runner.py
 new file mode 100644
-index 0000000000..94752287bc
+index 0000000000000000000000000000000000000000..94752287bc59331f701692bb8faaf16a1f3d63c3
 --- /dev/null
 +++ b/tensorflow/python/grappler/embedding_fused_test/framework/runner.py
 @@ -0,0 +1,204 @@
@@ -5151,7 +5057,7 @@ index 0000000000..94752287bc
 +        return True
 diff --git a/tensorflow/python/grappler/embedding_fused_test/main.py b/tensorflow/python/grappler/embedding_fused_test/main.py
 new file mode 100644
-index 0000000000..b061f5863a
+index 0000000000000000000000000000000000000000..b061f5863ac6f3ea6bfe5d3eb0711f865c2760c3
 --- /dev/null
 +++ b/tensorflow/python/grappler/embedding_fused_test/main.py
 @@ -0,0 +1,51 @@
@@ -5209,7 +5115,7 @@ index 0000000000..b061f5863a
 \ No newline at end of file
 diff --git a/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedEmbeddingActionIdGather_op.py b/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedEmbeddingActionIdGather_op.py
 new file mode 100644
-index 0000000000..41bcdf103d
+index 0000000000000000000000000000000000000000..41bcdf103d89972ef1b4ef371f70c9fa41cbfb01
 --- /dev/null
 +++ b/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedEmbeddingActionIdGather_op.py
 @@ -0,0 +1,150 @@
@@ -5366,7 +5272,7 @@ index 0000000000..41bcdf103d
 \ No newline at end of file
 diff --git a/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedEmbeddingPaddingFast_op.py b/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedEmbeddingPaddingFast_op.py
 new file mode 100644
-index 0000000000..be370331e8
+index 0000000000000000000000000000000000000000..be370331e8f6dcfd48f2c9e2e5eb9cdb2142faca
 --- /dev/null
 +++ b/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedEmbeddingPaddingFast_op.py
 @@ -0,0 +1,122 @@
@@ -5495,7 +5401,7 @@ index 0000000000..be370331e8
 \ No newline at end of file
 diff --git a/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedEmbeddingPadding_op.py b/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedEmbeddingPadding_op.py
 new file mode 100644
-index 0000000000..b20662a725
+index 0000000000000000000000000000000000000000..b20662a725cfb8779e556c85b8ec203d56214965
 --- /dev/null
 +++ b/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedEmbeddingPadding_op.py
 @@ -0,0 +1,121 @@
@@ -5623,7 +5529,7 @@ index 0000000000..b20662a725
 \ No newline at end of file
 diff --git a/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedGather_op.py b/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedGather_op.py
 new file mode 100644
-index 0000000000..a20ffe5e6d
+index 0000000000000000000000000000000000000000..a20ffe5e6d53fba37de3ead0490370408efbf6eb
 --- /dev/null
 +++ b/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedGather_op.py
 @@ -0,0 +1,103 @@
@@ -5733,7 +5639,7 @@ index 0000000000..a20ffe5e6d
 \ No newline at end of file
 diff --git a/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedSparseDynamicStitch_op.py b/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedSparseDynamicStitch_op.py
 new file mode 100644
-index 0000000000..8eea425a06
+index 0000000000000000000000000000000000000000..8eea425a061651e4df0fecfed3a554e75463c50a
 --- /dev/null
 +++ b/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedSparseDynamicStitch_op.py
 @@ -0,0 +1,111 @@
@@ -5851,7 +5757,7 @@ index 0000000000..8eea425a06
 \ No newline at end of file
 diff --git a/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedSparseReshape_op.py b/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedSparseReshape_op.py
 new file mode 100644
-index 0000000000..6cee673550
+index 0000000000000000000000000000000000000000..6cee673550a5a946650018a7ecea30253360a57a
 --- /dev/null
 +++ b/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedSparseReshape_op.py
 @@ -0,0 +1,132 @@
@@ -5990,7 +5896,7 @@ index 0000000000..6cee673550
 \ No newline at end of file
 diff --git a/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedSparseSegmentReduceNonzero_op.py b/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedSparseSegmentReduceNonzero_op.py
 new file mode 100644
-index 0000000000..5ff3c648ad
+index 0000000000000000000000000000000000000000..5ff3c648ad21cb4b0cf27d6589bdcd8912990681
 --- /dev/null
 +++ b/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedSparseSegmentReduceNonzero_op.py
 @@ -0,0 +1,203 @@
@@ -6200,7 +6106,7 @@ index 0000000000..5ff3c648ad
 \ No newline at end of file
 diff --git a/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedSparseSegmentReduce_op.py b/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedSparseSegmentReduce_op.py
 new file mode 100644
-index 0000000000..ecc67e2909
+index 0000000000000000000000000000000000000000..ecc67e2909e8417c711ba094fb48b488e5347374
 --- /dev/null
 +++ b/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedSparseSegmentReduce_op.py
 @@ -0,0 +1,165 @@
@@ -6372,7 +6278,7 @@ index 0000000000..ecc67e2909
 \ No newline at end of file
 diff --git a/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedSparseSelect_op.py b/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedSparseSelect_op.py
 new file mode 100644
-index 0000000000..10eda2d61f
+index 0000000000000000000000000000000000000000..10eda2d61ff8784df63ea3bbcd7680c1254333c0
 --- /dev/null
 +++ b/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedSparseSelect_op.py
 @@ -0,0 +1,95 @@
@@ -6473,7 +6379,7 @@ index 0000000000..10eda2d61f
 +    ]
 \ No newline at end of file
 diff --git a/tensorflow/python/ops/BUILD b/tensorflow/python/ops/BUILD
-index b3a3d612a0..185da7da4a 100644
+index b3a3d612a01758dcdc86fc7781d4e4a8e7c2fa2f..185da7da4a88f7e0d3cb5d54a47850791fd67b9d 100644
 --- a/tensorflow/python/ops/BUILD
 +++ b/tensorflow/python/ops/BUILD
 @@ -228,6 +228,14 @@ tf_gen_op_strict_wrapper_private_py(

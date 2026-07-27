@@ -1,0 +1,306 @@
+diff --git a/.gitignore b/.gitignore
+index cebef4f590d47e451013aa59665a2f43789e1473..b6ccee0199b790cc418535ee699c89e19604c8a3 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -19,6 +19,11 @@ tensorflow/contrib/cmake/_build/
+ /build/
+ [Bb]uild/
+ /build_output/
++/output/
++/output-release/
++/distdir/
++/test_output
++/patches/dist/
+ /tensorflow/core/util/version_info.cc
+ /tensorflow/python/framework/fast_tensor_util.cpp
+ /tensorflow/lite/gen/**
+@@ -28,6 +33,10 @@ tensorflow/contrib/cmake/_build/
+ /estimator_api_init_files_list.txt
+ *.whl
+ 
++# Local KDNN source checkout used by build/validation.
++/third_party/KDNN/include/
++/third_party/KDNN/src/
++
+ # Android
+ .gradle
+ .idea
+diff --git a/.markdownlint.json b/.markdownlint.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..f886be7ff4fa971ad75b88705e911774f65320ed
+--- /dev/null
++++ b/.markdownlint.json
+@@ -0,0 +1,8 @@
++{
++  "MD013": false,
++  "MD024": false,
++  "MD033": false,
++  "MD036": false,
++  "MD041": false,
++  "MD060": false
++}
+diff --git a/build.sh b/build.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..597b28ff22f238f5809db518261a1d6e49b33a56
+--- /dev/null
++++ b/build.sh
+@@ -0,0 +1,131 @@
++#/bin/bash
++set -ex
++
++TENSORFLOW_DIR=""
++ENABLE_GCC12=false
++ENABLE_KDNN=false
++KDNN_OPTIONS=""
++
++usage() {
++    echo "Usage: $0 [--features <feature1,feature2>]"
++    echo "Example: $0 --features gcc12,kdnn"
++    echo "Notes: --features gcc12 is only suitable for openeuler 22.03 to set gcc12 insdead of default gcc10"
++    exit 1
++}
++
++if [ -f /etc/os-release ]; then
++    source /etc/os-release
++fi
++
++echo "current os: $NAME $VERSION_ID"
++
++case "$VERSION_ID" in
++    "22.03")
++        echo "config gcc12 path"
++        GCC12_PATH=/opt/openEuler/gcc-toolset-12/root/usr/bin/
++        GCC12_LD_LIBRARY_PATH=/opt/openEuler/gcc-toolset-12/root/usr/lib64
++        ;;
++    "24.03")
++        echo "use default gcc"
++        ;;
++    *)
++        echo "unsupported os version: $VERSION_ID"
++        exit 1
++        ;;
++esac
++
++# 定义目标软链接路径
++TARGET_LINK="/usr/bin/aarch64-linux-gnu-gcc"
++
++# 检查文件或链接是否已经存在
++if [ ! -f "$TARGET_LINK" ] && [ ! -L "$TARGET_LINK" ]; then
++    echo "未检测到 $TARGET_LINK，正在创建软链接..."
++    
++    # 获取系统自带 gcc 的路径
++    GCC_PATH=$(which gcc)
++    
++    if [ -n "$GCC_PATH" ]; then
++        # 使用 sudo 权限创建链接（如果是 root 用户可去掉 sudo）
++        ln -s "$GCC_PATH" "$TARGET_LINK"
++        echo "软链接创建成功: $TARGET_LINK -> $GCC_PATH"
++    else
++        echo "错误: 系统未安装 gcc，请先运行 yum install gcc"
++        exit 1
++    fi
++else
++    echo "检测到 $TARGET_LINK 已存在，跳过创建步骤。"
++fi
++
++while [[ "$#" -gt 0 ]]; do
++    case "$1" in
++        --features)
++            if [[ -z "$2" ]]; then
++                echo "Error: --features requires a value"
++                usage
++            fi
++            IFS=',' read -ra features_array <<< "$2"
++            for feature in "${features_array[@]}"; do
++                case "$feature" in
++                    "gcc12")
++                        ENABLE_GCC12=true
++                        ;;
++                    "kdnn")
++                        ENABLE_KDNN=true
++                        ;;
++                    *) 
++                        echo "Warning: Unknown feature '$feature', ignoring"
++                        ;;
++                esac
++            done
++            shift 2
++            ;;
++        -h|--help)
++            usage
++            ;;
++        *)
++            echo "Unknown parameter: $1"
++            usage
++            ;;
++    esac
++done
++
++TENSORFLOW_ROOT=$(pwd)
++DIST_DIR=$TENSORFLOW_ROOT/distdir
++PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
++
++export PATH=$BAZEL_PATH:$PATH
++DIST_DIR="${DISTDIR:-$DIST_DIR}"
++BAZEL_COMPILE_CACHE="${BUILD_CACHE_DIR:-$TENSORFLOW_ROOT/output}"
++mkdir -p "$DIST_DIR" "$BAZEL_COMPILE_CACHE" "$TENSORFLOW_ROOT/output-release"
++
++if ! command -v bazel &> /dev/null; then
++    echo "Error: Bazel is not installed. Please install Bazel and try again."
++    exit 1
++fi
++
++bazel version
++
++if [ "$ENABLE_GCC12" == true ]; then
++    export PATH=$GCC12_PATH:$PATH
++    export LD_LIBRARY_PATH=$GCC12_LD_LIBRARY_PATH
++    GCC_VERSION=$(gcc -dumpversion | cut -d. -f1)
++    if [[ "$GCC_VERSION" != "12" ]]; then
++        echo "Error: GCC version is $GCC_VERSION. Please install GCC 12. Consider use command: yum install gcc-toolset-12-gcc*"
++        exit 1
++    fi
++fi
++
++if [ "$ENABLE_KDNN" == true ]; then
++    KDNN_OPTIONS="--define=enable_kdnn=true"
++fi
++
++gcc --version
++cd $TENSORFLOW_ROOT && \
++PATH=$PATH \
++LD_LIBRARY_PATH=$LD_LIBRARY_PATH \
++bazel --output_base=$BAZEL_COMPILE_CACHE build --distdir=$DIST_DIR \
++--host_copt=-march=armv8.3-a --copt=-march=armv8.3-a --define with_default_optimizations=true \
++--copt=-Wno-sign-compare --config=v2 --config=noaws \
++$KDNN_OPTIONS \
++//tensorflow/tools/pip_package:build_pip_package
++./bazel-bin/tensorflow/tools/pip_package/build_pip_package ./output-release
+diff --git a/tensorflow/core/common_runtime/next_pluggable_device/flags.h b/tensorflow/core/common_runtime/next_pluggable_device/flags.h
+index 681155e1106567749098201497da11e3b4466553..29b056bf5468f8b4bf0695717f976ac56bd2bad3 100644
+--- a/tensorflow/core/common_runtime/next_pluggable_device/flags.h
++++ b/tensorflow/core/common_runtime/next_pluggable_device/flags.h
+@@ -17,6 +17,7 @@ limitations under the License.
+ #define TENSORFLOW_CORE_COMMON_RUNTIME_NEXT_PLUGGABLE_DEVICE_FLAGS_H_
+ 
+ #include "absl/flags/declare.h"
++#include "absl/flags/flag.h"
+ 
+ ABSL_DECLARE_FLAG(bool, next_pluggable_device_use_c_api);
+ 
+diff --git a/tensorflow/tensorflow.bzl b/tensorflow/tensorflow.bzl
+index 98adbcc63319b8940d755e7e12f8809002aaa8cd..94892cc43ff9ae103c775c66dd82ce9b3e2f7c66 100644
+--- a/tensorflow/tensorflow.bzl
++++ b/tensorflow/tensorflow.bzl
+@@ -61,6 +61,10 @@ load(
+     "//third_party/compute_library:build_defs.bzl",
+     "if_enable_acl",
+ )
++load(
++    "//tensorflow:feature_copts.bzl",
++    "boostsra_feature_copt",
++)
+ load(
+     "//third_party/llvm_openmp:openmp.bzl",
+     "windows_llvm_openmp_linkopts",
+@@ -465,6 +469,7 @@ def tf_copts(
+         if_mkldnn_aarch64_acl(["-DDNNL_AARCH64_USE_ACL=1"]) +
+         if_mkldnn_aarch64_acl_openmp(["-DENABLE_ONEDNN_OPENMP"]) +
+         if_zendnn(["-DAMD_ZENDNN"]) +
++        boostsra_feature_copt() +
+         if_enable_acl(["-DXLA_CPU_USE_ACL=1", "-fexceptions"]) +
+         if_android_arm(["-mfpu=neon", "-fomit-frame-pointer"]) +
+         if_linux_x86_64(["-msse3"]) +
+diff --git a/tensorflow/workspace2.bzl b/tensorflow/workspace2.bzl
+index 8601192edf7a9fc4e2fc8675fc323fa77bc11fb3..f964c03c4522894dcacfeedbb87895ae326be3fe 100644
+--- a/tensorflow/workspace2.bzl
++++ b/tensorflow/workspace2.bzl
+@@ -803,7 +803,7 @@ def _tf_repositories():
+         name = "upb",
+         sha256 = "61d0417abd60e65ed589c9deee7c124fe76a4106831f6ad39464e1525cef1454",
+         strip_prefix = "upb-9effcbcb27f0a665f9f345030188c0b291e32482",
+-        patch_file = ["//third_party/grpc:upb_platform_fix.patch"],
++        patch_file = ["//third_party/grpc:upb_platform_fix.patch", "//third_party/grpc:upb_gcc10_compile_fix.patch"],
+         urls = tf_mirror_urls("https://github.com/protocolbuffers/upb/archive/9effcbcb27f0a665f9f345030188c0b291e32482.tar.gz"),
+     )
+ 
+diff --git a/third_party/grpc/upb_gcc10_compile_fix.patch b/third_party/grpc/upb_gcc10_compile_fix.patch
+new file mode 100644
+index 0000000000000000000000000000000000000000..dd38391c9ffd748f1af293b91f0ea03b1dd96524
+--- /dev/null
++++ b/third_party/grpc/upb_gcc10_compile_fix.patch
+@@ -0,0 +1,11 @@
++--- a/upb/upb.c	2025-05-30 17:01:35.956845750 +0800
+++++ b/upb/upb.c	2025-05-30 16:54:07.768845750 +0800
++@@ -37,7 +37,7 @@
++ void upb_status_seterrmsg(upb_status *status, const char *msg) {
++   if (!status) return;
++   status->ok = false;
++-  strncpy(status->msg, msg, sizeof(status->msg));
+++  strncpy(status->msg, msg, sizeof(status->msg) - 1);
++   nullz(status);
++ }
++ 
+diff --git a/third_party/xla/third_party/tsl/tsl/platform/default/env.cc b/third_party/xla/third_party/tsl/tsl/platform/default/env.cc
+index 62245dee98e63aeaed1c7ad209d67a1d3971ffaf..9e02ca766787f65581e4e7463eff7bc0f360d5ac 100644
+--- a/third_party/xla/third_party/tsl/tsl/platform/default/env.cc
++++ b/third_party/xla/third_party/tsl/tsl/platform/default/env.cc
+@@ -44,6 +44,8 @@ limitations under the License.
+ #include "tsl/platform/strcat.h"
+ #include "tsl/protobuf/error_codes.pb.h"
+ 
++#define GPR_ARRAY_SIZE(array) (sizeof(array) / sizeof(*(array)))
++
+ namespace tsl {
+ 
+ namespace {
+@@ -86,6 +88,16 @@ class PThread : public Thread {
+   static void* ThreadFn(void* params_arg) {
+     std::unique_ptr<ThreadParams> params(
+         reinterpret_cast<ThreadParams*>(params_arg));
++
++    if (!params->name.empty()) {
++      /* Linux supports 16 characters max, and will
++       * error if it's longer. */
++      char buf[16];
++      size_t buf_len = GPR_ARRAY_SIZE(buf) - 1;
++      strncpy(buf, params->name.c_str(), buf_len);
++      buf[buf_len] = '\0';
++      pthread_setname_np(pthread_self(), buf);
++    }
+     {
+       mutex_lock l(name_mutex);
+       GetThreadNameRegistry().emplace(std::this_thread::get_id(), params->name);
+diff --git a/unit_test.sh b/unit_test.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..a64797a71b7fa4fdb4eba9c6a0ec5c602f3a5b57
+--- /dev/null
++++ b/unit_test.sh
+@@ -0,0 +1,14 @@
++export TF_NEED_CUDA=0
++export TF_NEED_ROCM=0
++export TF_NEED_CLANG=0
++export CC_OPT_FLAGS='-march=armv8.3-a+crc'
++
++TENSORFLOW_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++BAZEL_OUTPUT_BASE="${BUILD_CACHE_DIR:-$TENSORFLOW_ROOT/output}"
++DIST_DIR="${DISTDIR:-$TENSORFLOW_ROOT/distdir}"
++mkdir -p "$BAZEL_OUTPUT_BASE" "$DIST_DIR"
++
++export PYTHON_BIN_PATH=$(which python)
++yes "" | $PYTHON_BIN_PATH configure.py
++
++bazel --output_base="$BAZEL_OUTPUT_BASE" test --distdir="$DIST_DIR" --test_tag_filters=-no_oss,-oss_excluded,-gpu,-tpu,-benchmark-test --test_lang_filters=cc,java -k --test_timeout 300,450,1200,3600 --config=opt --test_output=errors --test_size_filters=small,medium,large --build_tests_only -- //tensorflow/core/... //tensorflow/compiler/jit/... -//tensorflow/core/tpu/...
+
+diff --git a/tensorflow/feature_copts.bzl b/tensorflow/feature_copts.bzl
+new file mode 100644
+--- /dev/null
++++ b/tensorflow/feature_copts.bzl
+@@ -0,0 +1,7 @@
++# Generated by patches/patch_manager.py from patches/manifest.json.
++# Do not edit this file directly.
++
++def boostsra_feature_copt():
++    return (
++        []
++    )

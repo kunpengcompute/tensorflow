@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "tensorflow_version": "2.15.0",
+  "base_repository": "https://github.com/tensorflow/tensorflow.git",
+  "base_tag": "v2.15.0",
+  "base_ref": "6887368d6d46223f460358323c4b76d61d1558a8",
+  "groups": [
+    {
+      "name": "common",
+      "output": "0001-tensorflow_2.15.0-common.patch",
+      "description": "Shared build integration and repository-level tooling required by the feature patches.",
+      "patterns": [
+        ".bazelrc",
+        ".gitignore",
+        ".markdownlint.json",
+        "build.sh",
+        "unit_test.sh",
+        "tensorflow/BUILD",
+        "tensorflow/core/common_runtime/BUILD",
+        "tensorflow/core/common_runtime/next_pluggable_device/flags.h",
+        "tensorflow/tensorflow.bzl",
+        "tensorflow/workspace2.bzl",
+        "third_party/xla/third_party/tsl/tsl/platform/default/env.cc",
+        "third_party/grpc/upb_gcc10_compile_fix.patch"
+      ]
+    },
+    {
+      "name": "kdnn",
+      "output": "0002-tensorflow_2.15.0-kdnn.patch",
+      "description": "KDNN integration, KDNN-backed kernels, SparseMatmul and their benchmarks.",
+      "feature_copts": [
+        {
+          "load": "//tensorflow/patch_features:kdnn_copts.bzl",
+          "symbol": "kdnn_copts"
+        }
+      ],
+      "patterns": [
+        "third_party/KDNN/**",
+        "tensorflow/patch_features/BUILD",
+        "tensorflow/patch_features/kdnn_copts.bzl",
+        "tensorflow/core/kernels/BUILD",
+        "tensorflow/core/kernels/concat_op.cc",
+        "tensorflow/core/kernels/cwise_ops_common.h",
+        "tensorflow/core/kernels/linalg/einsum_op_impl.h",
+        "tensorflow/core/kernels/matmul_op_fused.cc",
+        "tensorflow/core/kernels/matmul_op_impl.h",
+        "tensorflow/core/kernels/softmax_op.cc",
+        "tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc",
+        "tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h",
+        "tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc",
+        "tensorflow/core/util/port.cc",
+        "tensorflow/core/util/port.h",
+        "tensorflow/python/kernel_tests/benchmark/**"
+      ]
+    },
+    {
+      "name": "annc",
+      "output": "0003-tensorflow_2.15.0-annc.patch",
+      "description": "ANNC static graph fusion operators, API definitions and tests.",
+      "patterns": [
+        "tensorflow/core/api_def/base_api/api_def_KPFused*.pbtxt",
+        "tensorflow/core/api_def/python_api/api_def_KPFused*.pbtxt",
+        "tensorflow/core/BUILD",
+        "tensorflow/core/grappler/optimizers/BUILD",
+        "tensorflow/core/grappler/optimizers/graph_optimizer/**",
+        "tensorflow/core/grappler/optimizers/remapper.cc",
+        "tensorflow/core/kernels/embedding_fused_*.cc",
+        "tensorflow/core/kernels/embedding_fused_*_test.cc",
+        "tensorflow/core/ops/BUILD",
+        "tensorflow/core/ops/embedding_fused_ops.cc",
+        "tensorflow/python/BUILD",
+        "tensorflow/python/grappler/embedding_fused_test/**",
+        "tensorflow/python/ops/BUILD"
+      ]
+    },
+    {
+      "name": "kembedding",
+      "output": "0004-tensorflow_2.15.0-kembedding.patch",
+      "description": "KEmbedding library, TensorFlow operator, tests and benchmark scripts.",
+      "patterns": [
+        "third_party/kembedding/**",
+        "third_party/kembedding/compile_ut.sh",
+        "experiment_scripts/01_modify_ref_impl.sh",
+        "experiment_scripts/02_compile_benchmark.sh",
+        "experiment_scripts/03_run_benchmark_with_monitoring.sh",
+        "experiment_scripts/04_parse_results.py",
+        "experiment_scripts/common.sh",
+        "experiment_scripts/run_full_experiment.sh"
+      ]
+    }
+  ],
+  "profiles": [
+    {
+      "name": "common-only",
+      "groups": ["common"]
+    },
+    {
+      "name": "kdnn-core",
+      "groups": ["common", "kdnn"]
+    },
+    {
+      "name": "kdnn-annc",
+      "groups": ["common", "kdnn", "annc"]
+    },
+    {
+      "name": "full-default",
+      "groups": ["common", "kdnn", "annc", "kembedding"],
+      "full_source": true
+    }
+  ],
+  "tooling_patterns": [
+    "patches/**"
+  ],
+  "generated_files": [
+    {
+      "path": "tensorflow/feature_copts.bzl",
+      "owner_group": "common",
+      "kind": "feature_copts",
+      "function": "boostsra_feature_copt"
+    }
+  ]
+}

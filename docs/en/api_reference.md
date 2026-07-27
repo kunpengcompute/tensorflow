@@ -1,6 +1,74 @@
 # API Reference
 
-## Feature Description of TensorFlow ANNC for Graph Compilation Optimization
+## Using the TensorFlow KDNN Thread Passthrough Feature
+
+The TensorFlow KDNN thread passthrough feature is controlled by a KDNN environment variable shown in [Table 1 KDNN environment variable](#table473618378218)
+
+**Table 1** KDNN environment variable
+
+<a name="table473618378218"></a>
+<table><tbody><tr id="row273612371926"><th class="firstcol" valign="top" width="17.11%" id="mcps1.2.3.1.1"><p id="p37361437223"><a name="p37361437223"></a><a name="p37361437223"></a>KDNN Environment Variable</p>
+</th>
+<td class="cellrowborder" valign="top" width="82.89%" headers="mcps1.2.3.1.1 "><p id="p147351257418"><a name="p147351257418"></a><a name="p147351257418"></a>TF_ENABLE_KDNN_OPTS</p>
+</td>
+</tr>
+<tr id="row2736637329"><th class="firstcol" valign="top" width="17.11%" id="mcps1.2.3.2.1"><p id="p17544180133510"><a name="p17544180133510"></a><a name="p17544180133510"></a>Type</p>
+</th>
+<td class="cellrowborder" valign="top" width="82.89%" headers="mcps1.2.3.2.1 "><p id="p135441705354"><a name="p135441705354"></a><a name="p135441705354"></a>Process environment variable</p>
+</td>
+</tr>
+<tr id="row1373713374215"><th class="firstcol" valign="top" width="17.11%" id="mcps1.2.3.3.1"><p id="p173719376217"><a name="p173719376217"></a><a name="p173719376217"></a>Function</p>
+</th>
+<td class="cellrowborder" valign="top" width="82.89%" headers="mcps1.2.3.3.1 "><p id="p15737237026"><a name="p15737237026"></a><a name="p15737237026"></a>Enables or disables KDNN.</p>
+</td>
+</tr>
+<tr id="row17371371026"><th class="firstcol" valign="top" width="17.11%" id="mcps1.2.3.4.1"><p id="p187371371426"><a name="p187371371426"></a><a name="p187371371426"></a>Value Range</p>
+</th>
+<td class="cellrowborder" valign="top" width="82.89%" headers="mcps1.2.3.4.1 "><p id="p139187124325"><a name="p139187124325"></a><a name="p139187124325"></a><code>0</code>: KDNN disabled</p>
+<p id="p18324912320"><a name="p18324912320"></a><a name="p18324912320"></a><code>1</code>: KDNN enabled</p>
+</td>
+</tr>
+<tr id="row17372371123"><th class="firstcol" valign="top" width="17.11%" id="mcps1.2.3.5.1"><p id="p14737103710220"><a name="p14737103710220"></a><a name="p14737103710220"></a>Example</p>
+</th>
+<td class="cellrowborder" valign="top" width="82.89%" headers="mcps1.2.3.5.1 "><p id="p1926119477390"><a name="p1926119477390"></a><a name="p1926119477390"></a>Before the first KDNN operator call, configure <code>TF_ENABLE_KDNN_OPTS</code>, for example, <strong id="b166491125328"><a name="b166491125328"></a><a name="b166491125328"></a><code>os.environ['TF_ENABLE_KDNN_OPTS'] = str(1)</code></strong> in the python environment.</p>
+</td>
+</tr>
+</tbody>
+</table>
+
+## Usage of the TensorFlow ANNC Static Graph Fusion Feature
+
+The TensorFlow ANNC static graph fusion feature is enabled or disabled by environment variables. For details, see [Table 1 Environment variables for enabling or disabling ANNC static graph fusion](#table473618378218)
+
+The default value of each environment variable is `0`, indicating that the ANNC static graph fusion function is disabled. To use this function, set the environment variable before graph optimization. For example, you can set the environment variable in Python as follows:
+
+```python
+import os
+os.environ['ANNC_FUSED_ALL'] = '1'
+```
+
+**Table 1** Environment variables for enabling or disabling ANNC static graph fusion
+
+| Environment Variable | Type | Value | Function |
+| ---- | -------- | ---- | ---- |
+| ANNC_FUSED_EMB_ACTIONID_GATHER | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedEmbeddingActionIdGather operator. |
+| ANNC_FUSED_GATHER | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedGather operator. |
+| ANNC_FUSED_EMD_PADDING | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedEmbeddingPadding operator. |
+| ANNC_FUSED_EMD_PADDING_FAST | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedEmbeddingPaddingFast operator. |
+| ANNC_FUSED_SPS_STITCH | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedSparseDynamicStitch operator. |
+| ANNC_FUSED_SPS_RESHAPE | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedSparseReshape operator. |
+| ANNC_FUSED_SPS_REDUCE | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedSparseSegmentReduce operator. |
+| ANNC_FUSED_SPS_REDUCE_NONZERO | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedSparseSegmentReduceNonzero operator. |
+| ANNC_FUSED_SPS_SELECT | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedSparseSelect operator. |
+| ANNC_FUSED_ALL | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for all ANNC fusion operators. |
+
+>![icon note](public_sys-resources/icon-note.gif) **NOTE:**
+>Operator fusion will not be performed for any of the above operators if and only if `ANNC_FUSED_ALL` is set to `0` and the environment variable corresponding to the specific operator is also set to `0`.
+
+## Legacy: TensorFlow ANNC Graph Compilation Optimization
+
+>![icon note](public_sys-resources/icon-note.gif) **NOTE:**
+>The following interfaces are provided only by the standalone frozen Legacy patch and are not part of the maintained default profiles.
 
 TensorFlow ANNC for graph compilation optimization provides the following features: TensorFlow graph fusion, XLA graph fusion, operator optimization, and constant folding optimization. This document describes APIs of each feature and the steps required to enable them.
 
@@ -206,7 +274,11 @@ The Constant folding interfaces are shown in [**Table 6** Interface for model co
 </tbody>
 </table>
 
-## Feature Description of TensorFlow Serving Thread Scheduling
+## Legacy: TensorFlow Serving Thread Scheduling
+
+>![icon note](public_sys-resources/icon-note.gif) **NOTE:**
+>The following interfaces are provided only by the standalone frozen Legacy
+>patch and are not part of the maintained default profiles.
 
 ### Batch Operator Scheduling
 
@@ -350,71 +422,6 @@ To use TensorFlow Serving to start an inference stress test, see section [Starti
 >```
 >
 >For example, `numactl -C 0-79 -m 0` indicates that the TF Serving service runs on the cores of NUMA node 0, so that CPU resources can be fully utilized. `-C` and `-m` specify cores and memory of NUMA node 0, respectively.
-
-## Using the TensorFlow KDNN Thread Passthrough Feature
-
-The TensorFlow KDNN thread passthrough feature is controlled by a KDNN environment variable shown in [Table 1 KDNN environment variable](#table473618378218)
-
-**Table 1** KDNN environment variable
-
-<a name="table473618378218"></a>
-<table><tbody><tr id="row273612371926"><th class="firstcol" valign="top" width="17.11%" id="mcps1.2.3.1.1"><p id="p37361437223"><a name="p37361437223"></a><a name="p37361437223"></a>KDNN Environment Variable</p>
-</th>
-<td class="cellrowborder" valign="top" width="82.89%" headers="mcps1.2.3.1.1 "><p id="p147351257418"><a name="p147351257418"></a><a name="p147351257418"></a>TF_ENABLE_KDNN_OPTS</p>
-</td>
-</tr>
-<tr id="row2736637329"><th class="firstcol" valign="top" width="17.11%" id="mcps1.2.3.2.1"><p id="p17544180133510"><a name="p17544180133510"></a><a name="p17544180133510"></a>Type</p>
-</th>
-<td class="cellrowborder" valign="top" width="82.89%" headers="mcps1.2.3.2.1 "><p id="p135441705354"><a name="p135441705354"></a><a name="p135441705354"></a>Process environment variable</p>
-</td>
-</tr>
-<tr id="row1373713374215"><th class="firstcol" valign="top" width="17.11%" id="mcps1.2.3.3.1"><p id="p173719376217"><a name="p173719376217"></a><a name="p173719376217"></a>Function</p>
-</th>
-<td class="cellrowborder" valign="top" width="82.89%" headers="mcps1.2.3.3.1 "><p id="p15737237026"><a name="p15737237026"></a><a name="p15737237026"></a>Enables or disables KDNN.</p>
-</td>
-</tr>
-<tr id="row17371371026"><th class="firstcol" valign="top" width="17.11%" id="mcps1.2.3.4.1"><p id="p187371371426"><a name="p187371371426"></a><a name="p187371371426"></a>Value Range</p>
-</th>
-<td class="cellrowborder" valign="top" width="82.89%" headers="mcps1.2.3.4.1 "><p id="p139187124325"><a name="p139187124325"></a><a name="p139187124325"></a><code>0</code>: KDNN disabled</p>
-<p id="p18324912320"><a name="p18324912320"></a><a name="p18324912320"></a><code>1</code>: KDNN enabled</p>
-</td>
-</tr>
-<tr id="row17372371123"><th class="firstcol" valign="top" width="17.11%" id="mcps1.2.3.5.1"><p id="p14737103710220"><a name="p14737103710220"></a><a name="p14737103710220"></a>Example</p>
-</th>
-<td class="cellrowborder" valign="top" width="82.89%" headers="mcps1.2.3.5.1 "><p id="p1926119477390"><a name="p1926119477390"></a><a name="p1926119477390"></a>Before the first KDNN operator call, configure <code>TF_ENABLE_KDNN_OPTS</code>, for example, <strong id="b166491125328"><a name="b166491125328"></a><a name="b166491125328"></a><code>os.environ['TF_ENABLE_KDNN_OPTS'] = str(1)</code></strong> in the python environment.</p>
-</td>
-</tr>
-</tbody>
-</table>
-
-## Usage of the TensorFlow ANNC Static Graph Fusion Feature
-
-The TensorFlow ANNC static graph fusion feature is enabled or disabled by environment variables. For details, see [Table 1 Environment variables for enabling or disabling ANNC static graph fusion](#table473618378218)
-
-The default value of each environment variable is `0`, indicating that the ANNC static graph fusion function is disabled. To use this function, you need to manually set the environment variable before the graph compilation. For example, you can set the environment variable in Python as follows:
-
-```python
-import os
-os.environ['ANNC_FUSED_ALL'] = '1'
-```
-
-**Table 1** Environment variables for enabling or disabling ANNC static graph fusion
-
-| Environment Variable | Type | Value | Function |
-| ---- | -------- | ---- | ---- |
-| ANNC_FUSED_EMB_ACTIONID_GATHER | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedEmbeddingActionIdGather operator. |
-| ANNC_FUSED_GATHER | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedGather operator. |
-| ANNC_FUSED_EMD_PADDING | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedEmbeddingPadding operator. |
-| ANNC_FUSED_EMD_PADDING_FAST | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedEmbeddingPaddingFast operator. |
-| ANNC_FUSED_SPS_STITCH | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedSparseDynamicStitch operator. |
-| ANNC_FUSED_SPS_RESHAPE | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedSparseReshape operator. |
-| ANNC_FUSED_SPS_REDUCE | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedSparseSegmentReduce operator. |
-| ANNC_FUSED_SPS_REDUCE_NONZERO | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedSparseSegmentReduceNonzero operator. |
-| ANNC_FUSED_SPS_SELECT | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for the KPFusedSparseSelect operator. |
-| ANNC_FUSED_ALL | Process environment variable | **1**: enabled<br> <code>0</code>: disabled | Enables ANNC static graph fusion for all ANNC fusion operators. |
-
->![icon note](public_sys-resources/icon-note.gif) **NOTE:**
->Operator fusion will not be performed for any of the above operators if and only if `ANNC_FUSED_ALL` is set to `0` and the environment variable corresponding to the specific operator is also set to `0`.
 
 ## Description
 

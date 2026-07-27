@@ -1,109 +1,6 @@
-diff --git a/compile_ut.sh b/compile_ut.sh
-new file mode 100644
-index 00000000000..6dde8547b59
---- /dev/null
-+++ b/compile_ut.sh
-@@ -0,0 +1,97 @@
-+#!/usr/bin/env bash
-+
-+set -euo pipefail
-+
-+usage() {
-+  cat <<'EOF'
-+Usage: compile_ut.sh [options]
-+
-+  Compile and run the EmbeddingTableLookup operator unit test.
-+
-+Options:
-+  --dist=<path>   Path to bazel --distdir (offline deps).
-+                  If omitted, --distdir is NOT passed to bazel.
-+  -h, --help      Show this help.
-+
-+Examples:
-+  ./compile_ut.sh
-+  ./compile_ut.sh --dist $DIST_DIR
-+  DIST_DIR=/home/wzx/download ./compile_ut.sh
-+EOF
-+}
-+
-+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-+OUTPUT_USER_ROOT="${SCRIPT_DIR}/output_ut"
-+NUMA_NODE="${NUMA_NODE:-2}"
-+echo "**************NUMA_NODE=$NUMA_NODE**************"
-+HTTP_PROXY_ADDR="${HTTP_PROXY_ADDR:-}"
-+HTTPS_PROXY_ADDR="${HTTPS_PROXY_ADDR:-}"
-+DIST_DIR="${DIST_DIR:-}"
-+
-+while [[ $# -gt 0 ]]; do
-+  case "$1" in
-+    -h|--help)
-+      usage
-+      exit 0
-+      ;;
-+    --dist=*)
-+      DIST_DIR="${1#*=}"
-+      shift
-+      ;;
-+    --dist)
-+      shift
-+      if [[ $# -eq 0 ]]; then
-+        echo "错误：--dist 需要一个参数" >&2
-+        usage
-+        exit 1
-+      fi
-+      DIST_DIR="$1"
-+      shift
-+      ;;
-+    *)
-+      echo "错误：未知参数 $1" >&2
-+      usage
-+      exit 1
-+      ;;
-+  esac
-+done
-+
-+BAZEL_ENV=()
-+if [[ -n "${HTTP_PROXY_ADDR}" ]]; then
-+  BAZEL_ENV+=("http_proxy=${HTTP_PROXY_ADDR}")
-+fi
-+if [[ -n "${HTTPS_PROXY_ADDR}" ]]; then
-+  BAZEL_ENV+=("https_proxy=${HTTPS_PROXY_ADDR}")
-+fi
-+
-+DISTDIR_ARGS=()
-+if [[ -n "${DIST_DIR}" ]]; then
-+  DISTDIR_ARGS+=(--distdir="${DIST_DIR}")
-+fi
-+
-+TARGET="//third_party/kembedding:embedding_table_lookup_op_test"
-+TARGET_NAME="embedding_table_lookup_op_test"
-+
-+cd "${SCRIPT_DIR}"
-+
-+echo "运行单测: embedding_lookup"
-+echo "目标: ${TARGET}"
-+
-+numactl --cpunodebind="${NUMA_NODE}" --membind="${NUMA_NODE}" \
-+  env "${BAZEL_ENV[@]}" \
-+  bazel --batch \
-+  --output_user_root="${OUTPUT_USER_ROOT}" \
-+  test \
-+  --experimental_repo_remote_exec \
-+  "${DISTDIR_ARGS[@]}" \
-+  --cache_test_results=no \
-+  --test_output=all \
-+  "${TARGET}"
-+
-+TEST_LOG="$(find "${OUTPUT_USER_ROOT}" \
-+  -path "*/testlogs/third_party/kembedding/${TARGET_NAME}/test.log" \
-+  -print -quit)"
-+
-+if [[ -n "${TEST_LOG}" ]]; then
-+  cat "${TEST_LOG}"
-+fi
 diff --git a/experiment_scripts/01_modify_ref_impl.sh b/experiment_scripts/01_modify_ref_impl.sh
 new file mode 100755
-index 00000000000..089327b55ba
+index 0000000000000000000000000000000000000000..089327b55ba620b045dde49f0d90cc3dd117b1d6
 --- /dev/null
 +++ b/experiment_scripts/01_modify_ref_impl.sh
 @@ -0,0 +1,23 @@
@@ -132,10 +29,10 @@ index 00000000000..089327b55ba
 +echo "✓ 完成"
 diff --git a/experiment_scripts/02_compile_benchmark.sh b/experiment_scripts/02_compile_benchmark.sh
 new file mode 100755
-index 00000000000..5075c5d5282
+index 0000000000000000000000000000000000000000..6aad0a8990b7d56fa12dc5cd22b75d3e95a99b35
 --- /dev/null
 +++ b/experiment_scripts/02_compile_benchmark.sh
-@@ -0,0 +1,47 @@
+@@ -0,0 +1,43 @@
 +#!/usr/bin/env bash
 +# 编译 embedding_table_lookup benchmark
 +
@@ -153,21 +50,17 @@ index 00000000000..5075c5d5282
 +
 +# Bazel 配置（可通过环境变量覆盖）
 +BAZEL_BIN="${BAZEL_BIN:-bazel}"
-+BAZEL_DISTDIR="${BAZEL_DISTDIR:-}"
++BAZEL_DISTDIR="${BAZEL_DISTDIR:-${TF_ROOT}/distdir}"
 +HTTP_PROXY="${HTTP_PROXY:-}"
 +HTTPS_PROXY="${HTTPS_PROXY:-}"
 +
-+DISTDIR_ARGS=()
-+if [[ -n "${BAZEL_DISTDIR}" ]]; then
-+    DISTDIR_ARGS+=(--distdir="${BAZEL_DISTDIR}")
-+fi
-+
 +export http_proxy="${HTTP_PROXY}"
 +export https_proxy="${HTTPS_PROXY}"
++mkdir -p "${BAZEL_OUTPUT_BASE}" "${BAZEL_DISTDIR}"
 +
-+"${BAZEL_BIN}" --batch --output_user_root="${BAZEL_OUTPUT_ROOT}" build \
++"${BAZEL_BIN}" --batch --output_base="${BAZEL_OUTPUT_BASE}" build \
 +    --experimental_repo_remote_exec \
-+    "${DISTDIR_ARGS[@]}" \
++    --distdir="${BAZEL_DISTDIR}" \
 +    "$TARGET"
 +
 +echo ""
@@ -185,7 +78,7 @@ index 00000000000..5075c5d5282
 +fi
 diff --git a/experiment_scripts/03_run_benchmark_with_monitoring.sh b/experiment_scripts/03_run_benchmark_with_monitoring.sh
 new file mode 100755
-index 00000000000..6ff81a5beaf
+index 0000000000000000000000000000000000000000..6ff81a5beaf0140e6d828ccd5031b23f6e51455c
 --- /dev/null
 +++ b/experiment_scripts/03_run_benchmark_with_monitoring.sh
 @@ -0,0 +1,102 @@
@@ -293,7 +186,7 @@ index 00000000000..6ff81a5beaf
 +echo "  - 实验目录: $RUN_DIR"
 diff --git a/experiment_scripts/04_parse_results.py b/experiment_scripts/04_parse_results.py
 new file mode 100755
-index 00000000000..c499f7f61a2
+index 0000000000000000000000000000000000000000..c499f7f61a21939de76b579791ac5408d69f3be8
 --- /dev/null
 +++ b/experiment_scripts/04_parse_results.py
 @@ -0,0 +1,209 @@
@@ -508,7 +401,7 @@ index 00000000000..c499f7f61a2
 +    main()
 diff --git a/experiment_scripts/common.sh b/experiment_scripts/common.sh
 new file mode 100755
-index 00000000000..54631f87978
+index 0000000000000000000000000000000000000000..63f395dd0da74e4d018559c109c0bfdeec7938dd
 --- /dev/null
 +++ b/experiment_scripts/common.sh
 @@ -0,0 +1,30 @@
@@ -518,7 +411,7 @@ index 00000000000..54631f87978
 +COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 +TF_ROOT="$(cd "${COMMON_DIR}/.." && pwd)"
 +RESULTS_ROOT="${TF_ROOT}/experiment_results_by_op"
-+OUTPUT_USER_ROOT="${TF_ROOT}/output_bench"
++OUTPUT_BASE="${TF_ROOT}/output"
 +
 +OP_KIND="embedding_lookup"
 +TARGET="//third_party/kembedding:embedding_table_lookup_benchmark"
@@ -526,7 +419,7 @@ index 00000000000..54631f87978
 +BENCHMARK_PREFIX="BM_EmbeddingTableLookup_"
 +NATIVE_BENCHMARK_FILTER="BM_EmbeddingTableLookup_.*_true$"
 +OPTIMIZED_BENCHMARK_FILTER="BM_EmbeddingTableLookup_.*_false$"
-+BAZEL_OUTPUT_ROOT="${TF_ROOT}/output_bench_${OP_KIND}"
++BAZEL_OUTPUT_BASE="${BUILD_CACHE_DIR:-${OUTPUT_BASE}}"
 +RESULTS_OP_ROOT="${RESULTS_ROOT}/${OP_KIND}"
 +
 +benchmark_filter_for_version() {
@@ -538,13 +431,13 @@ index 00000000000..54631f87978
 +}
 +
 +find_benchmark_binary() {
-+    find "${BAZEL_OUTPUT_ROOT}" \
++    find "${BAZEL_OUTPUT_BASE}" \
 +        -path "*/execroot/**/bin/third_party/kembedding/${TARGET_NAME}" \
 +        -type f -print -quit
 +}
 diff --git a/experiment_scripts/run_full_experiment.sh b/experiment_scripts/run_full_experiment.sh
 new file mode 100755
-index 00000000000..6dda80afb07
+index 0000000000000000000000000000000000000000..6dda80afb079836035be6a729625f487a4205945
 --- /dev/null
 +++ b/experiment_scripts/run_full_experiment.sh
 @@ -0,0 +1,98 @@
@@ -646,24 +539,12 @@ index 00000000000..6dda80afb07
 +echo "CSV 报告预览:"
 +head -20 "${RUN_DIR}/benchmark_comparison.csv"
 +echo ""
-diff --git a/tensorflow/BUILD b/tensorflow/BUILD
-index f72931217b3..61be9128dcb 100644
---- a/tensorflow/BUILD
-+++ b/tensorflow/BUILD
-@@ -1048,6 +1048,7 @@ package_group(
-         "//smartass/brain/configure/...",
-         "//tensorflow/...",
-         "//tensorflow_decision_forests/...",
-+        "//third_party/kembedding/...",
-         "//tensorflow_federated/...",
-         "//third_party/cloud_tpu/convergence_tools/sdc_monitoring/...",
-         "//third_party/cloud_tpu/inference_converter/...",
 diff --git a/third_party/kembedding/BUILD b/third_party/kembedding/BUILD
 new file mode 100644
-index 00000000000..6a5d361c13e
+index 0000000000000000000000000000000000000000..77c277773f5f61e7b35ac2f56790d87579b22798
 --- /dev/null
 +++ b/third_party/kembedding/BUILD
-@@ -0,0 +1,84 @@
+@@ -0,0 +1,82 @@
 +# Kembedding: Embedding Table Lookup Custom TensorFlow Operator
 +# Minimal build targets for embedding table lookup only.
 +
@@ -724,7 +605,6 @@ index 00000000000..6a5d361c13e
 +    deps = [
 +        ":embedding_index_to_value_table",
 +        ":embedding_table_lookup_op",
-+        "//tensorflow/core/framework:fake_input",
 +        "//tensorflow/core:framework",
 +        "//tensorflow/core:lib",
 +        "//tensorflow/core/kernels:ops_testutil",
@@ -740,7 +620,6 @@ index 00000000000..6a5d361c13e
 +    deps = [
 +        ":embedding_index_to_value_table",
 +        ":embedding_table_lookup_op",
-+        "//tensorflow/core/framework:fake_input",
 +        "//tensorflow/core:framework",
 +        "//tensorflow/core:lib",
 +        "//tensorflow/core/kernels:ops_testutil",
@@ -748,9 +627,109 @@ index 00000000000..6a5d361c13e
 +        "//tensorflow/core:test",
 +    ],
 +)
+diff --git a/third_party/kembedding/compile_ut.sh b/third_party/kembedding/compile_ut.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..18c9f0c74650d3d8bcdd9c21295d1605bc2fcc61
+--- /dev/null
++++ b/third_party/kembedding/compile_ut.sh
+@@ -0,0 +1,94 @@
++#!/usr/bin/env bash
++
++set -euo pipefail
++
++usage() {
++  cat <<'EOF'
++Usage: third_party/kembedding/compile_ut.sh [options]
++
++  Compile and run the EmbeddingTableLookup operator unit test.
++
++Options:
++  --dist=<path>   Path to bazel --distdir (offline deps).
++                  Defaults to <tensorflow-root>/distdir.
++  -h, --help      Show this help.
++
++Examples:
++  ./third_party/kembedding/compile_ut.sh
++  ./third_party/kembedding/compile_ut.sh --dist $DIST_DIR
++  DIST_DIR=/path/to/distdir ./third_party/kembedding/compile_ut.sh
++EOF
++}
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++TF_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
++OUTPUT_BASE="${BUILD_CACHE_DIR:-${TF_ROOT}/output}"
++NUMA_NODE="${NUMA_NODE:-2}"
++echo "**************NUMA_NODE=$NUMA_NODE**************"
++HTTP_PROXY_ADDR="${HTTP_PROXY_ADDR:-}"
++HTTPS_PROXY_ADDR="${HTTPS_PROXY_ADDR:-}"
++DIST_DIR="${DIST_DIR:-${TF_ROOT}/distdir}"
++
++while [[ $# -gt 0 ]]; do
++  case "$1" in
++    -h|--help)
++      usage
++      exit 0
++      ;;
++    --dist=*)
++      DIST_DIR="${1#*=}"
++      shift
++      ;;
++    --dist)
++      shift
++      if [[ $# -eq 0 ]]; then
++        echo "错误：--dist 需要一个参数" >&2
++        usage
++        exit 1
++      fi
++      DIST_DIR="$1"
++      shift
++      ;;
++    *)
++      echo "错误：未知参数 $1" >&2
++      usage
++      exit 1
++      ;;
++  esac
++done
++
++BAZEL_ENV=()
++if [[ -n "${HTTP_PROXY_ADDR}" ]]; then
++  BAZEL_ENV+=("http_proxy=${HTTP_PROXY_ADDR}")
++fi
++if [[ -n "${HTTPS_PROXY_ADDR}" ]]; then
++  BAZEL_ENV+=("https_proxy=${HTTPS_PROXY_ADDR}")
++fi
++
++TARGET="//third_party/kembedding:embedding_table_lookup_op_test"
++TARGET_NAME="embedding_table_lookup_op_test"
++
++cd "${TF_ROOT}"
++mkdir -p "${OUTPUT_BASE}" "${DIST_DIR}"
++
++echo "运行单测: embedding_lookup"
++echo "目标: ${TARGET}"
++
++numactl --cpunodebind="${NUMA_NODE}" --membind="${NUMA_NODE}" \
++  env "${BAZEL_ENV[@]}" \
++  bazel --batch \
++  --output_base="${OUTPUT_BASE}" \
++  test \
++  --experimental_repo_remote_exec \
++  --distdir="${DIST_DIR}" \
++  --cache_test_results=no \
++  --test_output=all \
++  "${TARGET}"
++
++TEST_LOG="$(find "${OUTPUT_BASE}" \
++  -path "*/testlogs/third_party/kembedding/${TARGET_NAME}/test.log" \
++  -print -quit)"
++
++if [[ -n "${TEST_LOG}" ]]; then
++  cat "${TEST_LOG}"
++fi
 diff --git a/third_party/kembedding/include/core/embedding_index_to_value_table.h b/third_party/kembedding/include/core/embedding_index_to_value_table.h
 new file mode 100644
-index 00000000000..d0404458478
+index 0000000000000000000000000000000000000000..d040445847838e45a1e12d52c46f3503391b9e83
 --- /dev/null
 +++ b/third_party/kembedding/include/core/embedding_index_to_value_table.h
 @@ -0,0 +1,181 @@
@@ -937,7 +916,7 @@ index 00000000000..d0404458478
 +#endif  // KEMBEDDING_CORE_EMBEDDING_INDEX_TO_VALUE_TABLE_H_
 diff --git a/third_party/kembedding/include/core/resource_hash_map.h b/third_party/kembedding/include/core/resource_hash_map.h
 new file mode 100644
-index 00000000000..b493e35466b
+index 0000000000000000000000000000000000000000..b493e35466b19998cfe264db64b6a53efabc0f24
 --- /dev/null
 +++ b/third_party/kembedding/include/core/resource_hash_map.h
 @@ -0,0 +1,36 @@
@@ -979,7 +958,7 @@ index 00000000000..b493e35466b
 +#endif  // KEMBEDDING_CORE_RESOURCE_HASH_MAP_H_
 diff --git a/third_party/kembedding/proto/custom/embedding_index_to_value_table.proto b/third_party/kembedding/proto/custom/embedding_index_to_value_table.proto
 new file mode 100644
-index 00000000000..a90a5b9571f
+index 0000000000000000000000000000000000000000..a90a5b9571ff8c422b5969de5c4bad51d99df41d
 --- /dev/null
 +++ b/third_party/kembedding/proto/custom/embedding_index_to_value_table.proto
 @@ -0,0 +1,19 @@
@@ -1005,7 +984,7 @@ index 00000000000..a90a5b9571f
 \ No newline at end of file
 diff --git a/third_party/kembedding/src/core/embedding_index_to_value_table.cc b/third_party/kembedding/src/core/embedding_index_to_value_table.cc
 new file mode 100644
-index 00000000000..780868fe7da
+index 0000000000000000000000000000000000000000..780868fe7da089214dc45a072606637358e10b2e
 --- /dev/null
 +++ b/third_party/kembedding/src/core/embedding_index_to_value_table.cc
 @@ -0,0 +1,286 @@
@@ -1297,7 +1276,7 @@ index 00000000000..780868fe7da
 +}  // namespace tensorflow
 diff --git a/third_party/kembedding/src/kernels/embedding_table_lookup_op.cc b/third_party/kembedding/src/kernels/embedding_table_lookup_op.cc
 new file mode 100644
-index 00000000000..38cad2b820c
+index 0000000000000000000000000000000000000000..38cad2b820c84c9e09fb0af59d8099549a73e6ed
 --- /dev/null
 +++ b/third_party/kembedding/src/kernels/embedding_table_lookup_op.cc
 @@ -0,0 +1,271 @@
@@ -1574,10 +1553,10 @@ index 00000000000..38cad2b820c
 +}  // namespace tensorflow
 diff --git a/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_benchmark.cc b/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_benchmark.cc
 new file mode 100644
-index 00000000000..46a0db85bed
+index 0000000000000000000000000000000000000000..1337272bfdce6e7d8beeb5f37154a93633ac630c
 --- /dev/null
 +++ b/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_benchmark.cc
-@@ -0,0 +1,214 @@
+@@ -0,0 +1,213 @@
 +// Benchmark tests for EmbeddingTableLookup operator.
 +#include <algorithm>
 +#include <cstddef>
@@ -1588,7 +1567,6 @@ index 00000000000..46a0db85bed
 +
 +#include <gtest/gtest.h>
 +
-+#include "tensorflow/core/framework/fake_input.h"
 +#include "tensorflow/core/framework/node_def_builder.h"
 +#include "tensorflow/core/framework/resource_handle.h"
 +#include "tensorflow/core/framework/tensor.h"
@@ -1707,8 +1685,8 @@ index 00000000000..46a0db85bed
 +                          bool force_ref_impl) {
 +    TF_RETURN_IF_ERROR(NodeDefBuilder("embedding_lookup_benchmark",
 +                                      "EmbeddingTableLookup")
-+                           .Input(FakeInput(DT_RESOURCE))
-+                           .Input(FakeInput(DT_INT64))
++                           .Input("resource", 0, DT_RESOURCE)
++                           .Input("keys", 0, DT_INT64)
 +                           .Attr("emb_dim", emb_dim)
 +                           .Attr("max_parallelism", max_parallelism)
 +                           .Attr("force_ref_impl", force_ref_impl)
@@ -1794,17 +1772,16 @@ index 00000000000..46a0db85bed
 +}  // namespace tensorflow
 diff --git a/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_op_test.cc b/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_op_test.cc
 new file mode 100644
-index 00000000000..dcce440b5ad
+index 0000000000000000000000000000000000000000..016d7a70251c3e3e6970ca675d3a114bf93c1a37
 --- /dev/null
 +++ b/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_op_test.cc
-@@ -0,0 +1,215 @@
+@@ -0,0 +1,214 @@
 +// Unit tests for EmbeddingTableLookup related ops.
 +#include <cstdint>
 +#include <string>
 +#include <utility>
 +#include <vector>
 +
-+#include "tensorflow/core/framework/fake_input.h"
 +#include "tensorflow/core/framework/node_def_builder.h"
 +#include "tensorflow/core/framework/op.h"
 +#include "tensorflow/core/framework/resource_handle.h"
@@ -1880,8 +1857,8 @@ index 00000000000..dcce440b5ad
 +    TF_ASSERT_OK(
 +        NodeDefBuilder("init_embedding_table",
 +                       "InitializeEmbeddingIndexToValueTableFromTextFile")
-+            .Input(FakeInput(DT_RESOURCE))
-+            .Input(FakeInput(DT_STRING))
++            .Input("resource", 0, DT_RESOURCE)
++            .Input("filename", 0, DT_STRING)
 +            .Finalize(node_def()));
 +    TF_ASSERT_OK(InitOp());
 +  }
@@ -1921,8 +1898,8 @@ index 00000000000..dcce440b5ad
 +
 +  void MakeOp(bool force_ref_impl = false) {
 +    TF_ASSERT_OK(NodeDefBuilder("embedding_lookup", "EmbeddingTableLookup")
-+                     .Input(FakeInput(DT_RESOURCE))
-+                     .Input(FakeInput(DT_INT64))
++                     .Input("resource", 0, DT_RESOURCE)
++                     .Input("keys", 0, DT_INT64)
 +                     .Attr("emb_dim", 4)
 +                     .Attr("max_parallelism", 1)
 +                     .Attr("force_ref_impl", force_ref_impl)
