@@ -29,7 +29,7 @@
 </tbody>
 </table>
 
-### 与操作系统、编译器和CPU配套说明
+### 操作系统、编译器和CPU配套说明
 
 <a name="table59918346913"></a>
 
@@ -73,8 +73,8 @@
 
 ### 更新说明
 
-- 新增kembedding算子库中的EmbeddingTableLookup算子，进一步丰富推荐模型的特征处理能力。
-- 新增SparseMatmul多线程优化，该优化按输出矩阵的列维度进行分片，每个线程处理独立的列块，通过无锁设计、负载均衡和内存优化等技术，提升了稀疏矩阵乘法在多核CPU场景下的计算性能。
+- 新增kembedding算子库中的EmbeddingTableLookup算子，进一步丰富推理模型的特征处理能力。
+- 新增SparseMatmul多线程优化，该优化按输出矩阵的列块进行划分，每个线程处理独立的列块。通过无锁设计、负载均衡和内存优化等技术，提升了稀疏矩阵乘法在多核CPU场景下的计算性能。
 
 **修改特性<a name="zh-cn_topic_0000002518399190_section16450949161512"></a>**
 
@@ -119,7 +119,7 @@
 
 ### 更新说明
 
-新增TensorFlow KDNN线程直通特性，支持batchmatmul、concat、softmax等算子对接KDNN。
+新增TensorFlow KDNN线程直通特性，支持batchmatmul、concat和softmax等算子对接KDNN。
 
 **修改特性<a name="zh-cn_topic_0000002518399190_section16450949161512"></a>**
 
@@ -201,7 +201,7 @@
 </thead>
 <tbody><tr id="row84721825541"><td class="cellrowborder" valign="top" width="23.419999999999998%" headers="mcps1.1.3.1.1 "><p id="p1682142025412"><a name="p1682142025412"></a><a name="p1682142025412"></a>算子批量调度</p>
 </td>
-<td class="cellrowborder" valign="top" width="76.58%" headers="mcps1.1.3.1.2 "><p id="p515310015517"><a name="p515310015517"></a><a name="p515310015517"></a>新增算子调度优化和XLA线程池管理优化特性。</p>
+<td class="cellrowborder" valign="top" width="76.58%" headers="mcps1.1.3.1.2 "><p id="p515310015517"><a name="p515310015517"></a><a name="p515310015517"></a>新增算子批量调度和XLA线程池管理优化特性。</p>
 </td>
 </tr>
 <tr id="row01931052122211"><td class="cellrowborder" valign="top" width="23.419999999999998%" headers="mcps1.1.3.1.1 "><p id="p14194952182212"><a name="p14194952182212"></a><a name="p14194952182212"></a>线程亲和性隔离</p>
