@@ -44,7 +44,7 @@
      ```
 
    - TensorFlow C++动态库：
-
+  
      ```bash
      bazel --output_base="$PWD/output" build \
        --distdir="$PWD/distdir" \
@@ -56,7 +56,7 @@
 
 ## 运行推理服务
 
-鲲鹏TensorFlow可以作为TensorFlow依赖集成到推理服务中。当前版本支持基于开源TensorFlow Serving构建在线推理服务。
+鲲鹏TensorFlow可以作为TensorFlow依赖，集成到推理服务中。当前版本支持基于开源TensorFlow Serving，构建在线推理服务。
 
 ### TensorFlow Serving
 
@@ -64,7 +64,7 @@
 
 #### 使用KDNN算子优化
 
-KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的基于鲲鹏平台优化的高性能AI算子库，其中MatMul、FusedMatMul、SparseMatMul算子已经适配TensorFlow。集成KDNN可以降低NN类算子的时延，增强模型推理性能。
+KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的基于鲲鹏平台进行优化的高性能AI算子库。其中MatMul、FusedMatMul、SparseMatMul算子已经适配TensorFlow。集成KDNN可以降低NN类算子的时延，增强模型推理性能。
 
 1. 启动服务端。
 
@@ -85,7 +85,7 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
     >--cpuset-cpus：设置容器绑定的CPU核编号。
     >--cpuset-mems：设置容器绑定的NUMA内存节点。
 
-    性能测试启动后，服务端打印“KDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable \`TF\_ENABLE\_KDNN\_OPTS=0\`”即表示使能成功。
+    性能测试启动后，服务端显示“KDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable \`TF\_ENABLE\_KDNN\_OPTS=0\`”字样，即表示使能成功。
 
     KDNN默认使能，可以通过设置环境变量TF\_ENABLE\_KDNN\_OPTS=0关闭KDNN。
 
@@ -93,7 +93,7 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 
 #### 使用ANNC静态图融合
 
-鲲鹏TensorFlow ANNC静态图融合特性提供了算子单独开启融合及全部开启融合的环境变量开关，本章节仅提供使用样例，具体使用说明参见《[API参考](./api_reference.md)》。
+鲲鹏TensorFlow ANNC静态图融合特性提供了环境变量开关，即算子可单独开启融合以及算子可全部开启融合。本章节仅提供使用样例，具体使用说明参见《[API参考](./api_reference.md)》。
 
 1. 启动服务端。
 
@@ -114,14 +114,14 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
     >--cpuset-cpus：设置容器绑定的CPU核编号。
     >--cpuset-mems：设置容器绑定的NUMA内存节点。
 
-本章节仅为使用样例，由于ANNC静态图融合功能依赖于模型中包含特定子图，若模型中不包含特定子图，则ANNC静态图融合功能不会生效。可以通过运行benchmark测试用例验证是否成功集成了ANNC静态图融合特性，具体使用说明请参见《[安装指南](./installation_guide.md)》的“TensorFlow ANNC静态图融合”下的“适配后验证”章节。
+本章节仅为使用样例，由于ANNC静态图融合功能需要模型中包含特定子图，若模型中不包含特定子图，则ANNC静态图融合功能不会生效。可以通过运行benchmark测试，用样例验证是否成功集成了ANNC静态图融合特性。具体使用说明请参见《[安装指南](./installation_guide.md)》的“TensorFlow ANNC静态图融合”下的“适配后验证”章节。
 
 #### ANNC离线图优化（Legacy）
 
 >![icon note](public_sys-resources/icon-note.gif) **说明：**
 >该功能仅由独立冻结的Legacy补丁提供，不属于当前维护的默认特性组合。
 
-鲲鹏TensorFlow ANNC图编译优化特性提供了TensorFlow图融合、XLA图融合、算子优化、常量折叠优化特性，本章节提供简单使用示例，具体使用说明请参见《[API参考](./api_reference.md)》。
+鲲鹏TensorFlow ANNC图编译优化特性提供了TensorFlow图融合、XLA图融合、算子优化和常量折叠优化特性。本章节仅提供使用样例，具体使用说明请参见《[API参考](./api_reference.md)》。
 
 1. 模型离线图优化。
 
@@ -157,7 +157,7 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 
 #### TensorFlow Serving线程调度优化（Legacy）
 
-鲲鹏TensorFlow Serving线程调度优化特性提供了算子批量调度和线程亲和性隔离两个特性，具体使用说明参见《[API参考](./api_reference.md)》。
+鲲鹏TensorFlow Serving线程调度优化特性提供了算子批量调度和线程亲和性隔离两个特性，具体使用说明请参见《[API参考](./api_reference.md)》。
 
 >![icon note](public_sys-resources/icon-note.gif) **说明：**
 >该特性已归入独立冻结的Legacy补丁，不属于当前维护的默认Profile，也不保证与KDNN、ANNC或KEmbedding组合兼容。
