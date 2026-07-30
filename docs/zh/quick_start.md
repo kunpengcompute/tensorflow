@@ -27,9 +27,9 @@
    export TF_PYTHON_VERSION=3.11
    ```
 
+   `output/`用于复用Bazel构建缓存，手动下载的构建依赖统一放入`distdir/`，pip包输出到`output-release/`。
+
    其他可用组合及独立Legacy补丁的使用指导，请参见《[补丁发布说明](../../patches/README.md)》。
-   `output/`用于复用Bazel构建缓存，手动下载的构建依赖统一放入
-   `distdir/`，pip包输出到`output-release/`。
 
 4. 根据实际使用场景选择需要的构建目标，无需同时构建全部目标。以下提供两种常用构建目标的参考命令。
 
@@ -114,7 +114,7 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
     >--cpuset-cpus：设置容器绑定的CPU核编号。
     >--cpuset-mems：设置容器绑定的NUMA内存节点。
 
-本章节仅为使用样例，由于ANNC静态图融合功能需要模型中包含特定子图，若模型中不包含特定子图，则ANNC静态图融合功能不会生效。可以通过运行benchmark测试，用样例验证是否成功集成了ANNC静态图融合特性。具体使用说明请参见《[安装指南](./installation_guide.md)》的“TensorFlow ANNC静态图融合”下的“适配后验证”章节。
+本章节仅为使用样例，由于ANNC静态图融合功能需要模型中包含特定子图，若模型中不包含特定子图，则ANNC静态图融合功能不会生效。可以通过运行benchmark测试，用样例验证是否成功集成了ANNC静态图融合特性。
 
 #### ANNC离线图优化（Legacy）
 

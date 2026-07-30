@@ -4,12 +4,12 @@
 
 ## 准备构建环境
 
-当前维护版本的参考构建环境如下。
+当前维护版本的构建环境如下所示。
 
 | 项目 | 版本或要求 |
 | --- | --- |
-| CPU | 鲲鹏920或鲲鹏950处理器 |
-| OS | openEuler 24.03 LTS SP3 |
+| CPU | <ul><li>鲲鹏920 7282C处理器</li><li>鲲鹏950 7592C处理器</li><ul> |
+| OS | <ul><li>openEuler 22.03 LTS SP3</li><li>openEuler 24.03 LTS SP3</li><ul> |
 | GCC/G++ | 12.3.1 |
 | Bazel | 6.5.0 |
 | Python | 3.11.x |
@@ -31,10 +31,10 @@ TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请
 
 | 特性组合 | 包含内容 | 对应补丁（按应用顺序） | 适用场景 |
 | --- | --- | --- | --- |
-| `common-only` | 公共构建与兼容性改动 | `patches/dist/0001-tensorflow_2.15.0-common.patch` | 检查公共改动，不启用加速特性 |
-| `kdnn-core` | common + KDNN | `patches/dist/0001-tensorflow_2.15.0-common.patch`<br>`patches/dist/0002-tensorflow_2.15.0-kdnn.patch` | 使用KDNN算子优化 |
-| `kdnn-annc` | common + KDNN + ANNC | `patches/dist/0001-tensorflow_2.15.0-common.patch`<br>`patches/dist/0002-tensorflow_2.15.0-kdnn.patch`<br>`patches/dist/0003-tensorflow_2.15.0-annc.patch` | 使用KDNN和ANNC静态图融合 |
-| `full-default` | common + KDNN + ANNC + KEmbedding | `patches/dist/0001-tensorflow_2.15.0-common.patch`<br>`patches/dist/0002-tensorflow_2.15.0-kdnn.patch`<br>`patches/dist/0003-tensorflow_2.15.0-annc.patch`<br>`patches/dist/0004-tensorflow_2.15.0-kembedding.patch` | 使用当前维护的全部特性 |
+| `common-only` | 公共构建集成（common）与兼容性改动 | `patches/dist/0001-tensorflow_2.15.0-common.patch` | 检查公共改动，不启用加速特性。 |
+| `kdnn-core` | 公共构建集成（common）、KDNN算子优化 | `patches/dist/0001-tensorflow_2.15.0-common.patch`<br>`patches/dist/0002-tensorflow_2.15.0-kdnn.patch` | 使用KDNN算子优化。 |
+| `kdnn-annc` | 公共构建集成（common）、KDNN算子优化、ANNC静态图融合 | `patches/dist/0001-tensorflow_2.15.0-common.patch`<br>`patches/dist/0002-tensorflow_2.15.0-kdnn.patch`<br>`patches/dist/0003-tensorflow_2.15.0-annc.patch` | 使用KDNN和ANNC静态图融合。 |
+| `full-default` | 公共构建集成（common）、KDNN算子优化、ANNC静态图融合、KEmbedding自定义算子 | `patches/dist/0001-tensorflow_2.15.0-common.patch`<br>`patches/dist/0002-tensorflow_2.15.0-kdnn.patch`<br>`patches/dist/0003-tensorflow_2.15.0-annc.patch`<br>`patches/dist/0004-tensorflow_2.15.0-kembedding.patch` | 使用当前维护的全部特性。 |
 
 ### 生成完整源码
 
@@ -55,9 +55,7 @@ TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请
      --output-dir /path/to/tensorflow
    ```
 
-   如需其他组合，只需修改`--feature-set`。输出目录包含官方TensorFlow
-   `v2.15.0`完整源码、所选补丁以及自动生成的
-   `tensorflow/feature_copts.bzl`。
+   如需其他组合，只需修改`--feature-set`。输出目录包含官方TensorFlow `v2.15.0`完整源码、所选补丁以及自动生成的`tensorflow/feature_copts.bzl`。
 
 3. 在TensorFlow源码根目录创建统一的构建目录。
 
@@ -67,8 +65,7 @@ TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请
    export TF_PYTHON_VERSION=3.11
    ```
 
-   `output/`用于复用Bazel构建缓存，手动下载的构建依赖统一放入
-   `distdir/`，pip包输出到`output-release/`。
+   `output/`用于复用Bazel构建缓存，手动下载的构建依赖统一放入`distdir/`，pip包输出到`output-release/`。
 
 ## 准备特性依赖
 
@@ -151,6 +148,8 @@ TensorFlow Serving通过本地TensorFlow源码完成集成。更换特性组合�
 
 ### TensorFlow pip包
 
+构建TensorFlow pip包。
+
 ```bash
 cd /path/to/tensorflow
 export TF_PYTHON_VERSION=3.11
@@ -163,6 +162,8 @@ bazel --output_base="$PWD/output" build \
 ```
 
 ### TensorFlow C++动态库
+
+构建TensorFlow C++动态库。
 
 ```bash
 cd /path/to/tensorflow
@@ -193,6 +194,8 @@ bazel --output_base="$PWD/output" build \
 
 ### ANNC静态图融合
 
+进入测试目录后，执行测试命令。
+
 ```bash
 cd /path/to/tensorflow/tensorflow/python/grappler/embedding_fused_test
 python main.py --list
@@ -203,6 +206,8 @@ ANNC静态图融合只对满足特定结构和输入约束的子图生效。
 
 ### KEmbedding
 
+进入测试目录后，执行测试命令。
+
 ```bash
 cd /path/to/tensorflow
 bazel test //third_party/kembedding:embedding_table_lookup_op_test \
@@ -212,7 +217,7 @@ bazel run //third_party/kembedding:embedding_table_lookup_benchmark
 
 ## Legacy功能
 
-Legacy补丁包含历史Runtime调度、旧融合Embedding、ANNC图编译和旧XLA执行等功能，只允许独立应用到官方TensorFlow `v2.15.0`基线。
+Legacy补丁包含历史Runtime调度、旧融合Embedding、ANNC图编译和旧XLA执行等功能，只允许独立应用到官方TensorFlow `v2.15.0`基线。Legacy补丁不依赖common，不属于当前维护的特性组合，也不保证与KDNN、ANNC静态图融合或KEmbedding补丁兼容。
 
 ```bash
 git clone -b v2.15.0 https://github.com/tensorflow/tensorflow.git tensorflow-legacy
@@ -231,9 +236,6 @@ bazel --output_base="$PWD/output" build \
 ```
 
 需要构建TensorFlow Serving时，仍使用“[构建TensorFlow Serving](#构建tensorflow-serving)”中的流程，将`--tensorflow_dir`改为Legacy源码目录。
-
-> ![icon note](public_sys-resources/icon-note.gif) **说明：**
-> Legacy补丁不依赖common，不属于当前维护的特性组合，也不保证与KDNN、ANNC静态图融合或KEmbedding补丁兼容。
 
 ## 常见问题
 

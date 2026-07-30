@@ -4,19 +4,18 @@
 
 ### 简介
 
-本章节介绍了TensorFlow KDNN线程直通优化特性的基本概念和实现原理，并详细指导用户基于鲲鹏920新型号处理器在openEuler 24.03 LTS SP3操作系统中安装并使用TensorFlow KDNN线程直通优化特性。
+本章节介绍了TensorFlow KDNN线程直通优化特性的基本概念和实现原理。
 
-为提升TensorFlow推理性能，鲲鹏BoostKit提出了TensorFlow KDNN线程直通优化方案。KDNN提供了推理核心算子基于鲲鹏CPU硬件的高性能实现，在原有的kernels实现层使用dispatch组件将支持KDNN的算子分发到KDNN后端。KDNN线程直通是通过KDNN将计算任务提交到框架线程池统一调度方式，复用框架线程池，减少线程创建销毁的时间损耗。
+为提升TensorFlow推理性能，鲲鹏BoostKit提出了TensorFlow KDNN线程直通优化方案。KDNN提供了推理核心算子基于鲲鹏处理器硬件的高性能实现，在原有的Kernels实现层使用dispatch组件将支持KDNN的算子分发到KDNN后端。KDNN线程直通是通过KDNN将计算任务提交到框架线程池统一调度方式，复用框架线程池，减少线程创建销毁的时间损耗。
 
-优化特性通过编译选项和代码补丁的方式接入TensorFlow，基于TensorFlow 2.15版本增加KDNN特性开关：
-
-**KDNN线程直通**：开启KDNN优化特性条件下，如果算子输入输出满足约束会调用KDNN库，KDNN将计算任务提交到框架线程池统一调度，复用框架线程池。
+**KDNN线程直通**：开启KDNN优化特性条件下，如果算子输入输出满足约束则会调用KDNN库，否则使用TensorFlow原生接口。KDNN将计算任务提交到框架线程池统一调度，复用框架线程池。KDNN优化特性通过编译选项和代码补丁的方式接入TensorFlow，基于TensorFlow 2.15版本增加KDNN特性开关。
 
 ### 软件架构
 
 KDNN对接TensorFlow软件架构图如[图1](#fig4919356464)所示。
 
 **图 1**  KDNN对接TensorFlow软件架构图<a name="fig4919356464"></a>
+
 ![KDNN对接TensorFlow软件架构图](figures/KDNN对接TensorFlow软件架构图.png "KDNN对接TensorFlow软件架构图")
 
 ### 规格
@@ -105,9 +104,6 @@ KDNN对接TensorFlow软件架构图如[图1](#fig4919356464)所示。
 </tbody>
 </table>
 
-> ![icon note](public_sys-resources/icon-note.gif) **说明：**
-> 开启KDNN优化特性条件下，如果算子输入输出满足约束会调用KDNN，否则使用TensorFlow原生接口。
-
 ### 应用场景
 
 TensorFlow KDNN线程直通优化特性主要在高并发推理场景中使用，表现在吞吐量的提升和推理时延大幅下降。
@@ -116,17 +112,17 @@ TensorFlow KDNN线程直通优化特性主要在高并发推理场景中使用�
 
 本节针对KDNN Threadpool线程直通的优化特性进行描述，以帮助用户更好地使用。
 
-**图 1**  OMP并行<a name="fig19954351104320"></a><a id="OMP并行示意图"></a>
+**图 2**  OMP并行<a name="fig19954351104320"></a><a id="OMP并行示意图"></a>
 
 ![OMP并行](figures/OMP并行.png "OMP并行")
 
-如[**图 1**  OMP并行](#OMP并行示意图)所示，OMP版本的KDNN中，每个算子将创建N个OMP线程计算，M个Kernel并发则会创建M*N个OMP线程。
+如[**图 2**  OMP并行](#OMP并行示意图)所示，OMP版本的KDNN中，每个算子将创建N个OMP线程计算，M个Kernel并发则会创建M*N个OMP线程。
 
-**图 2**  Threadpool线程直通<a name="fig1203165984517"></a><a id="Threadpool线程直通示意图"></a>
+**图 3**  Threadpool线程直通<a name="fig1203165984517"></a><a id="Threadpool线程直通示意图"></a>
 
 ![Threadpool线程直通](figures/Threadpool线程直通.png "Threadpool线程直通")
 
-如[**图 2**  Threadpool线程直通](#Threadpool线程直通示意图)所示，使能线程直通后，会复用框架线程池，KDNN将计算任务提交到框架线程池统一调度，降低了线程创建的损耗同时避免了线程数爆炸的问题。
+如[**图 3**  Threadpool线程直通](#Threadpool线程直通示意图)所示，使能线程直通后，会复用框架线程池，KDNN将计算任务提交到框架线程池统一调度，降低了线程创建的损耗同时避免了线程数爆炸的问题。
 
 ## SparseMatmul多线程优化
 
@@ -169,7 +165,7 @@ SparseMatmul多线程优化包含以下关键设计：
 
 ### 简介
 
-EmbeddingTableLookup是kembedding算子库中的核心算子，用于推荐系统中高效执行稀疏embedding查找操作。该算子能从预先加载的资源表中按key查找稀疏embedding，并输出标准SparseTensor三元组（indices、values、dense_shape），具有高性能和低延迟的特点。
+EmbeddingTableLookup是KEmbedding算子库中的核心算子，用于推荐系统中高效执行稀疏Embedding查找操作。该算子能从预先加载的资源表中按key查找稀疏Embedding，并输出标准SparseTensor三元组（indices、values、dense_shape），具有高性能和低延迟的特点。
 典型使用场景是把离线构建好的稀疏embedding表加载到推理进程内存中，然后在推理过程中按一批key执行快速查找，适合推荐模型数据处理层的需求。
 
 ### 使用流程
@@ -180,12 +176,11 @@ EmbeddingTableLookup是kembedding算子库中的核心算子，用于推荐系�
 2. 调用`InitializeEmbeddingIndexToValueTableFromTextFile`从二进制文件初始化资源表。
 3. 调用`EmbeddingTableLookup`执行批量查找。
 
-其中，`InitializeEmbeddingIndexToValueTableFromTextFile`名称中保留`TextFile`是历史命名，
-实际读取的输入文件不是文本文件，而是 kembedding 二进制表文件。
+其中，`InitializeEmbeddingIndexToValueTableFromTextFile`名称中保留`TextFile`是历史命名，实际读取的输入文件不是文本文件，而是KEmbedding二进制表文件。
 
 ### 文件与内存组织
 
-embedding表文件由两部分组成：
+Embedding表文件由两部分组成：
 
 - 文件头：保存`total_key_size`、字节序等元信息。
 - 数据区：每个key依次保存有效维度个数、有效维度索引数组、对应float值数组。
@@ -222,17 +217,17 @@ dense_shape = [3, 4]  # 3 是 key 数量，4 是 embedding 维度
 
 在ARM64平台上，EmbeddingTableLookup算子进行了以下多方面优化，这些优化使得EmbeddingTableLookup算子在ARM平台上的性能大幅提升，适合高并发的推荐模型推理场景。
 
-**1. 按key分片并行查找。**
+**按key分片并行查找**
 
 - 通过TensorFlow shard并行方法将key向量切分给多个worker线程。
 - 每个线程负责一个区间内的key查找，适合批量请求场景。
 
-**2. 减少内存分配和扩容成本。**
+**减少内存分配和扩容成本**
 
 - 原方法通过`reserve(key_cnt * emb_dim)`按“最大可能值”预留内存，实际结果通常远小于这个值，导致内存浪费。
 - 优化实现先通过`shard_results`做一遍计数，得到精确的`value_tensor_size`，然后一次性分配最终输出。
 
-**3. 去掉中间vector缓冲，直接写Tensor。**
+**去掉中间vector缓冲，直接写Tensor**
 
 - 原方法先把结果攒到中间vector，最后再复制到输出Tensor。
 - 优化实现先统计总大小，直接分配输出Tensor，然后直接写入结果，减少额外的内存复制开销。
@@ -241,8 +236,9 @@ dense_shape = [3, 4]  # 3 是 key 数量，4 是 embedding 维度
 
 ### 简介
 
-本章节介绍了TensorFlow ANNC静态图融合优化特性的基本概念和实现原理，并详细指导用户基于鲲鹏950 7592C处理器在openEuler 24.03 LTS SP3操作系统中安装并使用TensorFlow ANNC静态图融合优化特性。
-为提升TensorFlow推理性能，鲲鹏BoostKit提出了TensorFlow ANNC静态图融合优化方案。鲲鹏BoostKit提供了多个自定义算子，在图优化阶段利用remapper机制将符合特定特征的计算子图替换为自定义算子。静态图融合通过消除中间内存开销、优化访存逻辑等，实现端到端的性能提升。当前支持如下算子:
+本章节介绍了TensorFlow ANNC静态图融合优化特性的基本概念和实现原理。
+
+为提升TensorFlow推理性能，鲲鹏BoostKit提出了TensorFlow ANNC静态图融合优化方案。鲲鹏BoostKit提供了多个自定义算子，在图优化阶段利用remapper机制将符合特定特征的计算子图替换为自定义算子。静态图融合通过消除中间内存开销、优化访存逻辑等，实现端到端的性能提升。当前支持如下算子：
 
 - KPFusedEmbeddingActionIdGather
 - KPFusedGather
@@ -259,9 +255,10 @@ ANNC静态图融合特性开关通过代码补丁的方式接入TensorFlow，基
 
 ### 软件架构
 
-ANNC静态图融合软件架构图如[图1](#fig4919356463)所示。
+ANNC静态图融合软件架构图如[图4](#fig4919356463)所示。
 
-**图 1**  ANNC静态图融合软件架构图<a name="fig4919356463"></a>
+**图 4**  ANNC静态图融合软件架构图<a name="fig4919356463"></a>
+
 ![ANNC静态图融合软件架构](figures/ANNC静态图融合软件架构.png "ANNC静态图融合软件架构图")
 
 ### 规格
@@ -466,7 +463,7 @@ TensorFlow ANNC静态图融合主要在高并发推理场景中使用，表现�
 
 使能ANNC静态图融合后，会在图优化阶段将符合要求的子图替换为对应的自定义算子，进而减少中间内存开销、优化访存逻辑等，实现端到端的性能提升。
 
-**图 11**  算子融合原理图<a name="fig4919356474"></a>
+**图 5**  算子融合原理图<a name="fig4919356474"></a>
 
 ![ANNC静态图融合原理](figures/ANNC静态图融合原理.png "/ANNC静态图融合原理")
 
@@ -493,9 +490,9 @@ TensorFlow ANNC静态图融合主要在高并发推理场景中使用，表现�
 
 ### 软件架构
 
-TF Serving软件架构如[**图 1** TF Serving软件架构](#TF-Serving软件架构)所示，组件功能如[**表 1** TF Serving软件组件功能介绍](#TF-Serving软件组件功能介绍)所示。
+TF Serving软件架构如[**图 6** TF Serving软件架构](#TF-Serving软件架构)所示，组件功能如[**表 1** TF Serving软件组件功能介绍](#TF-Serving软件组件功能介绍)所示。
 
-**图 1** TF Serving软件架构<a name="fig2460131971612"></a><a id="TF-Serving软件架构"></a>
+**图 6** TF Serving软件架构<a name="fig2460131971612"></a><a id="TF-Serving软件架构"></a>
 
 ![TF Serving软件架构](figures/TF-Serving软件架构.png "TF-Serving软件架构")
 
@@ -561,17 +558,17 @@ TensorFlow ANNC图编译优化特性主要在推荐系统和广告投放中使�
 
 **TensorFlow图融合**
 
-在TensorFlow模型中存在一些子图包含冗余计算，通过识别特定的图模式，将子图中的多个算子融合为一个“融合算子”，能够避免冗余计算，优化访存，提升模型推理性能，如[**图 1** TensorFlow图融合示意图](#TensorFlow图融合示意图)所示。本功能在前端提供TensorFlow模型层面的图融合与图重写功能，在后端提供“自定义融合算子”的手动实现。
+在TensorFlow模型中存在一些子图包含冗余计算，通过识别特定的图模式，将子图中的多个算子融合为一个“融合算子”，能够避免冗余计算，优化访存，提升模型推理性能，如[**图 7** TensorFlow图融合示意图](#TensorFlow图融合示意图)所示。本功能在前端提供TensorFlow模型层面的图融合与图重写功能，在后端提供“自定义融合算子”的手动实现。
 
-**图 1** TensorFlow图融合示意图<a name="fig836316691915"></a><a id="TensorFlow图融合示意图"></a>
+**图 7** TensorFlow图融合示意图<a name="fig836316691915"></a><a id="TensorFlow图融合示意图"></a>
 
 ![TensorFlow图融合示意图](figures/TensorFlow图融合示意图.png "TensorFlow图融合示意图")
 
 **XLA图融合**
 
-XLA自身提供了多种与硬件无关的图融合优化策略，但是优化后的聚类（包括融合部分）仍可能包含重复计算，即多个融合操作之间存在相同或可合并的子表达式。如[**图 2** XLA图融合示意图](#XLA图融合示意图)所示，本功能旨在识别融合后的重复计算，如[**图 2** XLA图融合示意图](#XLA图融合示意图)中F1操作；并通过预融合策略消除冗余计算，如[**图 2** XLA图融合示意图](#XLA图融合示意图)中F4、F5、F6操作的融合，以进一步提升模型推理效率。
+XLA自身提供了多种与硬件无关的图融合优化策略，但是优化后的聚类（包括融合部分）仍可能包含重复计算，即多个融合操作之间存在相同或可合并的子表达式。如[**图 8** XLA图融合示意图](#XLA图融合示意图)所示，本功能旨在识别融合后的重复计算，如[**图 8** XLA图融合示意图](#XLA图融合示意图)中F1操作；并通过预融合策略消除冗余计算，如[**图 8** XLA图融合示意图](#XLA图融合示意图)中F4、F5、F6操作的融合，以进一步提升模型推理效率。
 
-**图 2** XLA图融合示意图<a name="fig5154159193015"></a><a id="XLA图融合示意图"></a>
+**图 8** XLA图融合示意图<a name="fig5154159193015"></a><a id="XLA图融合示意图"></a>
 
 ![XLA图融合示意图](figures/XLA图融合示意图.png "XLA图融合示意图")
 
@@ -581,13 +578,13 @@ XLA自身提供了多种与硬件无关的图融合优化策略，但是优化�
 
 **常量折叠优化**
 
-本功能专注于优化含有常量操作数的矩阵乘算子中常量操作数的打包开销。面对矩阵乘算子C=A*B，其中至少一个操作数为常量（例如推理模型中的权重B）的OpenBLAS调用场景。此类操作数在编译时已知权重的数值和形状，且运行时不发生改变。在未启用本优化时，ANNC编译器为满足硬件访存对齐和缓存局部性要求，需要对常量操作数进行数据打包和重排，如[**图 3** 数据打包示意图](#数据打包示意图)所示。由于该操作常量操作数的合法布局完全可以在编译器唯一确定，因此在该场景下将打包操作前置到编译期，启用本优化后，通过编译期间离线打包工具和专用免重排后端kpgeemm，可以彻底消除运行时的冗余开销，如[**图 4** 常量折叠流程示意图](#常量折叠流程示意图)所示。
+本功能专注于优化含有常量操作数的矩阵乘算子中常量操作数的打包开销。面对矩阵乘算子C=A*B，其中至少一个操作数为常量（例如推理模型中的权重B）的OpenBLAS调用场景。此类操作数在编译时已知权重的数值和形状，且运行时不发生改变。在未启用本优化时，ANNC编译器为满足硬件访存对齐和缓存局部性要求，需要对常量操作数进行数据打包和重排，如[**图 9** 数据打包示意图](#数据打包示意图)所示。由于该操作常量操作数的合法布局完全可以在编译器唯一确定，因此在该场景下将打包操作前置到编译期，启用本优化后，通过编译期间离线打包工具和专用免重排后端kpgeemm，可以彻底消除运行时的冗余开销，如[**图 10** 常量折叠流程示意图](#常量折叠流程示意图)所示。
 
-**图 3** 数据打包示意图<a name="fig836316691916"></a><a id="数据打包示意图"></a>
+**图 9** 数据打包示意图<a name="fig836316691916"></a><a id="数据打包示意图"></a>
 
 ![数据打包示意图](figures/数据打包示意图.png "数据打包示意图")
 
-**图 4** 常量折叠流程示意图<a name="fig836316691917"></a><a id="常量折叠流程示意图"></a>
+**图 10** 常量折叠流程示意图<a name="fig836316691917"></a><a id="常量折叠流程示意图"></a>
 
 ![常量折叠流程示意图](figures/常量折叠流程示意图.png "常量折叠流程示意图")
 
@@ -596,8 +593,7 @@ XLA自身提供了多种与硬件无关的图融合优化策略，但是优化�
 ## TensorFlow Serving 线程调度优化特性（Legacy）
 
 > ![icon note](public_sys-resources/icon-note.gif) **说明：**
-> 本特性已冻结在独立Legacy补丁中，仅支持直接应用到官方TensorFlow
-> `v2.15.0`基线，不属于当前维护的默认Profile，也不保证与其他特性补丁兼容。
+> 本特性已冻结在独立Legacy补丁中，仅支持直接应用到官方TensorFlow `v2.15.0`基线，不属于当前维护的默认Profile，也不保证与其他特性补丁兼容。
 
 ### 简介
 
@@ -618,9 +614,9 @@ TensorFlow Serving线程调度优化特性以Patch的方式实现，并合入了
 
 ### 软件架构
 
-TF Serving软件架构如[**图 1** TF Serving软件架构](#TF-Serving软件架构_1)所示，模块功能如[**表 1** TF Serving软件模块功能介绍](#TF-Serving软件模块功能介绍)所示。
+TF Serving软件架构如[**图 11** TF Serving软件架构](#TF-Serving软件架构_1)所示，模块功能如[**表 1** TF Serving软件模块功能介绍](#TF-Serving软件模块功能介绍)所示。
 
-**图 1** TF Serving软件架构<a name="fig9660112419318"></a><a id="TF-Serving软件架构_1"></a>
+**图 11** TF Serving软件架构<a name="fig9660112419318"></a><a id="TF-Serving软件架构_1"></a>
 
 ![TF Serving软件架构 0](figures/TF-Serving软件架构-0.png "TF-Serving软件架构-0")
 
@@ -662,7 +658,7 @@ TensorFlow Serving线程调度优化特性对不同推理场景提供了灵活�
 
 首先介绍TF Serving推理时使用的线程池，以更好理解本特性的工作原理，从而根据实际场景决定特性的开关和设置。
 
-**图 1** TF Serving线程池运行视图<a name="fig158087456394"></a><a id="TF Serving线程池运行视图"></a>
+**图 12** TF Serving线程池运行视图<a name="fig158087456394"></a><a id="TF Serving线程池运行视图"></a>
 
 ![TF Serving线程池运行视图](figures/TF-Serving线程池运行视图.png "TF-Serving线程池运行视图")
 
@@ -682,17 +678,17 @@ TF Serving用于推理的线程大致分为两类：通信线程和计算线程�
 - host\_executor线程，处理XLA算子间的并行计算任务。
 - tf\_XLAEigen线程，处理XLA算子内部的并行计算任务。
 
-整体推理请求流程如[**图 2** 推理请求处理流程图](#推理请求处理流程图)所示。
+整体推理请求流程如[**图 13** 推理请求处理流程图](#推理请求处理流程图)所示。
 
-**图 2** 推理请求处理流程图<a name="fig1746025495015"></a><a id="推理请求处理流程图"></a>
+**图 13** 推理请求处理流程图<a name="fig1746025495015"></a><a id="推理请求处理流程图"></a>
 
 ![推理请求处理流程图](figures/推理请求处理流程图.png "推理请求处理流程图")
 
 客户端发送推理请求到grpcpp\_sync\_ser线程解析，然后启动Session执行推理，tf\_Compute/host\_executor线程并行执行不同的算子，tf\_numa\_-1\_Eige/tf\_XLAEigen线程执行算子内部的并发计算。
 
-鲲鹏BoostKit改进了算子调度算法，采用算子批量调度，改进后，整体推理流程如[**图 3** 优化后推理流程图](#优化后推理流程图)所示。
+鲲鹏BoostKit改进了算子调度算法，采用算子批量调度，改进后，整体推理流程如[**图 14** 优化后推理流程图](#优化后推理流程图)所示。
 
-**图 3** 优化后推理流程图<a name="fig1321324116542"></a><a id="优化后推理流程图"></a>
+**图 14** 优化后推理流程图<a name="fig1321324116542"></a><a id="优化后推理流程图"></a>
 
 ![优化后推理流程图](figures/优化后推理流程图.png "优化后推理流程图")
 

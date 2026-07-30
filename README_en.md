@@ -10,14 +10,11 @@
 
 ## Project Introduction
 
-Kunpeng TensorFlow is a high-performance inference acceleration extension based
-on open-source TensorFlow, focusing on efficient execution for search,
-recommendation, and advertising inference workloads. The maintained patch
-series covers shared build integration, KDNN kernel optimizations, ANNC static
-graph fusion, and the KEmbedding custom operator.
+Kunpeng TensorFlow is a high-performance inference acceleration extension based on open-source TensorFlow, focusing on efficient execution for search, recommendation, and dvertising inference workloads. 
 
-Historical runtime scheduling, the old fused embedding implementation, and old XLA execution changes are
-frozen in a standalone Legacy patch. They are not part of the maintained
+The maintained patch series covers shared build integration, KDNN kernel optimizations, ANNC static graph fusion, and the KEmbedding custom operator.
+
+Historical runtime scheduling, the old fused embedding implementation, and old XLA execution changes are frozen in a standalone Legacy patch. They are not part of the maintained
 default profiles and are not guaranteed to work with the maintained patches.
 
 ## Feature Description
@@ -34,23 +31,18 @@ For details about Kunpeng TensorFlow features, see [Feature Introduction](./docs
 
 ## Patch Release
 
-All patches use the pinned official TensorFlow `v2.15.0` commit
-`6887368d6d46223f460358323c4b76d61d1558a8`.
+All patches use the pinned official TensorFlow `v2.15.0` commit `6887368d6d46223f460358323c4b76d61d1558a8`.
 
 | Profile | Included Patches | When to Use |
 | --- | --- | --- |
-| `common-only` | common | Build and compatibility changes only, with no acceleration features |
-| `kdnn-core` | common + kdnn | KDNN kernel optimizations; recommended as the basic configuration |
-| `kdnn-annc` | common + kdnn + annc | KDNN plus ANNC static graph fusion |
-| `full-default` | common + kdnn + annc + kembedding | All currently maintained features, including KEmbedding |
+| `common-only` | common | Build and compatibility changes only, with no acceleration features. |
+| `kdnn-core` | common + kdnn | KDNN kernel optimizations; recommended as the basic configuration. |
+| `kdnn-annc` | common + kdnn + annc | KDNN plus ANNC static graph fusion. |
+| `full-default` | common + kdnn + annc + kembedding | All currently maintained features, including KEmbedding. |
 
-The maintained series generates `tensorflow/feature_copts.bzl` for each
-feature set. Use [`patches/prepare_source.py`](./patches/README_en.md) to create
-a buildable source tree.
+The maintained series generates `tensorflow/feature_copts.bzl` for each feature set. Use [`patches/prepare_source.py`](./patches/README_en.md) to create a buildable source tree.
 
-The Legacy patch applies independently to the official baseline. It does not
-depend on `common` and is not guaranteed to work with other patches. See the
-[Patch Release](./patches/README_en.md) document for details.
+The Legacy patch applies independently to the official baseline. It does not depend on `common` and is not guaranteed to work with other patches. See the [Patch Release](./patches/README_en.md) document for details.
 
 ## Directory Structure
 
@@ -64,9 +56,15 @@ tensorflow
 │   ├── patch_manager.py                                # Patch maintenance and verification tool
 │   └── SHA256SUMS                                      # Artifact checksums
 ├── LICENSE                                             # License file
-├── README.md                                           # Chinese project introduction
-├── README_en.md                                        # English project introduction
-└── docs                                                # Chinese and English documentation
+├── README_en.md                                        # project introduction
+└── docs                                                # documentation
+    └── en                                              # English document directory
+       ├── figures                                      # Figure resource directory
+       ├── api_reference.md                             # API Reference
+       ├── quick_start.md                               # Quick Start
+       ├── release_notes.md                             # Release Notes
+       ├── installation_guide.md                        # Installation guide
+       └── feature_introduction.md                      # Feature introduction
 ```
 
 ## Version Description
@@ -78,34 +76,28 @@ For details about the updates of the Kunpeng TensorFlow version, see [Release No
 <table>
 <thead align="left">
 <tr id="row1291816372202">
-<th class="cellrowborder" valign="top" width="9.780978097809781%" id="mcps1.1.4.1.1"><p id="p291823714205">Resource Type</p></th>
 <th class="cellrowborder" valign="top" width="17.64176417641764%" id="mcps1.1.4.1.2"><p id="p13918183762016">Resource Name</p></th>
 <th class="cellrowborder" valign="top" width="72.57725772577258%" id="mcps1.1.4.1.3"><p id="p89181437152019">Resource Description</p></th>
 </tr>
 </thead>
 <tbody>
 <tr id="row179181137112015">
-<td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710208">Document</p></td>
 <td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p2091893722011"><a href="./docs/en/release_notes.md">Release Notes</a></p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">Provides basic information and feature updates of each Kunpeng TensorFlow release.</p></td>
 </tr>
 <tr id="row179181137112015">
-<td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710208">Document</p></td>
 <td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p2091893722011"><a href="./docs/en/feature_introduction.md">Feature Introduction</a></p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">Describes the Kunpeng TensorFlow features.</p></td>
 </tr>
 <tr id="row939116371143">
-<td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1039163711413">Document</p></td>
 <td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p03913372046"><a href="./docs/en/quick_start.md">Quick Start</a></p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p1139217371746">Provides guidance for getting started with Kunpeng TensorFlow.</p></td>
 </tr>
 <tr id="row2918153732017">
-<td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p598512211214">Document</p></td>
 <td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p17918337172020"><a href="./docs/en/installation_guide.md">Installation Guide</a></p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p15918183742018">Describes how to compile and install Kunpeng TensorFlow.</p></td>
 </tr>
 <tr id="row2918153732017">
-<td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p598512211214">Document</p></td>
 <td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p17918337172020"><a href="./docs/en/api_reference.md">API Reference</a></p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p15918183742018">Describes how to use Kunpeng TensorFlow APIs.</p></td>
 </tr>

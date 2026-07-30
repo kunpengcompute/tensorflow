@@ -44,7 +44,7 @@
 <tbody>
 <tr id="row207032381509"><td class="cellrowborder" valign="top" width="31.009999999999998%" headers="mcps1.1.4.1.1 "><p id="p177041382017"><a name="p177041382017"></a><a name="p177041382017"></a>openEuler 22.03 LTS SP3</p>
 </td>
-<td class="cellrowborder" valign="top" width="34.72%" headers="mcps1.1.4.1.2 "><p id="p173654366528"><a name="p173654366528"></a><a name="p173654366528"></a>鲲鹏920新型号处理器(7282C)</p>
+<td class="cellrowborder" valign="top" width="34.72%" headers="mcps1.1.4.1.2 "><p id="p173654366528"><a name="p173654366528"></a><a name="p173654366528"></a>鲲鹏920 7282C处理器</p>
 </td>
 <td class="cellrowborder" valign="top" width="34.27%" headers="mcps1.1.4.1.3 "><p id="p10125515012"><a name="p10125515012"></a><a name="p10125515012"></a>GCC 12.3.1</p>
 </td>
@@ -73,7 +73,7 @@
 
 ### 更新说明
 
-- 新增kembedding算子库中的EmbeddingTableLookup算子，进一步丰富推理模型的特征处理能力。
+- 新增KEmbedding算子库中的EmbeddingTableLookup算子，进一步丰富推理模型的特征处理能力。
 - 新增SparseMatmul多线程优化，该优化按输出矩阵的列块进行划分，每个线程处理独立的列块。通过无锁设计、负载均衡和内存优化等技术，提升了稀疏矩阵乘法在多核CPU场景下的计算性能。
 
 **修改特性<a name="zh-cn_topic_0000002518399190_section16450949161512"></a>**
