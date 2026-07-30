@@ -8,8 +8,8 @@
 
 | 项目 | 版本或要求 |
 | --- | --- |
-| CPU | <ul><li>鲲鹏920 7282C处理器</li><li>鲲鹏950 7592C处理器</li><ul> |
-| OS | <ul><li>openEuler 22.03 LTS SP3</li><li>openEuler 24.03 LTS SP3</li><ul> |
+| CPU | <ul><li>鲲鹏920 7282C处理器</li><li>鲲鹏950 7592C处理器</li></ul> |
+| OS | <ul><li>openEuler 22.03 LTS SP3</li><li>openEuler 24.03 LTS SP3</li></ul> |
 | GCC/G++ | 12.3.1 |
 | Bazel | 6.5.0 |
 | Python | 3.11.x |
