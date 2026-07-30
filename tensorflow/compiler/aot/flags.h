@@ -28,6 +28,8 @@ namespace tfcompile {
 
 struct MainFlags {
   string graph;
+  string debug_info;
+  string debug_info_path_begin_marker;
   string config;
   bool dump_fetch_nodes = false;
   string target_triple;
@@ -38,12 +40,19 @@ struct MainFlags {
   string out_function_object;
   string out_metadata_object;
   string out_header;
+  string out_constant_buffers_object;
   string out_session_module;
   string mlir_components;
+  bool experimental_quantize = false;
+
+  // Sanitizer pass options
+  bool sanitize_dataflow = false;
+  string sanitize_abilists_dataflow;
 
   // C++ codegen options
   bool gen_name_to_index = false;
   bool gen_program_shape = false;
+  bool use_xla_nanort_runtime = false;
 };
 
 // Appends to flag_list a tensorflow::Flag for each field in MainFlags.

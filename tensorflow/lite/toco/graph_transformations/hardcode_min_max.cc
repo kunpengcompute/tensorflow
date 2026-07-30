@@ -13,11 +13,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 #include <algorithm>
+#include <cstddef>
+#include <cstdlib>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "tensorflow/core/platform/logging.h"
+#include "tensorflow/core/platform/status.h"
 #include "tensorflow/lite/toco/graph_transformations/graph_transformations.h"
 #include "tensorflow/lite/toco/model.h"
 #include "tensorflow/lite/toco/tooling_util.h"
@@ -271,18 +278,18 @@ bool MinMaxApproximatelyEqual(const MinMax& minmax1, const MinMax& minmax2) {
   const double magnitude =
       std::min(minmax1.max - minmax1.min, minmax2.max - minmax2.min);
   const double tolerated = 1e-6 * magnitude;
-  return std::abs(minmax1.min - minmax2.min) < tolerated &&
-         std::abs(minmax1.max - minmax2.max) < tolerated;
+  return std::abs(minmax1.min - minmax2.min) <= tolerated &&
+         std::abs(minmax1.max - minmax2.max) <= tolerated;
 }
 
 // Propagates MinMax from any of the listed arrays, to all others.
 // If multiple of these arrays have MinMax, then these are required
 // to agree with each other.
 bool PropagateMinMaxAmongArrays(Model* model,
-                                const std::vector<string>& array_names) {
-  string reference_array_name;
+                                const std::vector<std::string>& array_names) {
+  std::string reference_array_name;
   MinMax* reference_minmax = nullptr;
-  for (const string& array_name : array_names) {
+  for (const std::string& array_name : array_names) {
     if (model->GetArray(array_name).minmax) {
       reference_array_name = array_name;
       reference_minmax = model->GetArray(array_name).minmax.get();
@@ -294,7 +301,7 @@ bool PropagateMinMaxAmongArrays(Model* model,
     return false;
   }
   bool changed = false;
-  for (const string& array_name : array_names) {
+  for (const std::string& array_name : array_names) {
     auto& array = model->GetArray(array_name);
     if (array.minmax) {
       CHECK(MinMaxApproximatelyEqual(*array.minmax, *reference_minmax))
@@ -405,7 +412,7 @@ bool HardcodeMinMaxForPack(Model* model, Operator* op) {
   }
   const auto& first_input_minmax = first_input_array.GetMinMax();
 
-  for (int i = 1; i < op->inputs.size(); i++) {
+  for (size_t i = 1; i < op->inputs.size(); i++) {
     const auto& input_array = model->GetArray(op->inputs[i]);
     if (!input_array.minmax) {
       return false;
@@ -423,8 +430,8 @@ bool HardcodeMinMaxForPack(Model* model, Operator* op) {
 
 }  // namespace
 
-::tensorflow::Status HardcodeMinMax::Run(Model* model, std::size_t op_index,
-                                         bool* modified) {
+absl::Status HardcodeMinMax::Run(Model* model, std::size_t op_index,
+                                 bool* modified) {
   *modified = false;
   auto it = model->operators.begin() + op_index;
   auto* op = it->get();
@@ -527,7 +534,7 @@ bool HardcodeMinMaxForPack(Model* model, Operator* op) {
     AddMessageF("Hardcoded min-max through %s", LogName(*op));
   }
   *modified = changed;
-  return ::tensorflow::Status::OK();
+  return absl::OkStatus();
 }
 
 }  // namespace toco

@@ -17,12 +17,30 @@ limitations under the License.
 
 #include <cstdint>
 
+#include "tensorflow/lite/kernels/cpu_backend_context.h"
+
 #if defined(_MSC_VER)
 #define __restrict__ __restrict
 #endif
 
 namespace tflite {
 namespace tensor_utils {
+
+#if defined(__AVX2__)
+// Matrix multiplication for float values.
+void Avx2MatrixBatchVectorMultiplyAccumulateImpl(
+    const float* __restrict__ matrix, int m_rows, int m_cols,
+    const float* __restrict__ vector, int n_batch, float* __restrict__ result);
+
+// Matrix multiplication for quantized values using asymmetric quantization.
+void Avx2MatrixBatchVectorMultiplyAccumulateImpl(
+    const int8_t* __restrict__ matrix, const int m_rows, const int m_cols,
+    const int8_t* __restrict__ vectors,
+    const float* __restrict__ scaling_factors, int n_batch,
+    float* __restrict__ result, const float* per_channel_scale,
+    const int32_t* input_offset, int32_t* scratch, int32_t* row_sums,
+    bool* compute_row_sums, CpuBackendContext* context);
+#endif  // defined(__AVX2__)
 
 #ifdef __SSSE3__
 
@@ -31,16 +49,24 @@ void SseMatrixBatchVectorMultiplyAccumulate(
     const int8_t* __restrict__ matrix, const int m_rows, const int m_cols,
     const int8_t* __restrict__ vectors,
     const float* __restrict__ scaling_factors, int n_batch,
-    float* __restrict__ result, int result_stride);
+    float* __restrict__ result);
+
+// Matrix multiplication for quantized values using symmetric quantization
+// with additional scratch memory for GEMM operation prior to scaling.
+void SseMatrixBatchVectorMultiplyAccumulate(
+    const int8_t* __restrict__ matrix, const int m_rows, const int m_cols,
+    const int8_t* __restrict__ vectors,
+    const float* __restrict__ scaling_factors, int n_batch, int32_t* scratch,
+    float* __restrict__ result, CpuBackendContext* context);
 
 // Matrix multiplication for quantized values using asymmetric quantization.
 void SseMatrixBatchVectorMultiplyAccumulate(
     const int8_t* __restrict__ matrix, const int m_rows, const int m_cols,
     const int8_t* __restrict__ vectors,
     const float* __restrict__ scaling_factors, int n_batch,
-    float* __restrict__ result, int result_stride,
-    const float* __restrict__ per_channel_scale,
-    const int32_t* __restrict__ input_offset);
+    float* __restrict__ result, const float* per_channel_scale,
+    const int32_t* input_offset, int32_t* scratch, int32_t* row_sums,
+    bool* compute_row_sums, CpuBackendContext* context);
 
 // Matrix multiplication for quantized values using symmetric quantization.
 // Sparse version.
@@ -48,7 +74,10 @@ void SseSparseMatrixBatchVectorMultiplyAccumulate(
     const int8_t* __restrict__ matrix, const uint8_t* __restrict__ ledger,
     const int m_rows, const int m_cols, const int8_t* __restrict__ vectors,
     const float* __restrict__ scaling_factors, int n_batch,
-    float* __restrict__ result);
+    float* __restrict__ result, const float* per_channel_scale);
+
+void SseReductionSumVector(const int8_t* input_vector, int32_t* output_vector,
+                           const int output_size, const int reduction_size);
 
 #endif  // __SSSE3__
 

@@ -21,8 +21,8 @@ limitations under the License.
 #include <string>
 #include <unordered_set>
 
+#include "tensorflow/core/framework/graph_debug_info.pb.h"
 #include "tensorflow/core/lib/core/status.h"
-#include "tensorflow/core/protobuf/graph_debug_info.pb.h"
 #include "tensorflow/core/protobuf/meta_graph.pb.h"
 #include "tensorflow/core/public/session.h"
 
@@ -72,6 +72,7 @@ struct SavedModelBundle : public SavedModelBundleInterface {
 class SavedModelBundleLite : public SavedModelBundleInterface {
  public:
   SavedModelBundleLite() = default;
+  SavedModelBundleLite(SavedModelBundleLite&& other) = default;
   SavedModelBundleLite& operator=(SavedModelBundleLite&& other) = default;
 
   SavedModelBundleLite(std::unique_ptr<Session> session,
@@ -96,16 +97,33 @@ class SavedModelBundleLite : public SavedModelBundleInterface {
   protobuf::Map<string, SignatureDef> signatures_;
 };
 
+// Restore variable and resources in the SavedModel export dir for the
+// indicated metagraph.
+// The recommended way to load a saved model is to call LoadSavedModel,
+// which provides an already initialized Metagraph, Session, and DebugInfo.
+absl::Status RestoreSession(const RunOptions& run_options,
+                            const MetaGraphDef& meta_graph,
+                            const string& export_dir,
+                            std::unique_ptr<Session>* session);
+
+// Initialize a session which wraps this metagraph.
+// The recommended way to load a saved model is to call LoadSavedModel,
+// which provides an already initialized Metagraph, Session, and DebugInfo.
+absl::Status LoadMetagraphIntoSession(const SessionOptions& session_options,
+                                      const MetaGraphDef& meta_graph,
+                                      std::unique_ptr<Session>* session);
+
 /// Loads a SavedModel from the specified export directory. The MetaGraphDef
 /// to be loaded is identified by the supplied tags, corresponding exactly to
 /// the set of tags used at SavedModel build time. Stores a SavedModel bundle in
 /// *bundle with a session and the requested MetaGraphDef, if found.
 ///
 /// NOTE: Prefer the overload that takes a SavedModelBundleLite* in new code.
-Status LoadSavedModel(const SessionOptions& session_options,
-                      const RunOptions& run_options, const string& export_dir,
-                      const std::unordered_set<string>& tags,
-                      SavedModelBundle* const bundle);
+absl::Status LoadSavedModel(const SessionOptions& session_options,
+                            const RunOptions& run_options,
+                            const string& export_dir,
+                            const std::unordered_set<string>& tags,
+                            SavedModelBundle* bundle);
 
 /// Loads a SavedModel from the specified export directory. The MetaGraphDef
 /// to be loaded is identified by the supplied tags, corresponding exactly to
@@ -114,17 +132,18 @@ Status LoadSavedModel(const SessionOptions& session_options,
 ///
 /// This overload creates a SavedModelBundleLite, which consumes less RAM than
 /// an equivalent SavedModelBundle.
-Status LoadSavedModel(const SessionOptions& session_options,
-                      const RunOptions& run_options, const string& export_dir,
-                      const std::unordered_set<string>& tags,
-                      SavedModelBundleLite* const bundle);
+absl::Status LoadSavedModel(const SessionOptions& session_options,
+                            const RunOptions& run_options,
+                            const string& export_dir,
+                            const std::unordered_set<string>& tags,
+                            SavedModelBundleLite* bundle);
 
 /// Checks whether the provided directory could contain a SavedModel. Note that
 /// the method does not load any data by itself. If the method returns `false`,
 /// the export directory definitely does not contain a SavedModel. If the method
 /// returns `true`, the export directory may contain a SavedModel but provides
 /// no guarantee that it can be loaded.
-bool MaybeSavedModelDirectory(const string& export_dir);
+bool MaybeSavedModelDirectory(const std::string& export_dir);
 
 }  // namespace tensorflow
 

@@ -15,6 +15,8 @@ limitations under the License.
 #ifndef TENSORFLOW_LITE_EXPERIMENTAL_RESOURCE_LOOKUP_UTIL_H_
 #define TENSORFLOW_LITE_EXPERIMENTAL_RESOURCE_LOOKUP_UTIL_H_
 
+#include <string>
+
 #include "tensorflow/lite/kernels/internal/tensor_ctypes.h"
 #include "tensorflow/lite/string_util.h"
 
@@ -39,7 +41,7 @@ class TensorReader {
   const T* input_data_;
 };
 
-/// Helper class for accesing TFLite tensor data. This specialized class is for
+/// Helper class for accessing TFLite tensor data. This specialized class is for
 /// std::string type.
 template <>
 class TensorReader<std::string> {

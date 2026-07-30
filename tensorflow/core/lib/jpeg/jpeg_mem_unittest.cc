@@ -23,18 +23,20 @@ limitations under the License.
 #include <memory>
 
 #include "absl/base/casts.h"
+#include "jpeglib.h"  // from @libjpeg_turbo
 #include "tensorflow/core/lib/jpeg/jpeg_handle.h"
 #include "tensorflow/core/platform/env.h"
+#include "tensorflow/core/platform/jpeg.h"
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/platform/test.h"
+#include "tensorflow/core/platform/tstring.h"
 #include "tensorflow/core/platform/types.h"
-
+#include "tsl/platform/status.h"
 
 namespace tensorflow {
 namespace jpeg {
 namespace {
 
-using absl::bit_cast;
 const char kTestData[] = "tensorflow/core/lib/jpeg/testdata/";
 
 int ComputeSumAbsoluteDifference(const uint8* a, const uint8* b, int width,
@@ -60,7 +62,7 @@ void TestJPEG(Env* env, const string& jpegfile) {
   string jpeg;
   ReadFileToStringOrDie(env, jpegfile, &jpeg);
   const int fsize = jpeg.size();
-  const uint8* const temp = bit_cast<const uint8*>(jpeg.data());
+  const uint8* const temp = absl::bit_cast<const uint8*>(jpeg.data());
 
   // Try partial decoding (half of the data)
   int w, h, c;
@@ -102,7 +104,7 @@ void TestCropAndDecodeJpeg(Env* env, const string& jpegfile,
   string jpeg;
   ReadFileToStringOrDie(env, jpegfile, &jpeg);
   const int fsize = jpeg.size();
-  auto temp = bit_cast<const uint8*>(jpeg.data());
+  const auto* temp = absl::bit_cast<const uint8*>(jpeg.data());
 
   // Decode the whole image.
   std::unique_ptr<uint8[]> imgdata1;
@@ -225,7 +227,7 @@ TEST(JpegMemTest, CropAndDecodeJpegWithStride) {
   string jpeg;
   ReadFileToStringOrDie(env, data_path + "jpeg_merge_test1.jpg", &jpeg);
   const int fsize = jpeg.size();
-  auto temp = bit_cast<const uint8*>(jpeg.data());
+  const auto* temp = absl::bit_cast<const uint8*>(jpeg.data());
 
   int w, h, c;
   ASSERT_TRUE(GetImageInfo(temp, fsize, &w, &h, &c));
@@ -263,7 +265,7 @@ TEST(JpegMemTest, CropAndDecodeJpegWithInvalidCropWindow) {
   string jpeg;
   ReadFileToStringOrDie(env, data_path + "jpeg_merge_test1.jpg", &jpeg);
   const int fsize = jpeg.size();
-  auto temp = bit_cast<const uint8*>(jpeg.data());
+  const auto* temp = absl::bit_cast<const uint8*>(jpeg.data());
 
   int w, h, c;
   ASSERT_TRUE(GetImageInfo(temp, fsize, &w, &h, &c));
@@ -453,7 +455,7 @@ TEST(JpegMemTest, ChromaDownsampling) {
   UncompressFlags unflags;
   unflags.components = 3;
   int w, h, c;
-  int64 num_warnings;
+  int64_t num_warnings;
   std::unique_ptr<uint8[]> uncompressed(Uncompress(
       jpeg.c_str(), jpeg.size(), unflags, &w, &h, &c, &num_warnings));
   CHECK(uncompressed != nullptr);

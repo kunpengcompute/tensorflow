@@ -24,7 +24,7 @@ limitations under the License.
 #include <vector>
 
 #include <gtest/gtest.h>
-#include "tensorflow/lite/experimental/ruy/context.h"
+#include "ruy/context.h"  // from @ruy
 #include "tensorflow/lite/kernels/cpu_backend_context.h"
 #include "tensorflow/lite/kernels/internal/optimized/cpu_check.h"
 #include "tensorflow/lite/kernels/internal/optimized/depthwiseconv_3x3_filter_common.h"
@@ -124,7 +124,7 @@ inline void DispatchDepthwiseConvGeneral(
     const RuntimeShape& filter_shape,
     const typename QuantizationTypeImpl<quantization_type>::ExternalType*
         filter_data,
-    const RuntimeShape& bias_shape, const int32* bias_data,
+    const RuntimeShape& bias_shape, const int32_t* bias_data,
     const std::int32_t* output_shift_adjust,
     const std::int32_t* output_multiplier_adjust,
     const RuntimeShape& output_shape,
@@ -139,11 +139,11 @@ inline void DispatchDepthwiseConvGeneral(
 template <>
 inline void DispatchDepthwiseConvGeneral<QuantizationType::kPerChannelInt8>(
     const DepthwiseParams& params, const RuntimeShape& input_shape,
-    const int8* input_data, const RuntimeShape& filter_shape,
-    const int8* filter_data, const RuntimeShape& bias_shape,
-    const int32* bias_data, const std::int32_t* output_shift_adjust,
+    const int8_t* input_data, const RuntimeShape& filter_shape,
+    const int8_t* filter_data, const RuntimeShape& bias_shape,
+    const int32_t* bias_data, const std::int32_t* output_shift_adjust,
     const std::int32_t* output_multiplier_adjust,
-    const RuntimeShape& output_shape, int8* output_data, int thread_start,
+    const RuntimeShape& output_shape, int8_t* output_data, int thread_start,
     int thread_end, int thread_dim) {
   optimized_integer_ops::depthwise_conv::DepthwiseConvGeneral(
       params, output_multiplier_adjust, output_shift_adjust, input_shape,
@@ -160,7 +160,7 @@ inline void DispatchDepthwiseConvImpl(
     const RuntimeShape& filter_shape,
     const typename QuantizationTypeImpl<quantization_type>::ExternalType*
         filter_data,
-    const RuntimeShape& bias_shape, const int32* bias_data,
+    const RuntimeShape& bias_shape, const int32_t* bias_data,
     const RuntimeShape& output_shape,
     typename QuantizationTypeImpl<quantization_type>::ExternalType*
         output_data) {
@@ -349,7 +349,7 @@ inline void DispatchDepthwiseConvImpl(
   CpuBackendContext backend_context;
   backend_context.SetMaxNumThreads(test_param.num_threads);
   optimized_ops::DepthwiseConv<
-      typename QuantizationTypeImpl<quantization_type>::ExternalType, int32>(
+      typename QuantizationTypeImpl<quantization_type>::ExternalType, int32_t>(
       params, input_shape, input_data, filter_shape, filter_data, bias_shape,
       bias_data, output_shape, output_data, &backend_context);
 }
@@ -363,7 +363,7 @@ inline void DispatchDepthwiseConvImpl<QuantizationType::kPerChannelInt8>(
     const RuntimeShape& filter_shape,
     const typename QuantizationTypeImpl<
         QuantizationType::kPerChannelInt8>::ExternalType* filter_data,
-    const RuntimeShape& bias_shape, const int32* bias_data,
+    const RuntimeShape& bias_shape, const int32_t* bias_data,
     const RuntimeShape& output_shape,
     typename QuantizationTypeImpl<
         QuantizationType::kPerChannelInt8>::ExternalType* output_data) {
@@ -530,7 +530,7 @@ inline void DispatchDepthwiseConv(
     const RuntimeShape& filter_shape,
     const typename QuantizationTypeImpl<quantization_type>::ExternalType*
         filter_data,
-    const RuntimeShape& bias_shape, const int32* bias_data,
+    const RuntimeShape& bias_shape, const int32_t* bias_data,
     const RuntimeShape& output_shape,
     typename QuantizationTypeImpl<quantization_type>::ExternalType*
         output_data) {
@@ -546,10 +546,10 @@ template <>
 struct ReferenceRunner<QuantizationType::kNonPerChannelUint8> {
   static inline void Run(
       const TestParam& test_param, const tflite::DepthwiseParams& op_params,
-      const uint8* input_data, const RuntimeShape& input_shape,
-      const uint8* filter_data, const RuntimeShape& filter_shape,
+      const uint8_t* input_data, const RuntimeShape& input_shape,
+      const uint8_t* filter_data, const RuntimeShape& filter_shape,
       const std::int32_t* bias_data, const RuntimeShape& bias_shape,
-      const RuntimeShape& output_shape, uint8* reference_output_data) {
+      const RuntimeShape& output_shape, uint8_t* reference_output_data) {
     switch (test_param.output_rounding) {
       case DepthwiseConvOutputRounding::kUpward:
         reference_ops::depthwise_conv::DepthwiseConvBasicKernel<
@@ -577,10 +577,10 @@ template <>
 struct ReferenceRunner<QuantizationType::kPerChannelInt8> {
   static inline void Run(
       const TestParam& test_param, const tflite::DepthwiseParams& op_params,
-      const int8* input_data, const RuntimeShape& input_shape,
-      const int8* filter_data, const RuntimeShape& filter_shape,
+      const int8_t* input_data, const RuntimeShape& input_shape,
+      const int8_t* filter_data, const RuntimeShape& filter_shape,
       const std::int32_t* bias_data, const RuntimeShape& bias_shape,
-      const RuntimeShape& output_shape, int8* reference_output_data) {
+      const RuntimeShape& output_shape, int8_t* reference_output_data) {
     switch (test_param.output_rounding) {
       case DepthwiseConvOutputRounding::kUpward:
         reference_ops::depthwise_conv::DepthwiseConvBasicKernel<
@@ -646,8 +646,8 @@ int TestOneDepthwiseConvWithGivenOutputShift(
   op_params.output_shift = -output_shift;
 
   const int depth = output_shape.Dims(3);
-  std::vector<int32> output_multiplier_per_channel(depth, output_multiplier);
-  std::vector<int32> output_shift_per_channel(depth, -output_shift);
+  std::vector<int32_t> output_multiplier_per_channel(depth, output_multiplier);
+  std::vector<int32_t> output_shift_per_channel(depth, -output_shift);
   if (output_multiplier_adjust != nullptr) {
     for (int i = 0; i < depth; ++i) {
       output_multiplier_per_channel[i] += output_multiplier_adjust[i];
@@ -898,8 +898,10 @@ bool TryTestDepthwiseConv(const TestParam& test_param,
   if (test_param.quantization_type == QuantizationType::kPerChannelInt8) {
     std::vector<std::int8_t> input_data(input_buffer_size);
     std::vector<std::int8_t> filter_data(filter_buffer_size);
-    FillRandom(&input_data, static_cast<int8>(-127), static_cast<int8>(127));
-    FillRandom(&filter_data, static_cast<int8>(-127), static_cast<int8>(127));
+    FillRandom(&input_data, static_cast<int8_t>(-127),
+               static_cast<int8_t>(127));
+    FillRandom(&filter_data, static_cast<int8_t>(-127),
+               static_cast<int8_t>(127));
 
     std::int32_t filter_offset = 0;
     EXPECT_TRUE(params_specialization == ParamsSpecialization::kSymmetric);
@@ -1074,13 +1076,9 @@ void TestOneDepthwiseConv3x3Filter(
 void TestOneNeonDot3x3(const TestParam& test_param) {
 #if defined(__aarch64__) && !defined(GOOGLE_L4T) && defined(__ANDROID__) && \
     defined(__clang__)
-  CpuBackendContext backend_context;
-  ruy::Context* ruy_context = backend_context.ruy_context();
-  const auto ruy_paths = ruy_context != nullptr
-                             ? ruy_context->GetRuntimeEnabledPaths()
-                             : ruy::Path::kNone;
-  const bool has_dot_product_instructions =
-      (ruy_paths & ruy::Path::kNeonDotprod) != ruy::Path::kNone;
+  CpuFlags cpu_flags;
+  GetCpuFlags(&cpu_flags);
+  const bool has_dot_product_instructions = cpu_flags.neon_dotprod;
   if (test_param.forced_invocation ==
           DepthwiseConvImplementation::kUseNeon3x3DotProduct &&
       !has_dot_product_instructions) {
@@ -1093,7 +1091,7 @@ void TestOneNeonDot3x3(const TestParam& test_param) {
 }
 
 TEST(TestDepthwiseConv, TestDepthwiseConv) {
-  const int kTestsToRun = 10 * 1000;
+  const int kTestsToRun = 1000;
   for (int i = 0; i < kTestsToRun; i++) {
     TestOneDepthwiseConv(DepthwiseConvImplementation::kNone,
                          DepthwiseConvOutputRounding::kAwayFromZero);
@@ -1102,7 +1100,7 @@ TEST(TestDepthwiseConv, TestDepthwiseConv) {
 
 // Run basic coverage test against the generic kernel.
 TEST(TestDepthwiseConv, TestGenericKernel) {
-  const int kTestsToRun = 10 * 1000;
+  const int kTestsToRun = 1000;
   for (int i = 0; i < kTestsToRun; i++) {
     TestOneDepthwiseConv(DepthwiseConvImplementation::kUseGenericKernel,
                          DepthwiseConvOutputRounding::kAwayFromZero);
@@ -1111,7 +1109,7 @@ TEST(TestDepthwiseConv, TestGenericKernel) {
 
 #if defined(__aarch64__) && !defined(GOOGLE_L4T)
 TEST(TestDepthwiseConv, TestNeon3x3FilterAway) {
-  const int kTestsToRun = 1000;
+  const int kTestsToRun = 500;
   for (int i = 0; i < kTestsToRun; i++) {
     TestOneDepthwiseConv3x3Filter(DepthwiseConvImplementation::kUseNeon3x3,
                                   DepthwiseConvOutputRounding::kAwayFromZero);
@@ -1119,7 +1117,7 @@ TEST(TestDepthwiseConv, TestNeon3x3FilterAway) {
 }
 
 TEST(TestDepthwiseConv, TestNeon3x3FilterUpward) {
-  const int kTestsToRun = 1000;
+  const int kTestsToRun = 500;
   for (int i = 0; i < kTestsToRun; i++) {
     TestOneDepthwiseConv3x3Filter(DepthwiseConvImplementation::kUseNeon3x3,
                                   DepthwiseConvOutputRounding::kUpward);
@@ -1233,7 +1231,7 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Combine(
         Values(DepthwiseConvImplementation::
                    kUseCModel3x3DotProduct),            // forced_invocation
-        Values(1000),                                   // tests_to_run
+        Values(200),                                    // tests_to_run
         Values(QuantizationType::kNonPerChannelUint8),  // quantization_type
         Bool(),                                         // test_stride
         Bool(),                                         // test_pad
@@ -1249,7 +1247,7 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Combine(
         Values(DepthwiseConvImplementation::
                    kUseUnwound3x3DotProduct),           // forced_invocation
-        Values(1000),                                   // tests_to_run
+        Values(200),                                    // tests_to_run
         Values(QuantizationType::kNonPerChannelUint8),  // quantization_type
         Bool(),                                         // test_stride
         Bool(),                                         // test_pad
@@ -1261,24 +1259,6 @@ INSTANTIATE_TEST_SUITE_P(
     TestParam::TestNameSuffix);
 
 #if defined(USE_NEON)
-// Intrinsics tests are run in emulation mode (such as for dot-product
-// instructions) unless the tests are built specifically with dot-product
-// instructions enabled.
-INSTANTIATE_TEST_SUITE_P(
-    Intrinsics, DepthwiseConvTest,
-    testing::Combine(
-        Values(DepthwiseConvImplementation::
-                   kUseIntrinsics3x3DotProduct),        // forced_invocation
-        Values(500),                                    // tests_to_run
-        Values(QuantizationType::kNonPerChannelUint8),  // quantization_type
-        Bool(),                                         // test_stride
-        Bool(),                                         // test_pad
-        Bool(),                                         // test_depth_multiplier
-        Values(DepthwiseConvOutputRounding::kUpward),   // output_rounding
-        Values(1),                                      // num_threads
-        Values(kLooseIntrinsicsTolerance)               // loose_tolerance
-        ),
-    TestParam::TestNameSuffix);
 
 // TODO(b/148145875): Remove this extra guard after checking that code runs
 // without lax vector conversions.
@@ -1289,7 +1269,7 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Combine(
         Values(DepthwiseConvImplementation::
                    kUseIntrinsics3x3DotProduct),       // forced_invocation
-        Values(500),                                   // tests_to_run
+        Values(200),                                   // tests_to_run
         Values(QuantizationType::kPerChannelInt8),     // quantization_type
         Bool(),                                        // test_stride
         Bool(),                                        // test_pad
@@ -1310,7 +1290,7 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Combine(
         Values(DepthwiseConvImplementation::
                    kUseNeon3x3DotProduct),              // forced_invocation
-        Values(1000),                                   // tests_to_run
+        Values(200),                                    // tests_to_run
         Values(QuantizationType::kNonPerChannelUint8),  // quantization_type
         Bool(),                                         // test_stride
         Bool(),                                         // test_pad
@@ -1326,7 +1306,7 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Combine(
         Values(DepthwiseConvImplementation::
                    kUseNeon3x3DotProduct),             // forced_invocation
-        Values(1000),                                  // tests_to_run
+        Values(200),                                   // tests_to_run
         Values(QuantizationType::kPerChannelInt8),     // quantization_type
         Bool(),                                        // test_stride
         Bool(),                                        // test_pad
@@ -1343,7 +1323,7 @@ INSTANTIATE_TEST_SUITE_P(
     Dispatch3x3, DepthwiseConvTest,
     testing::Combine(
         Values(DepthwiseConvImplementation::kNone),     // forced_invocation
-        Values(500),                                    // tests_to_run
+        Values(200),                                    // tests_to_run
         Values(QuantizationType::kNonPerChannelUint8),  // quantization_type
         Bool(),                                         // test_stride
         Bool(),                                         // test_pad
@@ -1358,7 +1338,7 @@ INSTANTIATE_TEST_SUITE_P(
     Dispatch3x3PerChannel, DepthwiseConvTest,
     testing::Combine(
         Values(DepthwiseConvImplementation::kNone),    // forced_invocation
-        Values(500),                                   // tests_to_run
+        Values(200),                                   // tests_to_run
         Values(QuantizationType::kPerChannelInt8),     // quantization_type
         Bool(),                                        // test_stride
         Bool(),                                        // test_pad

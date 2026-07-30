@@ -26,8 +26,8 @@ namespace grappler {
 
 ModelAnalyzer::ModelAnalyzer(const GrapplerItem& item) : item_(item) {}
 
-Status ModelAnalyzer::GenerateReport(bool debug, bool assume_valid_feeds,
-                                     std::ostream& os) {
+absl::Status ModelAnalyzer::GenerateReport(bool debug, bool assume_valid_feeds,
+                                           std::ostream& os) {
   GraphProperties properties(item_);
   TF_RETURN_IF_ERROR(properties.InferStatically(assume_valid_feeds));
 
@@ -38,7 +38,7 @@ Status ModelAnalyzer::GenerateReport(bool debug, bool assume_valid_feeds,
     PrintNodeInfo(node, properties, debug, os);
   }
 
-  return Status::OK();
+  return absl::OkStatus();
 }
 
 void ModelAnalyzer::PrintNodeInfo(const NodeDef* node,
@@ -48,7 +48,7 @@ void ModelAnalyzer::PrintNodeInfo(const NodeDef* node,
   if (properties.HasOutputProperties(node->name())) {
     const std::vector<OpInfo::TensorProperties>& props =
         properties.GetOutputProperties(node->name());
-    for (int i = 0; i < props.size(); ++i) {
+    for (int i = 0, props_size = props.size(); i < props_size; ++i) {
       const OpInfo::TensorProperties& prop = props[i];
       os << "\t"
          << "output " << i << " (" << DataTypeString(prop.dtype())
@@ -80,7 +80,8 @@ void ModelAnalyzer::PrintNodeInfo(const NodeDef* node,
 
   if (debug) {
     const OpRegistrationData* op_reg_data;
-    Status status = OpRegistry::Global()->LookUp(node->op(), &op_reg_data);
+    absl::Status status =
+        OpRegistry::Global()->LookUp(node->op(), &op_reg_data);
     if (!status.ok()) {
       os << "\tCouldn't find op registration for " << node->op() << std::endl;
     } else if (!op_reg_data->shape_inference_fn) {
@@ -88,7 +89,7 @@ void ModelAnalyzer::PrintNodeInfo(const NodeDef* node,
     } else if (properties.HasInputProperties(node->name())) {
       const std::vector<OpInfo::TensorProperties>& props =
           properties.GetInputProperties(node->name());
-      for (int i = 0; i < props.size(); ++i) {
+      for (int i = 0, props_size = props.size(); i < props_size; ++i) {
         const OpInfo::TensorProperties& prop = props[i];
         if (prop.has_value()) {
           os << "\t"

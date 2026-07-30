@@ -15,25 +15,37 @@ limitations under the License.
 
 #include "tensorflow/core/platform/tensor_coding.h"
 
+#include <climits>
+#include <cstddef>
 #include <vector>
 
 #include "tensorflow/core/platform/coding.h"
+#include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/platform/protobuf.h"
 #include "tensorflow/core/platform/strcat.h"
 #include "tensorflow/core/platform/stringpiece.h"
 
 #if defined(TENSORFLOW_PROTOBUF_USES_CORD)
 #include "strings/cord_varint.h"
+#include "util/gtl/stl_util.h"
 #endif  // defined(TENSORFLOW_PROTOBUF_USES_CORD)
 
 namespace tensorflow {
 namespace port {
 
-void AssignRefCounted(StringPiece src, core::RefCounted* obj, string* out) {
+void AssignRefCounted(absl::string_view src, core::RefCounted* obj,
+                      string* out) {
   out->assign(src.data(), src.size());
 }
 
-void EncodeStringList(const tstring* strings, int64 n, string* out) {
+void EncodeStringList(const tstring* strings, int64_t n, string* out) {
+  int64_t tot = n * sizeof(size_t);
+  for (int i = 0; i < n; ++i) {
+    tot += strings[i].size();
+  }
+  if (tot > INT_MAX) {
+    LOG(FATAL) << "EncodeStringList size too large: " << tot;  // Crash OK
+  }
   out->clear();
   for (int i = 0; i < n; ++i) {
     core::PutVarint32(out, strings[i].size());
@@ -43,20 +55,20 @@ void EncodeStringList(const tstring* strings, int64 n, string* out) {
   }
 }
 
-bool DecodeStringList(const string& src, tstring* strings, int64 n) {
+bool DecodeStringList(const string& src, tstring* strings, int64_t n) {
   std::vector<uint32> sizes(n);
-  StringPiece reader(src);
-  int64 tot = 0;
+  absl::string_view reader(src);
+  int64_t tot = 0;
   for (auto& v : sizes) {
     if (!core::GetVarint32(&reader, &v)) return false;
     tot += v;
   }
-  if (tot != static_cast<int64>(reader.size())) {
+  if (tot != static_cast<int64_t>(reader.size())) {
     return false;
   }
 
   tstring* data = strings;
-  for (int64 i = 0; i < n; ++i, ++data) {
+  for (int64_t i = 0; i < n; ++i, ++data) {
     auto size = sizes[i];
     if (size > reader.size()) {
       return false;
@@ -102,12 +114,12 @@ class StringListDecoderImpl : public StringListDecoder {
   ~StringListDecoderImpl() override = default;
 
   bool ReadSizes(std::vector<uint32>* sizes) override {
-    int64 total = 0;
+    int64_t total = 0;
     for (auto& size : *sizes) {
       if (!core::GetVarint32(&reader_, &size)) return false;
       total += size;
     }
-    if (total != static_cast<int64>(reader_.size())) {
+    if (total != static_cast<int64_t>(reader_.size())) {
       return false;
     }
     return true;
@@ -120,7 +132,7 @@ class StringListDecoderImpl : public StringListDecoder {
   }
 
  private:
-  StringPiece reader_;
+  absl::string_view reader_;
 };
 
 std::unique_ptr<StringListEncoder> NewStringListEncoder(string* out) {
@@ -132,19 +144,13 @@ std::unique_ptr<StringListDecoder> NewStringListDecoder(const string& in) {
 }
 
 #if defined(TENSORFLOW_PROTOBUF_USES_CORD)
-void AssignRefCounted(StringPiece src, core::RefCounted* obj, Cord* out) {
+void AssignRefCounted(absl::string_view src, core::RefCounted* obj,
+                      absl::Cord* out) {
   obj->Ref();
-  out->Clear();
-  // Defines a lambda to unref "obj" when Cord deletes this piece of
-  // memory. +[] converts the lambda to a C style function pointer.
-  auto cleanup = +[](absl::string_view donotcare, void* obj) {
-    reinterpret_cast<core::RefCounted*>(obj)->Unref();
-  };
-  out->AppendExternalMemory(absl::string_view(src.data(), src.size()), obj,
-                            cleanup);
+  *out = absl::MakeCordFromExternal(src, [obj] { obj->Unref(); });
 }
 
-void EncodeStringList(const tstring* strings, int64 n, Cord* out) {
+void EncodeStringList(const tstring* strings, int64_t n, absl::Cord* out) {
   out->Clear();
   for (int i = 0; i < n; ++i) {
     ::strings::CordAppendVarint(strings[i].size(), out);
@@ -154,10 +160,10 @@ void EncodeStringList(const tstring* strings, int64 n, Cord* out) {
   }
 }
 
-bool DecodeStringList(const Cord& src, string* strings, int64 n) {
+bool DecodeStringList(const absl::Cord& src, string* strings, int64_t n) {
   std::vector<uint32> sizes(n);
   CordReader reader(src);
-  int64 tot = 0;
+  int64_t tot = 0;
   for (auto& v : sizes) {
     if (!::strings::CordReaderReadVarint(&reader, &v)) return false;
     tot += v;
@@ -177,10 +183,10 @@ bool DecodeStringList(const Cord& src, string* strings, int64 n) {
   return true;
 }
 
-bool DecodeStringList(const Cord& src, tstring* strings, int64 n) {
+bool DecodeStringList(const absl::Cord& src, tstring* strings, int64_t n) {
   std::vector<uint32> sizes(n);
   CordReader reader(src);
-  int64 tot = 0;
+  int64_t tot = 0;
   for (auto& v : sizes) {
     if (!::strings::CordReaderReadVarint(&reader, &v)) return false;
     tot += v;
@@ -200,13 +206,13 @@ bool DecodeStringList(const Cord& src, tstring* strings, int64 n) {
   return true;
 }
 
-void CopyFromArray(Cord* c, const char* base, size_t bytes) {
-  c->CopyFrom(base, bytes);
+void CopyFromArray(absl::Cord* c, const char* base, size_t bytes) {
+  *c = absl::string_view(base, bytes);
 }
 
 class CordStringListEncoderImpl : public StringListEncoder {
  public:
-  explicit CordStringListEncoderImpl(Cord* out) : out_(out) {}
+  explicit CordStringListEncoderImpl(absl::Cord* out) : out_(out) {}
   ~CordStringListEncoderImpl() override = default;
 
   void Append(const protobuf::MessageLite& m) override {
@@ -222,22 +228,22 @@ class CordStringListEncoderImpl : public StringListEncoder {
   void Finalize() override { out_->Append(rest_); }
 
  private:
-  Cord* out_;
+  absl::Cord* out_;
   string rest_;
 };
 
 class CordStringListDecoderImpl : public StringListDecoder {
  public:
-  explicit CordStringListDecoderImpl(const Cord& in) : reader_(in) {}
+  explicit CordStringListDecoderImpl(const absl::Cord& in) : reader_(in) {}
   ~CordStringListDecoderImpl() override = default;
 
   bool ReadSizes(std::vector<uint32>* sizes) override {
-    int64 total = 0;
+    int64_t total = 0;
     for (auto& size : *sizes) {
       if (!::strings::CordReaderReadVarint(&reader_, &size)) return false;
       total += size;
     }
-    if (total != static_cast<int64>(reader_.Available())) {
+    if (total != static_cast<int64_t>(reader_.Available())) {
       return false;
     }
     return true;
@@ -254,11 +260,11 @@ class CordStringListDecoderImpl : public StringListDecoder {
   std::vector<char> tmp_;
 };
 
-std::unique_ptr<StringListEncoder> NewStringListEncoder(Cord* out) {
+std::unique_ptr<StringListEncoder> NewStringListEncoder(absl::Cord* out) {
   return std::unique_ptr<StringListEncoder>(new CordStringListEncoderImpl(out));
 }
 
-std::unique_ptr<StringListDecoder> NewStringListDecoder(const Cord& in) {
+std::unique_ptr<StringListDecoder> NewStringListDecoder(const absl::Cord& in) {
   return std::unique_ptr<StringListDecoder>(new CordStringListDecoderImpl(in));
 }
 

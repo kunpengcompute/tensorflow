@@ -14,15 +14,14 @@
 # ==============================================================================
 """Utilities for AutomaticControlDependencies."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 from tensorflow.python.framework import dtypes
 from tensorflow.python.util import object_identity
 
 READ_ONLY_RESOURCE_INPUTS_ATTR = "_read_only_resource_inputs"
 RESOURCE_READ_OPS = set()
+
+
+COLLECTIVE_MANAGER_IDS = "_collective_manager_ids"
 
 
 def register_read_only_resource_op(op_type):
@@ -166,4 +165,4 @@ def _input_index(op, handle):
   for i, t in enumerate(op.inputs):
     if handle is t:
       return i
-  raise ValueError("%s not in list" % str(handle))
+  raise ValueError(f"{handle!s} not in list of inputs for op: {op!r}")

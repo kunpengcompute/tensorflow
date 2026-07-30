@@ -1,20 +1,15 @@
 load("@local_config_cuda//cuda:build_defs.bzl", "if_cuda")
 load("//tensorflow:tensorflow.bzl", "tf_cc_test", "tf_cuda_library")
+load("//tensorflow:tensorflow.default.bzl", "filegroup")
 load(
     "//tensorflow/core/platform:build_config_root.bzl",
     "tf_cuda_tests_tags",
 )
+load("//tensorflow/core/platform:rules_cc.bzl", "cc_library")
 
 package(
-    licenses = ["notice"],  # Apache 2.0
-)
-
-config_setting(
-    name = "xsmm",
+    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     licenses = ["notice"],
-    values = {
-        "define": "tensorflow_xsmm=1",
-    },
 )
 
 tf_cuda_library(
@@ -26,15 +21,12 @@ tf_cuda_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "//third_party/eigen3",
         "//tensorflow/core:framework",
-        "//tensorflow/core:gpu_id",
         "//tensorflow/core:lib",
         "//tensorflow/core:protos_all_cc",
-    ] + select({
-        ":xsmm": ["@libxsmm_archive//:xsmm_avx"],
-        "//conditions:default": [],
-    }),
+        "//tensorflow/core/common_runtime/gpu:gpu_id",
+        "@eigen_archive//:eigen3",
+    ],
 )
 
 tf_cc_test(
@@ -44,11 +36,11 @@ tf_cc_test(
     tags = tf_cuda_tests_tags(),
     deps = [
         ":utils",
-        "//tensorflow/core:gpu_id",
         "//tensorflow/core:lib",
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core:test",
         "//tensorflow/core:test_main",
+        "//tensorflow/core/common_runtime/gpu:gpu_id",
     ],
 )
 
@@ -61,7 +53,7 @@ filegroup(
         "virtual_cluster.h",
     ],
     visibility = [
-        "//tensorflow/python:__pkg__",
+        "//tensorflow/python/grappler:__pkg__",
     ],
 )
 
@@ -79,6 +71,7 @@ cc_library(
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core:session_options",
         "//tensorflow/core/grappler:grappler_item",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -98,6 +91,7 @@ cc_library(
         "//tensorflow/core/grappler/costs:analytical_cost_estimator",
         "//tensorflow/core/grappler/costs:op_level_cost_estimator",
         "//tensorflow/core/grappler/costs:virtual_scheduler",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -113,6 +107,9 @@ tf_cc_test(
         "//tensorflow/core:test_main",
         "//tensorflow/core/grappler:grappler_item",
         "//tensorflow/core/grappler/inputs:trivial_test_graph_input_yielder",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@local_xla//xla/tsl/protobuf:error_codes_proto_impl_cc",
     ],
 )
 
@@ -128,14 +125,24 @@ cc_library(
         ":utils",
         "//tensorflow/cc:coordinator",
         "//tensorflow/cc:queue_runner",
-        "//tensorflow/core:core_cpu",
-        "//tensorflow/core:core_cpu_lib",
-        "//tensorflow/core:direct_session",
         "//tensorflow/core:framework",
-        "//tensorflow/core:gpu_id",
         "//tensorflow/core:lib",
+        "//tensorflow/core/common_runtime:core_cpu",
+        "//tensorflow/core/common_runtime:core_cpu_lib",
+        "//tensorflow/core/common_runtime:direct_session_internal",
+        "//tensorflow/core/common_runtime/gpu:gpu_id",
+        "//tensorflow/core/framework:cost_graph_proto_cc",
+        "//tensorflow/core/framework:graph_proto_cc",
         "//tensorflow/core/grappler:utils",
         "//tensorflow/core/kernels:ops_util",
+        "//tensorflow/core/protobuf:for_core_protos_cc",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:optional",
     ],
     alwayslink = 1,
 )
@@ -143,10 +150,11 @@ cc_library(
 tf_cc_test(
     name = "single_machine_test",
     srcs = ["single_machine_test.cc"],
-    args = ["--heap_check=local"],  # The GPU tracer leaks memory
+    args = ["--heap_check="],  # The GPU tracer leaks memory. TODO(b/185483595): use a dependency instead of a flag
     tags = [
         "no_cuda_on_cpu_tap",
         "no_gpu",
+        "nomsan",  # TODO(b/160921160): broken by NOAUTOROLLBACK CL
     ],
     deps = [
         ":single_machine",

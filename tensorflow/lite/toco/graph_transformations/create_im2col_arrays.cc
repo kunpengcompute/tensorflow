@@ -12,16 +12,18 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
+#include <cstddef>
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
-#include "absl/strings/str_cat.h"
+#include "absl/log/check.h"
+#include "absl/status/status.h"
+#include "tensorflow/core/platform/logging.h"
+#include "tensorflow/core/platform/status.h"
 #include "tensorflow/lite/toco/graph_transformations/graph_transformations.h"
 #include "tensorflow/lite/toco/model.h"
 #include "tensorflow/lite/toco/tooling_util.h"
-#include "tensorflow/core/platform/logging.h"
 
 namespace toco {
 
@@ -49,7 +51,7 @@ bool ProcessConvOperator(Model* model, ConvOperator* op) {
 
   // Create the im2col array.
   CHECK_EQ(op->outputs.size(), 1);
-  const string& im2col_array_name =
+  const std::string& im2col_array_name =
       AvailableArrayName(*model, op->inputs[0] + "_im2col");
   model->GetOrCreateArray(im2col_array_name);
   op->outputs.push_back(im2col_array_name);
@@ -65,7 +67,7 @@ bool ProcessTransposeConvOperator(Model* model, TransposeConvOperator* op) {
 
   // Always create an im2col array for transpose_conv.
   CHECK_EQ(op->outputs.size(), 1);
-  const string& im2col_array_name = AvailableArrayName(
+  const std::string& im2col_array_name = AvailableArrayName(
       *model, op->inputs[TransposeConvOperator::DATA_INPUT] + "_im2col");
   model->GetOrCreateArray(im2col_array_name);
   op->outputs.push_back(im2col_array_name);
@@ -73,8 +75,8 @@ bool ProcessTransposeConvOperator(Model* model, TransposeConvOperator* op) {
   return true;
 }
 
-::tensorflow::Status CreateIm2colArrays::Run(Model* model, std::size_t op_index,
-                                             bool* modified) {
+absl::Status CreateIm2colArrays::Run(Model* model, std::size_t op_index,
+                                     bool* modified) {
   *modified = false;
   auto it = model->operators.begin() + op_index;
   auto* op = it->get();
@@ -82,13 +84,13 @@ bool ProcessTransposeConvOperator(Model* model, TransposeConvOperator* op) {
   switch (op->type) {
     case OperatorType::kConv:
       *modified = ProcessConvOperator(model, static_cast<ConvOperator*>(op));
-      return ::tensorflow::Status::OK();
+      return absl::OkStatus();
     case OperatorType::kTransposeConv:
       *modified = ProcessTransposeConvOperator(
           model, static_cast<TransposeConvOperator*>(op));
-      return ::tensorflow::Status::OK();
+      return absl::OkStatus();
     default:
-      return ::tensorflow::Status::OK();
+      return absl::OkStatus();
   }
 }
 

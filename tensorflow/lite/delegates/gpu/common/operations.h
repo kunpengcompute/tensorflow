@@ -17,14 +17,16 @@ limitations under the License.
 #define TENSORFLOW_LITE_DELEGATES_GPU_COMMON_OPERATIONS_H_
 
 #include <cstdint>
+#include <set>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "absl/types/variant.h"
 #include "tensorflow/lite/delegates/gpu/common/data_type.h"
-#include "tensorflow/lite/delegates/gpu/common/model.h"
 #include "tensorflow/lite/delegates/gpu/common/shape.h"
 #include "tensorflow/lite/delegates/gpu/common/status.h"
+#include "tensorflow/lite/delegates/gpu/common/tensor.h"
 
 namespace tflite {
 namespace gpu {
@@ -36,42 +38,79 @@ enum class OperationType {
   ADD,
   BATCH_TO_SPACE,
   BATCH_NORMALIZATION,
+  BATCHED_MATMUL,
+  CAST,
+  CEIL,
   CONCAT,
-  CONST,
+  CONSTANT,
   CONVOLUTION_2D,
   CONVOLUTION_TRANSPOSED,
+  COPY,
   COS,
+  CUMSUM,
+  DENSIFY,
   DEPTHWISE_CONVOLUTION,
+  DEPTH_TO_SPACE,
   DIV,
+  ELU,
+  EQUAL,
   EXP,
+  FLOOR,
+  FLOOR_DIV,
+  FLOOR_MOD,
   FULLY_CONNECTED,
+  FULLY_CONNECTED_INT8,
+  GATHER,
+  GELU,
+  GREATER,
+  GREATER_EQUAL,
   HARD_SWISH,
+  LESS,
+  LESS_EQUAL,
   LOG,
+  LOGICAL_AND,
   LSTM,
   MAXIMUM,
   MAX_UNPOOLING_2D,
   MEAN,
+  MEAN_STDDEV_NORMALIZATION,
   MINIMUM,
   MUL,
+  NEG,
+  NOT_EQUAL,
+  ONE_HOT,
   PAD,
+  PAD_V2,
   POOLING_2D,
   POW,
   PRELU,
+  // Used to accurately run inference on quantized models.
+  QUANTIZE_AND_DEQUANTIZE,
+  REDUCE_MAXIMUM,
+  REDUCE_MINIMUM,
+  REDUCE_PRODUCT,
+  REDUCE_SUM,
   RELU,
+  RESAMPLER,
   RESHAPE,
   RESIZE,
   RSQRT,
+  SELECT,
+  SELECT_V2,
   SIGMOID,
+  SIGN,
   SIN,
   SLICE,
   SOFTMAX,
   SPACE_TO_BATCH,
   SPACE_TO_DEPTH,
+  SPLIT,
   SQRT,
   SQUARE,
   SQUARED_DIFF,
   SUB,
   TANH,
+  TILE,
   TRANSPOSE,
 };
 
@@ -79,14 +118,15 @@ std::string ToString(enum OperationType op);
 
 OperationType OperationTypeFromString(const std::string& name);
 
-typedef absl::variant<absl::monostate, Tensor<Linear, DataType::FLOAT32>, float>
-    TensorOrScalar;
+template <DataType DataTypeT, typename t>
+using TensorOrScalarBase = std::variant<std::monostate, Tensor<HWC, DataTypeT>,
+                                        Tensor<Linear, DataTypeT>, t>;
+
+using TensorOrScalar = TensorOrScalarBase<DataType::FLOAT32, float>;
 
 struct Padding2D {
-  Padding2D() = default;
-  Padding2D& operator=(const Padding2D& value);
-  bool operator==(const Padding2D& value);
-  bool operator!=(const Padding2D& value);
+  bool operator==(const Padding2D& value) const;
+  bool operator!=(const Padding2D& value) const;
   Padding2D& operator-(const Padding2D& value);
 
   // Padding values for every axis (if needed), where 'prepended' defines
@@ -97,8 +137,6 @@ struct Padding2D {
 };
 
 struct Padding3D {
-  Padding3D() = default;
-  Padding3D& operator=(const Padding3D& value);
   bool operator==(const Padding3D& value);
   bool operator!=(const Padding3D& value);
   Padding3D& operator-(const Padding3D& value);
@@ -200,8 +238,15 @@ BHWDC CalculateOutputShape(const BHWDC& input, const Pooling3DAttributes& attr);
 
 // @return shape of a tensor after Concat operation is applied to the given
 //         input.
-Status CalculateOutputShape(const std::vector<BHWC>& input,
-                            const ConcatAttributes& attr, BHWC* output_shape);
+absl::Status CalculateOutputShape(const std::vector<BHWC>& input,
+                                  const ConcatAttributes& attr,
+                                  BHWC* output_shape);
+
+// @return shape of a tensor after Concat operation is applied to the given
+//         input.
+absl::Status CalculateOutputShape(const std::vector<BHWDC>& input,
+                                  const ConcatAttributes& attr,
+                                  BHWDC* output_shape);
 
 // @return padding for pooling operation to make sure output keep the same shape
 // as the given input.
@@ -230,6 +275,19 @@ struct Convolution2DAttributes {
 
   Tensor<OHWI, DataType::FLOAT32> weights;
   Tensor<Linear, DataType::FLOAT32> bias;  // optional
+
+  int groups = 1;  // optional, split channels dimension on equal groups
+  // Restrictions:
+  // src.Channels() and dst.Channels() must be divisible by groups
+  // Restrictions for gpu delegates:
+  //   src_group_channels = src.Channels() / groups;
+  //   dst_group_channels = dst.Channels() / groups;
+  //   src_group_channels and dst_group_channels must be divisible by 4
+  // if groups != 1, weights will have special format
+  //   weights.o = group_weights.o * groups;
+  //   weights.i = group_weights.i;
+  //   weights.h = group_weights.h;
+  //   weights.w = group_weights.w;
 };
 
 struct Convolution3DAttributes {
@@ -239,6 +297,20 @@ struct Convolution3DAttributes {
 
   Tensor<OHWDI, DataType::FLOAT32> weights;
   Tensor<Linear, DataType::FLOAT32> bias;  // optional
+
+  int groups = 1;  // optional, split channels dimension on equal groups
+  // Restrictions:
+  // src.Channels() and dst.Channels() must be divisible by groups
+  // Restrictions for gpu delegates:
+  //   src_group_channels = src.Channels() / groups;
+  //   dst_group_channels = dst.Channels() / groups;
+  //   src_group_channels and dst_group_channels must be divisible by 4
+  // if groups != 1, weights will have special format
+  //   weights.o = group_weights.o * groups;
+  //   weights.i = group_weights.i;
+  //   weights.h = group_weights.h;
+  //   weights.w = group_weights.w;
+  //   weights.d = group_weights.d;
 };
 
 // @return shape of a tensor after Convolution2D operation is applied to
@@ -319,30 +391,38 @@ Padding3D CalculateSamePadding(const BHWDC& input,
                                const DepthwiseConvolution3DAttributes& attr);
 
 // f(x):= {
-//   if x < 0  : x -> alpha * x
-//   if x >= 0 : x -> min(clip, x)
+//   if alpha != 0: x -> min(activation_max, x)
+//   else
+//     if x < activation_min : x -> min(activation_min, alpha * x)
+//     if x >= activation_min : x -> min(activation_max, x)
 // }
 //
 // Examples:
-//   - ReLU: clip = 0, alpha = 0
-//   - ReLU6: clip = 6, alpha = 0
-//   - Leaky ReLU: clip = 0, alpha = a
+//   - ReLU: activation_min = 0, activation_max = 0, alpha = 0
+//   - ReLU6: activation_min = 0, activation_max = 6, alpha = 0
+//   - Leaky ReLU: activation_min = 0, activation_max = 0, alpha = a
+//   - ReLUN1To1: activation_min = -1, activation_max = 1, alpha = 0
 struct ReLUAttributes {
-  // clip <= 0 mean it is not set.
-  float clip = 0;
+  // activation_min must be < activation_max
+  float activation_min = 0;
 
+  // activation_max <= 0 mean it is not set.
+  float activation_max = 0;
+
+  // alpha must be <= 1
   float alpha = 0;
 };
 
 struct PReLUAttributes {
-  // clip <= 0 mean it is not set.
-  float clip = 0;
-
   // If alpha is linear, then it is sharded across CHANNELS axis, otherwise
   // full shape alpha is required.
-  absl::variant<Tensor<Linear, DataType::FLOAT32>,
-                Tensor<HWC, DataType::FLOAT32>>
+  std::variant<Tensor<Linear, DataType::FLOAT32>,
+               Tensor<HWC, DataType::FLOAT32>>
       alpha;
+};
+
+struct ReduceAttributes {
+  std::set<Axis> dims;
 };
 
 struct SoftmaxAttributes {
@@ -356,10 +436,6 @@ enum LstmKernelType {
 
 struct LstmAttributes {
   LstmKernelType kernel_type = LstmKernelType::BASIC;
-};
-
-struct MultiplyAttributes {
-  TensorOrScalar param;
 };
 
 enum class SamplingType {
@@ -376,8 +452,7 @@ struct Resize2DAttributes {
   // If true, the centers of the 4 corner pixels of the input and output tensors
   // are aligned, preserving the values at the corner pixels. Defaults to false.
   bool align_corners = false;
-  // half_pixel_centers assumes pixels are of half the actual dimensions, and
-  // yields more accurate resizes. Only applicable to BILINEAR sampling.
+
   bool half_pixel_centers = false;
 };
 
@@ -390,6 +465,8 @@ struct Resize3DAttributes {
   // If true, the centers of the 8 corner pixels of the input and output tensors
   // are aligned, preserving the values at the corner pixels. Defaults to false.
   bool align_corners = false;
+
+  bool half_pixel_centers = false;
 };
 
 float CalculateResizeScale(int32_t input_size, int32_t output_size,
@@ -417,12 +494,31 @@ struct PadAttributes {
 
   BHWC prepended;
   BHWC appended;
+  float constant_values = 0;
 };
 
 // @return shape of a tensor after Pad operation is applied to the given input.
 BHWC CalculateOutputShape(const BHWC& input, const PadAttributes& attr);
 
-struct ConstTensorAttributes {
+struct Pad3DAttributes {
+  PaddingContentType type = PaddingContentType::ZEROS;
+
+  BHWDC prepended;
+  BHWDC appended;
+};
+
+// @return shape of a tensor after Pad3D operation is applied to the given
+// input.
+BHWDC CalculateOutputShape(const BHWDC& input, const Pad3DAttributes& attr);
+
+template <DataType DataTypeT>
+struct ConstTensorAttributesBase {
+  Tensor<BHWC, DataTypeT> tensor;
+};
+
+using ConstTensorAttributes = ConstTensorAttributesBase<DataType::FLOAT32>;
+
+struct DensifyAttributes {
   Tensor<BHWC, DataType::FLOAT32> tensor;
 };
 
@@ -440,14 +536,34 @@ struct SliceAttributes {
 //         input.
 BHWC CalculateOutputShape(const BHWC& input, const SliceAttributes& attr);
 
-struct AddAttributes {
-  TensorOrScalar param;
+// Simple slicing without advanced support for shrinking, reverse slicing etc.
+struct Slice3DAttributes {
+  // Specifies start and end dimensions for slicing.
+  BHWDC starts;
+  BHWDC ends;
+
+  // Stride should be >= 1.
+  BHWDC strides;
 };
+
+// @return shape of a tensor after Slice3D operation is applied to the given
+//         input.
+BHWDC CalculateOutputShape(const BHWDC& input, const Slice3DAttributes& attr);
 
 struct FullyConnectedAttributes {
   Tensor<OHWI, DataType::FLOAT32> weights;
   Tensor<Linear, DataType::FLOAT32> bias;
 };
+
+struct FullyConnectedInt8Attributes {
+  Tensor<OHWI, DataType::INT8> weights;
+  Tensor<Linear, DataType::FLOAT32> bias;
+  float scale;
+  int zero_point;
+};
+
+FullyConnectedAttributes DequatizeFullyConnectedAttr(
+    const FullyConnectedInt8Attributes& attr);
 
 // @return shape of a tensor after FullyConnected operation is applied to
 // the given input.
@@ -457,12 +573,27 @@ BHWC CalculateOutputShape(const BHWC& input,
 // @return shape of a tensor after Mean operation is applied to the given input.
 BHWC CalculateOutputShape(const BHWC& input, const MeanAttributes& attr);
 
-struct ElementwiseAttributes {
-  TensorOrScalar param;
+// @return shape of a tensor after Mean operation is applied to the given input.
+BHWDC CalculateOutputShape(const BHWDC& input, const MeanAttributes& attr);
+
+template <DataType DataTypeT, typename t>
+struct ElementwiseAttributesBase {
+  TensorOrScalarBase<DataTypeT, t> param;
+  // For elementwise operation with 2 inputs op(A, B), runtime_tensor_is_second
+  // true when runtime tensor is B(on second position). this is important for
+  // ops that non commutative, for example subtract.
+  bool runtime_tensor_is_second = false;
 };
+
+using ElementwiseAttributes =
+    ElementwiseAttributesBase<DataType::FLOAT32, float>;
 
 struct ReshapeAttributes {
   BHWC new_shape;
+};
+
+struct Reshape3DAttributes {
+  BHWDC new_shape;
 };
 
 struct TransposeAttributes {
@@ -474,8 +605,51 @@ struct TransposeAttributes {
 // the given input.
 BHWC CalculateOutputShape(const BHWC& input, const TransposeAttributes& attr);
 
+struct Transpose3DAttributes {
+  // A permutation of the dimensions of input tensor
+  BHWDC perm;
+};
+
+// @return shape of a tensor after Transpose3D operation is applied to
+// the given input.
+BHWDC CalculateOutputShape(const BHWDC& input,
+                           const Transpose3DAttributes& attr);
+
 struct SpaceToDepthAttributes {
   int block_size;
+};
+
+struct SplitAttributes {
+  // Defines axis by which to split.
+  Axis axis = Axis::UNKNOWN;
+};
+
+// These help perform a combination of Quantize & Dequantize to adjust float
+// values like quantized inference would.
+struct QuantizeAndDequantizeAttributes {
+  float min = 0;
+  float max = 0;
+  float scale = 0;
+};
+
+struct GatherAttributes {
+  Axis axis = Axis::UNKNOWN;
+  Tensor<Linear, DataType::INT32> indices;
+};
+
+struct OneHotAttributes {
+  float on_value = 1;
+  float off_value = 0;
+};
+
+struct SelectV2Attributes {
+  bool broadcast_true = false;
+  bool broadcast_false = false;
+  bool scalar_cond = false;
+};
+
+struct CumsumAttributes {
+  Axis axis = Axis::UNKNOWN;
 };
 
 }  // namespace gpu

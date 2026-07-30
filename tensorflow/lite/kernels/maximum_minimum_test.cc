@@ -12,13 +12,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
-#include <memory>
+#include <stdint.h>
 
+#include <initializer_list>
+#include <memory>
+#include <vector>
+
+#include "Eigen/Core"
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include "tensorflow/lite/interpreter.h"
-#include "tensorflow/lite/kernels/register.h"
 #include "tensorflow/lite/kernels/test_util.h"
-#include "tensorflow/lite/model.h"
+#include "tensorflow/lite/schema/schema_generated.h"
 
 namespace tflite {
 namespace {
@@ -39,11 +43,10 @@ class MaxMinOpModel : public SingleOpModel {
   }
 
   MaxMinOpModel(tflite::BuiltinOperator op, const TensorData& input1,
-                std::initializer_list<T> input1_values,
                 const TensorData& input2,
                 std::initializer_list<T> input2_values,
                 const TensorType& output) {
-    input1_ = AddConstInput<T>(input1, input1_values);
+    input1_ = AddInput(input1);
     input2_ = AddConstInput<T>(input2, input2_values);
     output_ = AddOutput(output);
     SetBuiltinOp(op, BuiltinOptions_MaximumMinimumOptions,
@@ -77,18 +80,22 @@ void TestModel(tflite::BuiltinOperator op, const TensorData& input1,
                int is_constant = false) {
   std::unique_ptr<MaxMinOpModel<data_type>> m;
   if (is_constant) {
-    m = std::make_unique<MaxMinOpModel<data_type>>(
-        op, input1, input1_values, input2, input2_values, output.type);
+    m = std::make_unique<MaxMinOpModel<data_type>>(op, input1, input2,
+                                                   input2_values, output.type);
   } else {
     m = std::make_unique<MaxMinOpModel<data_type>>(op, input1, input2,
                                                    output.type);
-    m->SetInput1(input1_values);
     m->SetInput2(input2_values);
   }
+  m->SetInput1(input1_values);
 
-  m->Invoke();
+  ASSERT_EQ(m->Invoke(), kTfLiteOk);
   EXPECT_THAT(m->GetOutputShape(), ElementsAreArray(output.shape));
-  EXPECT_THAT(m->GetOutput(), ElementsAreArray(output_values));
+  if constexpr (std::is_same_v<data_type, float>) {
+    EXPECT_THAT(m->GetOutput(), Pointwise(FloatingPointEq(), output_values));
+  } else {
+    EXPECT_THAT(m->GetOutput(), ElementsAreArray(output_values));
+  }
 }
 
 TEST(MaximumOpTest, FloatTest) {
@@ -126,6 +133,19 @@ TEST(MaxMinOpTest, Int8Test) {
   TestModel<int8_t>(BuiltinOperator_MINIMUM, {TensorType_INT8, {3, 1, 2}},
                     {TensorType_INT8, {3, 1, 2}}, {TensorType_INT8, {3, 1, 2}},
                     data1, data2, {0, 0, 1, 11, 2, 1});
+}
+
+TEST(MaxMinOpTest, Int16Test) {
+  std::initializer_list<int16_t> data1 = {-32768, 0, 2, 11, 2, 23};
+  std::initializer_list<int16_t> data2 = {0, 0, 1, 32767, 123, 1};
+  TestModel<int16_t>(BuiltinOperator_MAXIMUM, {TensorType_INT16, {3, 1, 2}},
+                     {TensorType_INT16, {3, 1, 2}},
+                     {TensorType_INT16, {3, 1, 2}}, data1, data2,
+                     {0, 0, 2, 32767, 123, 23});
+  TestModel<int16_t>(BuiltinOperator_MINIMUM, {TensorType_INT16, {3, 1, 2}},
+                     {TensorType_INT16, {3, 1, 2}},
+                     {TensorType_INT16, {3, 1, 2}}, data1, data2,
+                     {-32768, 0, 1, 11, 2, 1});
 }
 
 TEST(MaximumOpTest, FloatWithBroadcastTest) {
@@ -173,5 +193,178 @@ TEST(MaximumOpTest, Int32WithBroadcastTest_ScalarY) {
                      {TensorType_INT32, {}}, {TensorType_INT32, {3, 1, 2}},
                      data1, data2, {1, 0, -1, -2, 2, 2}, /*is_constant=*/true);
 }
+
+TEST(MaximumOpTest, Int8WithBroadcastTest_ScalarY) {
+  std::initializer_list<int8_t> data1 = {1, 0, -1, -2, 3, 11};
+  std::initializer_list<int8_t> data2 = {2};
+  TestModel<int8_t>(BuiltinOperator_MAXIMUM, {TensorType_INT8, {3, 1, 2}},
+                    {TensorType_INT8, {}}, {TensorType_INT8, {3, 1, 2}}, data1,
+                    data2, {2, 2, 2, 2, 3, 11}, /*is_constant=*/true);
+  TestModel<int8_t>(BuiltinOperator_MINIMUM, {TensorType_INT8, {3, 1, 2}},
+                    {TensorType_INT8, {}}, {TensorType_INT8, {3, 1, 2}}, data1,
+                    data2, {1, 0, -1, -2, 2, 2}, /*is_constant=*/true);
+}
+
+TEST(MaxMinOpTest, Int8Test8D) {
+  std::initializer_list<int8_t> data1 = {1, 0, 2, 11, 2, 23};
+  std::initializer_list<int8_t> data2 = {0, 0, 1, 12, 123, 1};
+  TestModel<int8_t>(BuiltinOperator_MAXIMUM,
+                    {TensorType_INT8, {3, 1, 2, 1, 1, 1, 1, 1}},
+                    {TensorType_INT8, {3, 1, 2, 1, 1, 1, 1, 1}},
+                    {TensorType_INT8, {3, 1, 2, 1, 1, 1, 1, 1}}, data1, data2,
+                    {1, 0, 2, 12, 123, 23});
+  TestModel<int8_t>(BuiltinOperator_MINIMUM,
+                    {TensorType_INT8, {3, 1, 2, 1, 1, 1, 1, 1}},
+                    {TensorType_INT8, {3, 1, 2, 1, 1, 1, 1, 1}},
+                    {TensorType_INT8, {3, 1, 2, 1, 1, 1, 1, 1}}, data1, data2,
+                    {0, 0, 1, 11, 2, 1});
+}
+
+TEST(MaximumOpTest, FloatWithBroadcastTest5D) {
+  std::initializer_list<float> data1 = {1.0, 0.0, -1.0, -2.0, -1.44, 11.0};
+  std::initializer_list<float> data2 = {0.5, 2.0};
+  TestModel<float>(
+      BuiltinOperator_MAXIMUM, {TensorType_FLOAT32, {3, 1, 1, 1, 2}},
+      {TensorType_FLOAT32, {2}}, {TensorType_FLOAT32, {3, 1, 1, 1, 2}}, data1,
+      data2, {1.0, 2.0, 0.5, 2.0, 0.5, 11.0});
+  TestModel<float>(
+      BuiltinOperator_MINIMUM, {TensorType_FLOAT32, {3, 1, 1, 1, 2}},
+      {TensorType_FLOAT32, {2}}, {TensorType_FLOAT32, {3, 1, 1, 1, 2}}, data1,
+      data2, {0.5, 0.0, -1.0, -2.0, -1.44, 2.0});
+}
+
+TEST(MaximumOpTest, Int32WithBroadcastTest5D) {
+  std::initializer_list<int32_t> data1 = {1, 0, -1, -2, 3, 11};
+  std::initializer_list<int32_t> data2 = {2};
+  TestModel<int32_t>(
+      BuiltinOperator_MAXIMUM, {TensorType_INT32, {3, 1, 2, 1, 1}},
+      {TensorType_INT32, {1}}, {TensorType_INT32, {3, 1, 2, 1, 1}}, data1,
+      data2, {2, 2, 2, 2, 3, 11});
+  TestModel<int32_t>(
+      BuiltinOperator_MINIMUM, {TensorType_INT32, {3, 1, 2, 1, 1}},
+      {TensorType_INT32, {1}}, {TensorType_INT32, {3, 1, 2, 1, 1}}, data1,
+      data2, {1, 0, -1, -2, 2, 2});
+}
+
+TEST(MaximumOpTest, Float16Test) {
+  std::initializer_list<Eigen::half> data1 = {
+      Eigen::half(1.0),  Eigen::half(0.0),  Eigen::half(-1.0),
+      Eigen::half(11.0), Eigen::half(-2.0), Eigen::half(-1.44)};
+  std::initializer_list<Eigen::half> data2 = {
+      Eigen::half(-1.0), Eigen::half(0.0),  Eigen::half(1.0),
+      Eigen::half(12.0), Eigen::half(-3.0), Eigen::half(-1.43)};
+  TestModel<Eigen::half>(
+      BuiltinOperator_MAXIMUM, {TensorType_FLOAT16, {3, 1, 2}},
+      {TensorType_FLOAT16, {3, 1, 2}}, {TensorType_FLOAT16, {3, 1, 2}}, data1,
+      data2,
+      {Eigen::half(1.0), Eigen::half(0.0), Eigen::half(1.0), Eigen::half(12.0),
+       Eigen::half(-2.0), Eigen::half(-1.43)});
+  TestModel<Eigen::half>(
+      BuiltinOperator_MINIMUM, {TensorType_FLOAT16, {3, 1, 2}},
+      {TensorType_FLOAT16, {3, 1, 2}}, {TensorType_FLOAT16, {3, 1, 2}}, data1,
+      data2,
+      {Eigen::half(-1.0), Eigen::half(0.0), Eigen::half(-1.0),
+       Eigen::half(11.0), Eigen::half(-3.0), Eigen::half(-1.44)});
+}
+
+TEST(MaximumOpTest, BFloat16Test) {
+  std::initializer_list<Eigen::bfloat16> data1 = {
+      Eigen::bfloat16(1.0),  Eigen::bfloat16(0.0),  Eigen::bfloat16(-1.0),
+      Eigen::bfloat16(11.0), Eigen::bfloat16(-2.0), Eigen::bfloat16(-1.44)};
+  std::initializer_list<Eigen::bfloat16> data2 = {
+      Eigen::bfloat16(-1.0), Eigen::bfloat16(0.0),  Eigen::bfloat16(1.0),
+      Eigen::bfloat16(12.0), Eigen::bfloat16(-3.0), Eigen::bfloat16(-1.43)};
+  TestModel<Eigen::bfloat16>(
+      BuiltinOperator_MAXIMUM, {TensorType_BFLOAT16, {3, 1, 2}},
+      {TensorType_BFLOAT16, {3, 1, 2}}, {TensorType_BFLOAT16, {3, 1, 2}}, data1,
+      data2,
+      {Eigen::bfloat16(1.0), Eigen::bfloat16(0.0), Eigen::bfloat16(1.0),
+       Eigen::bfloat16(12.0), Eigen::bfloat16(-2.0), Eigen::bfloat16(-1.43)});
+  TestModel<Eigen::bfloat16>(
+      BuiltinOperator_MINIMUM, {TensorType_BFLOAT16, {3, 1, 2}},
+      {TensorType_BFLOAT16, {3, 1, 2}}, {TensorType_BFLOAT16, {3, 1, 2}}, data1,
+      data2,
+      {Eigen::bfloat16(-1.0), Eigen::bfloat16(0.0), Eigen::bfloat16(-1.0),
+       Eigen::bfloat16(11.0), Eigen::bfloat16(-3.0), Eigen::bfloat16(-1.44)});
+}
+
+TEST(MaximumOpTest, BFloat16WithBroadcastTest5DScalarY) {
+  std::initializer_list<Eigen::bfloat16> data1 = {
+      Eigen::bfloat16(1.0),  Eigen::bfloat16(0.0), Eigen::bfloat16(-1.0),
+      Eigen::bfloat16(-2.0), Eigen::bfloat16(3.0), Eigen::bfloat16(11.0)};
+  std::initializer_list<Eigen::bfloat16> data2 = {Eigen::bfloat16(2.0)};
+  TestModel<Eigen::bfloat16>(
+      BuiltinOperator_MAXIMUM, {TensorType_BFLOAT16, {3, 1, 2, 1, 1}},
+      {TensorType_BFLOAT16, {1}}, {TensorType_BFLOAT16, {3, 1, 2, 1, 1}}, data1,
+      data2,
+      {Eigen::bfloat16(2.0), Eigen::bfloat16(2.0), Eigen::bfloat16(2.0),
+       Eigen::bfloat16(2.0), Eigen::bfloat16(3.0), Eigen::bfloat16(11.0)});
+  TestModel<Eigen::bfloat16>(
+      BuiltinOperator_MINIMUM, {TensorType_BFLOAT16, {3, 1, 2, 1, 1}},
+      {TensorType_BFLOAT16, {1}}, {TensorType_BFLOAT16, {3, 1, 2, 1, 1}}, data1,
+      data2,
+      {Eigen::bfloat16(1.0), Eigen::bfloat16(0.0), Eigen::bfloat16(-1.0),
+       Eigen::bfloat16(-2.0), Eigen::bfloat16(2.0), Eigen::bfloat16(2.0)});
+}
+
+TEST(MaximumOpTest, Float16WithBroadcastTest5DScalarY) {
+  std::initializer_list<Eigen::half> data1 = {
+      Eigen::half(1.0),  Eigen::half(0.0), Eigen::half(-1.0),
+      Eigen::half(-2.0), Eigen::half(3.0), Eigen::half(11.0)};
+  std::initializer_list<Eigen::half> data2 = {Eigen::half(2.0)};
+  TestModel<Eigen::half>(
+      BuiltinOperator_MAXIMUM, {TensorType_FLOAT16, {3, 1, 2, 1, 1}},
+      {TensorType_FLOAT16, {1}}, {TensorType_FLOAT16, {3, 1, 2, 1, 1}}, data1,
+      data2,
+      {Eigen::half(2.0), Eigen::half(2.0), Eigen::half(2.0), Eigen::half(2.0),
+       Eigen::half(3.0), Eigen::half(11.0)});
+  TestModel<Eigen::half>(
+      BuiltinOperator_MINIMUM, {TensorType_FLOAT16, {3, 1, 2, 1, 1}},
+      {TensorType_FLOAT16, {1}}, {TensorType_FLOAT16, {3, 1, 2, 1, 1}}, data1,
+      data2,
+      {Eigen::half(1.0), Eigen::half(0.0), Eigen::half(-1.0), Eigen::half(-2.0),
+       Eigen::half(2.0), Eigen::half(2.0)});
+}
+
+TEST(MaximumOpTest, Float16WithBroadcastTest5D) {
+  std::initializer_list<Eigen::half> data1 = {
+      Eigen::half(1.0),  Eigen::half(0.0),   Eigen::half(-1.0),
+      Eigen::half(-2.0), Eigen::half(-1.44), Eigen::half(11.0)};
+  std::initializer_list<Eigen::half> data2 = {Eigen::half(0.5),
+                                              Eigen::half(2.0)};
+  TestModel<Eigen::half>(
+      BuiltinOperator_MAXIMUM, {TensorType_FLOAT16, {3, 1, 1, 1, 2}},
+      {TensorType_FLOAT16, {2}}, {TensorType_FLOAT16, {3, 1, 1, 1, 2}}, data1,
+      data2,
+      {Eigen::half(1.0), Eigen::half(2.0), Eigen::half(0.5), Eigen::half(2.0),
+       Eigen::half(0.5), Eigen::half(11.0)});
+  TestModel<Eigen::half>(
+      BuiltinOperator_MINIMUM, {TensorType_FLOAT16, {3, 1, 1, 1, 2}},
+      {TensorType_FLOAT16, {2}}, {TensorType_FLOAT16, {3, 1, 1, 1, 2}}, data1,
+      data2,
+      {Eigen::half(0.5), Eigen::half(0.0), Eigen::half(-1.0), Eigen::half(-2.0),
+       Eigen::half(-1.44), Eigen::half(2.0)});
+}
+
+TEST(MaximumOpTest, BFloat16WithBroadcastTest5D) {
+  std::initializer_list<Eigen::bfloat16> data1 = {
+      Eigen::bfloat16(1.0),  Eigen::bfloat16(0.0),   Eigen::bfloat16(-1.0),
+      Eigen::bfloat16(-2.0), Eigen::bfloat16(-1.44), Eigen::bfloat16(11.0)};
+  std::initializer_list<Eigen::bfloat16> data2 = {Eigen::bfloat16(0.5),
+                                                  Eigen::bfloat16(2.0)};
+  TestModel<Eigen::bfloat16>(
+      BuiltinOperator_MAXIMUM, {TensorType_BFLOAT16, {3, 1, 1, 1, 2}},
+      {TensorType_BFLOAT16, {2}}, {TensorType_BFLOAT16, {3, 1, 1, 1, 2}}, data1,
+      data2,
+      {Eigen::bfloat16(1.0), Eigen::bfloat16(2.0), Eigen::bfloat16(0.5),
+       Eigen::bfloat16(2.0), Eigen::bfloat16(0.5), Eigen::bfloat16(11.0)});
+  TestModel<Eigen::bfloat16>(
+      BuiltinOperator_MINIMUM, {TensorType_BFLOAT16, {3, 1, 1, 1, 2}},
+      {TensorType_BFLOAT16, {2}}, {TensorType_BFLOAT16, {3, 1, 1, 1, 2}}, data1,
+      data2,
+      {Eigen::bfloat16(0.5), Eigen::bfloat16(0.0), Eigen::bfloat16(-1.0),
+       Eigen::bfloat16(-2.0), Eigen::bfloat16(-1.44), Eigen::bfloat16(2.0)});
+}
+
 }  // namespace
 }  // namespace tflite

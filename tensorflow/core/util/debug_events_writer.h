@@ -16,7 +16,10 @@ limitations under the License.
 #ifndef TENSORFLOW_CORE_UTIL_DEBUG_EVENTS_WRITER_H_
 #define TENSORFLOW_CORE_UTIL_DEBUG_EVENTS_WRITER_H_
 
+#include <atomic>
 #include <deque>
+#include <memory>
+#include <unordered_map>
 
 #include "absl/container/flat_hash_map.h"
 #include "tensorflow/core/framework/tensor.h"
@@ -48,12 +51,12 @@ class SingleDebugEventFileWriter {
  public:
   explicit SingleDebugEventFileWriter(const string& file_path);
 
-  Status Init();
+  absl::Status Init();
 
-  void WriteSerializedDebugEvent(tensorflow::StringPiece debug_event_str);
+  void WriteSerializedDebugEvent(absl::string_view debug_event_str);
 
-  Status Flush();
-  Status Close();
+  absl::Status Flush();
+  absl::Status Close();
 
   const string FileName();
 
@@ -73,7 +76,7 @@ class DebugEventsWriter {
 #ifndef SWIG
   // Prefix of version string present in the first entry of every event file.
   // Default size of each circular buffer (unit: number of DebugEvent protos).
-  static constexpr const int64 kDefaultCyclicBufferSize = 1000;
+  static constexpr const int64_t kDefaultCyclicBufferSize = 1000;
 
   static constexpr const char* kFileNamePrefix = "tfdbg_events";
   static constexpr const char* kMetadataSuffix = "metadata";
@@ -93,18 +96,27 @@ class DebugEventsWriter {
   // sets of six. The singleton pattern avoids storing multiple sets in a single
   // folder, which might cause confusion.
   //
+  // If an instance of DebugEventsWriter has already been created at a
+  // `dump_root`, calling this method with the same `dump_root` will return
+  // the existing instance.
+  //
   // Args:
   //   dump_root: Dump root directory. If it doesn't exist, will be created.
+  //   tfdbg_run_id: Debugging run ID of the writer.
   //   circular_buffer_size: Circular buffer size (in number of DebugEvent
   //     protos). If set to a value <=0, will abolish the circular-buffer
   //     behavior.
   // Returns:
   //   A pointer to a DebugEventsWriter object: a per-dump_root singleton.
   static DebugEventsWriter* GetDebugEventsWriter(const string& dump_root,
-                                                 int64 circular_buffer_size);
-  // Same as the 2-arg factory method above, but uses the default circular
-  // buffer size.
-  static DebugEventsWriter* GetDebugEventsWriter(const string& dump_root);
+                                                 const string& tfdbg_run_id,
+                                                 int64_t circular_buffer_size);
+  // Look up existing events writer by dump_root.
+  // If no DebugEventsWriter has been created at the dump_root, a non-OK
+  // Status will be returned. Else an OK status will be returned, with
+  // the pointer to the existing instance provided by reference.
+  static absl::Status LookUpDebugEventsWriter(
+      const string& dump_root, DebugEventsWriter** debug_events_writer);
   ~DebugEventsWriter();
 
   // Sets the debug event filenames and opens file for writing.
@@ -114,32 +126,32 @@ class DebugEventsWriter {
   // Idempotent: if the metadata file exists and is open, this is a no-op.
   // If on the other hand the file was opened, but has since disappeared (e.g.
   // deleted by another process), this will open a new file.
-  Status Init();
+  absl::Status Init();
 
-  // The four DebugEvent fields below are written _without_ the circular buffer.
-  // Source file contents are written to the *.source_files file.
+  // The four DebugEvent fields below are written _without_ the circular
+  // buffer. Source file contents are written to the *.source_files file.
   // Takes ownership of source_file.
-  void WriteSourceFile(SourceFile* source_file);
+  absl::Status WriteSourceFile(SourceFile* source_file);
   // Stack frames are written to the *.code_locations file.
   // Takes ownership of stack_frame_with_id.
-  void WriteStackFrameWithId(StackFrameWithId* stack_frame_with_id);
+  absl::Status WriteStackFrameWithId(StackFrameWithId* stack_frame_with_id);
   // Graph op creation events are written to the *.graphs file.
   // Takes ownership of graph_op_creation.
-  void WriteGraphOpCreation(GraphOpCreation* graph_op_creation);
+  absl::Status WriteGraphOpCreation(GraphOpCreation* graph_op_creation);
   // Debugged graphs are written to the *.graphs file.
   // Takes ownership of debugged_graph.
-  void WriteDebuggedGraph(DebuggedGraph* debugged_graph);
+  absl::Status WriteDebuggedGraph(DebuggedGraph* debugged_graph);
 
   // The two DebugEvent fields below are written to the circular buffer
   // and saved to disk only at the FlushExecutionFiles() call.
-  // Execution events (eager execution of an op or a tf.function) are written to
-  // the *.execution file.
-  // Takes ownership of execution.
-  void WriteExecution(Execution* execution);
+  // Execution events (eager execution of an op or a tf.function) are written
+  // to the *.execution file. Takes ownership of execution.
+  absl::Status WriteExecution(Execution* execution);
   // Graph execution traces (graph-internal tensor values or their summaries)
   // are written to the *.graph_execution_traces file.
   // Takes ownership of graph_execution_trace.
-  void WriteGraphExecutionTrace(GraphExecutionTrace* graph_execution_trace);
+  absl::Status WriteGraphExecutionTrace(
+      GraphExecutionTrace* graph_execution_trace);
 
   // Write a graph execution trace without using a protocol buffer.
   // Instead, pass the raw values related to the graph execution trace.
@@ -151,15 +163,17 @@ class DebugEventsWriter {
   //     which the trace concerns multiple tensors, this is an empty string.
   //   output_slot: Output slot index of the op that this trace is concerned
   //     with.
-  //   tensor_debug_mode: An integer that represents the tensor-debug mode enum.
-  //   tensor_value: The value of the tensor that describes the tensor(s)
+  //   tensor_debug_mode: An integer that represents the tensor-debug mode
+  //   enum. tensor_value: The value of the tensor that describes the
+  //   tensor(s)
   //     that this trace is concerned with. The semantics of this tensor value
   //     depends on the value of `tensor_debug_mode`.
-  void WriteGraphExecutionTrace(const string& tfdbg_context_id,
-                                const string& device_name,
-                                const string& op_name, int32 output_slot,
-                                int32 tensor_debug_mode,
-                                const Tensor& tensor_value);
+  absl::Status WriteGraphExecutionTrace(const string& tfdbg_context_id,
+                                        const string& device_name,
+                                        const string& op_name,
+                                        int32_t output_slot,
+                                        int32_t tensor_debug_mode,
+                                        const Tensor& tensor_value);
 
   // Writes a serialized DebugEvent to one of the debug-events files
   // concerned with the non-execution events: the SOURCE_FILES, STACK_FRAMES
@@ -188,15 +202,15 @@ class DebugEventsWriter {
   // and/or check for success.
   // FlushNonExecutionFiles() pushes outstanding DebugEvents not written
   // events to the circular buffer to their respective files.
-  Status FlushNonExecutionFiles();
+  absl::Status FlushNonExecutionFiles();
 
   // Writes current contents of the circular buffers to their respective
   // debug event files and clears the circular buffers.
-  Status FlushExecutionFiles();
+  absl::Status FlushExecutionFiles();
 
   // Close() calls FlushNonExecutionFiles() and FlushExecutionFiles()
   // and then closes the current debug events files.
-  Status Close();
+  absl::Status Close();
 
  private:
   static std::unordered_map<string, std::unique_ptr<DebugEventsWriter>>*
@@ -208,17 +222,18 @@ class DebugEventsWriter {
   // Guards calls to the GetDebugEventsWriter() method.
   static mutex factory_mu_;
 
-  DebugEventsWriter(const string& dump_root, int64 circular_buffer_size);
+  DebugEventsWriter(const string& dump_root, const string& tfdbg_run_id,
+                    int64_t circular_buffer_size);
 
   // Get the path prefix. The same for all files, which differ only in the
   // suffix.
   string FileName(DebugEventFileType type);
 
   // Initialize the TFRecord writer for non-metadata file type.
-  Status InitNonMetadataFile(DebugEventFileType type);
+  absl::Status InitNonMetadataFile(DebugEventFileType type);
 
-  void SerializeAndWriteDebugEvent(DebugEvent* debug_event,
-                                   DebugEventFileType type);
+  absl::Status SerializeAndWriteDebugEvent(DebugEvent* debug_event,
+                                           DebugEventFileType type);
 
   void SelectWriter(DebugEventFileType type,
                     std::unique_ptr<SingleDebugEventFileWriter>** writer);
@@ -227,12 +242,13 @@ class DebugEventsWriter {
 
   Env* env_;
   const string dump_root_;
+  const string tfdbg_run_id_;
 
   string file_prefix_;
   bool is_initialized_ TF_GUARDED_BY(initialization_mu_);
   mutex initialization_mu_;
 
-  const int64 circular_buffer_size_;
+  const int64_t circular_buffer_size_;
   std::deque<string> execution_buffer_ TF_GUARDED_BY(execution_buffer_mu_);
   mutex execution_buffer_mu_;
   std::deque<string> graph_execution_trace_buffer_
@@ -249,7 +265,8 @@ class DebugEventsWriter {
   std::unique_ptr<SingleDebugEventFileWriter> execution_writer_;
   std::unique_ptr<SingleDebugEventFileWriter> graph_execution_traces_writer_;
 
-  TF_DISALLOW_COPY_AND_ASSIGN(DebugEventsWriter);
+  DebugEventsWriter(const DebugEventsWriter&) = delete;
+  void operator=(const DebugEventsWriter&) = delete;
 
   friend class DebugEventsWriterTest;
 };

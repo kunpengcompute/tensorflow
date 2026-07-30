@@ -14,10 +14,6 @@
 # ==============================================================================
 """Tests for function_wrappers module."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 from tensorflow.python.autograph.core import converter
 from tensorflow.python.autograph.core import function_wrappers
 from tensorflow.python.eager import context
@@ -46,7 +42,7 @@ class FunctionWrappersTest(test.TestCase):
         converter.ConversionOptions(
             optional_features=converter.Feature.AUTO_CONTROL_DEPS)) as scope:
       v.assign(2)
-      op = scope.mark_return_value(constant_op.constant(1))
+      op = scope.ret(constant_op.constant(1), True)
     self.evaluate(op)
     self.assertEqual(self.evaluate(v.read_value()), 2)
 

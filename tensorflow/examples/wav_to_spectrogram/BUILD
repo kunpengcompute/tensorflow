@@ -4,11 +4,9 @@
 load("//tensorflow:tensorflow.bzl", "tf_cc_binary", "tf_cc_test")
 
 package(
-    default_visibility = ["//tensorflow:internal"],
-    licenses = ["notice"],  # Apache 2.0
+    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
+    licenses = ["notice"],
 )
-
-exports_files(["LICENSE"])
 
 cc_library(
     name = "wav_to_spectrogram_lib",
@@ -22,6 +20,7 @@ cc_library(
         "//tensorflow/core:lib",
         "//tensorflow/core:protos_all_cc",
         "//tensorflow/core:tensorflow",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -32,6 +31,8 @@ tf_cc_binary(
         ":wav_to_spectrogram_lib",
         "//tensorflow/core:framework_internal",
         "//tensorflow/core:lib",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
     ],
 )
 

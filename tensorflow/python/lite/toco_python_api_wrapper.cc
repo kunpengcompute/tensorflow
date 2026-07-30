@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include "pybind11/pybind11.h"
+#include "pybind11/pybind11.h"  // from @pybind11
 #include "tensorflow/lite/toco/python/toco_python_api.h"
 #include "tensorflow/python/lib/core/pybind11_lib.h"
 
@@ -24,17 +24,13 @@ PYBIND11_MODULE(_pywrap_toco_api, m) {
       "TocoConvert",
       [](py::object model_flags_proto_txt_raw,
          py::object toco_flags_proto_txt_raw, py::object input_contents_txt_raw,
-         bool extended_return, py::object debug_info_txt_raw,
-         bool enable_mlir_converter) {
-        return tensorflow::pyo_or_throw(toco::TocoConvert(
+         bool extended_return) {
+        return tensorflow::PyoOrThrow(toco::TocoConvert(
             model_flags_proto_txt_raw.ptr(), toco_flags_proto_txt_raw.ptr(),
-            input_contents_txt_raw.ptr(), extended_return,
-            debug_info_txt_raw.ptr(), enable_mlir_converter));
+            input_contents_txt_raw.ptr(), extended_return));
       },
       py::arg("model_flags_proto_txt_raw"), py::arg("toco_flags_proto_txt_raw"),
       py::arg("input_contents_txt_raw"), py::arg("extended_return") = false,
-      py::arg("debug_info_txt_raw") = py::none(),
-      py::arg("enable_mlir_converter") = false,
       R"pbdoc(
       Convert a model represented in `input_contents`. `model_flags_proto`
       describes model parameters. `toco_flags_proto` describes conversion
@@ -42,16 +38,5 @@ PYBIND11_MODULE(_pywrap_toco_api, m) {
       representing the contents of the converted model. When extended_return
       flag is set to true returns a dictionary that contains string representation
       of the converted model and some statistics like arithmetic ops count.
-      `debug_info_str` contains the `GraphDebugInfo` proto. When
-      `enable_mlir_converter` is True, tuse MLIR-based conversion instead of
-      TOCO conversion.
-    )pbdoc");
-  m.def(
-      "TocoGetPotentiallySupportedOps",
-      []() {
-        return tensorflow::pyo_or_throw(toco::TocoGetPotentiallySupportedOps());
-      },
-      R"pbdoc(
-      Returns a list of names of all ops potentially supported by tflite.
     )pbdoc");
 }

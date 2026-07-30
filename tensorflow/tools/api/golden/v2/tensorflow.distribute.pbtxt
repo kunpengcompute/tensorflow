@@ -5,6 +5,14 @@ tf_module {
     mtype: "<type \'type\'>"
   }
   member {
+    name: "DistributedDataset"
+    mtype: "<type \'type\'>"
+  }
+  member {
+    name: "DistributedIterator"
+    mtype: "<type \'type\'>"
+  }
+  member {
     name: "DistributedValues"
     mtype: "<type \'type\'>"
   }
@@ -17,11 +25,19 @@ tf_module {
     mtype: "<type \'type\'>"
   }
   member {
+    name: "InputOptions"
+    mtype: "<type \'type\'>"
+  }
+  member {
     name: "InputReplicationMode"
-    mtype: "<class \'enum.EnumMeta\'>"
+    mtype: "<class \'enum.EnumType\'>"
   }
   member {
     name: "MirroredStrategy"
+    mtype: "<type \'type\'>"
+  }
+  member {
+    name: "MultiWorkerMirroredStrategy"
     mtype: "<type \'type\'>"
   }
   member {
@@ -33,8 +49,12 @@ tf_module {
     mtype: "<type \'type\'>"
   }
   member {
+    name: "ParameterServerStrategy"
+    mtype: "<type \'type\'>"
+  }
+  member {
     name: "ReduceOp"
-    mtype: "<class \'enum.EnumMeta\'>"
+    mtype: "<class \'enum.EnumType\'>"
   }
   member {
     name: "ReductionToOneDevice"
@@ -61,7 +81,15 @@ tf_module {
     mtype: "<type \'type\'>"
   }
   member {
+    name: "TPUStrategy"
+    mtype: "<type \'type\'>"
+  }
+  member {
     name: "cluster_resolver"
+    mtype: "<type \'module\'>"
+  }
+  member {
+    name: "coordinator"
     mtype: "<type \'module\'>"
   }
   member {

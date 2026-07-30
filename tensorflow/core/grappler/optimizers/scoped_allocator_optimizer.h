@@ -43,13 +43,10 @@ class ScopedAllocatorOptimizer : public GraphOptimizer {
 
   string name() const override { return "scoped_allocator_optimizer"; }
 
-  bool UsesFunctionLibrary() const override { return false; }
+  bool UsesFunctionLibrary() const override { return true; }
 
-  Status Optimize(Cluster* cluster, const GrapplerItem& item,
-                  GraphDef* optimized_graph) override;
-
-  void Feedback(Cluster* cluster, const GrapplerItem& item,
-                const GraphDef& optimized_graph, double result) override {}
+  absl::Status Optimize(Cluster* cluster, const GrapplerItem& item,
+                        GraphDef* optimized_graph) override;
 
   // Map from an Op name to a vector of Nodes with that Op.
   typedef absl::flat_hash_map<string, std::vector<NodeDef*>> DevOpOccurrences;
@@ -57,8 +54,8 @@ class ScopedAllocatorOptimizer : public GraphOptimizer {
   typedef absl::flat_hash_map<string, DevOpOccurrences> GraphOpOccurrences;
   typedef absl::flat_hash_set<string> OpNameSet;
 
-  Status ProcessGraphDef(GraphDef* graph,
-                         const GraphProperties& graph_properties);
+  absl::Status ProcessGraphDef(GraphDef* graph,
+                               const GraphProperties& graph_properties);
 
   // Populates *occs by grouping Nodes with common Ops, according to
   // their assigned devices.
@@ -71,7 +68,7 @@ class ScopedAllocatorOptimizer : public GraphOptimizer {
 
   // Returns a new, unused id to be assigned to an IdentityOp used in this graph
   // rewrite.
-  Status NewIdentityId(int* id);
+  absl::Status NewIdentityId(int* id);
 
   NodeMap* node_map() { return node_map_.get(); }
 
@@ -81,7 +78,8 @@ class ScopedAllocatorOptimizer : public GraphOptimizer {
 
   // Appends values to the attr value under name in node_def, if present.
   // If not present does an assignment.
-  static void ExtendNodeAttr(StringPiece name, const std::vector<int32>& values,
+  static void ExtendNodeAttr(absl::string_view name,
+                             const std::vector<int32>& values,
                              NodeDef* node_def);
 
   // Class that knows how to do graph rewriting for a particular kind of Op in
@@ -90,11 +88,11 @@ class ScopedAllocatorOptimizer : public GraphOptimizer {
    public:
     virtual ~Rewriter() {}
 
-    virtual Status Rewrite(ScopedAllocatorOptimizer* paopti,
-                           int64 invocation_count, GraphDef* graph,
-                           const string& op_name,
-                           const std::vector<NodeDef*>& nodes,
-                           bool* applied) = 0;
+    virtual absl::Status Rewrite(ScopedAllocatorOptimizer* paopti,
+                                 int64_t invocation_count, GraphDef* graph,
+                                 const string& op_name,
+                                 const std::vector<NodeDef*>& nodes,
+                                 bool* applied) = 0;
 
     void SetGraphProperties(const GraphProperties& graph_properties) {
       graph_properties_ = &graph_properties;
@@ -108,7 +106,7 @@ class ScopedAllocatorOptimizer : public GraphOptimizer {
  private:
   Rewriter* GetRewriter(const string& op_name);
 
-  Status OrderNodeSet(std::vector<NodeDef*>* nodes) const;
+  absl::Status OrderNodeSet(std::vector<NodeDef*>* nodes) const;
 
   RewriterConfig::Toggle opt_level_;
   std::unordered_set<string> nodes_to_preserve_;

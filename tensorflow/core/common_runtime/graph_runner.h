@@ -20,14 +20,18 @@ limitations under the License.
 #include <string>
 #include <vector>
 
-#include "tensorflow/core/common_runtime/device.h"
 #include "tensorflow/core/framework/function.h"
 #include "tensorflow/core/framework/tensor.h"
-#include "tensorflow/core/graph/graph.h"
 #include "tensorflow/core/lib/core/status.h"
-#include "tensorflow/core/platform/env.h"
 
+namespace tsl {
+class Env;
+}  // namespace tsl
 namespace tensorflow {
+using Env = tsl::Env;
+
+class Device;
+class Graph;
 
 // GraphRunner takes a Graph, some inputs to feed, and some outputs
 // to fetch and executes the graph required to feed and fetch the
@@ -55,10 +59,10 @@ class GraphRunner {
   // REQUIRES: `graph`, `env`, and `outputs` are not nullptr.
   // `function_library` may be nullptr.
   typedef std::vector<std::pair<string, Tensor>> NamedTensorList;
-  Status Run(Graph* graph, FunctionLibraryRuntime* function_library,
-             const NamedTensorList& inputs,
-             const std::vector<string>& output_names,
-             std::vector<Tensor>* outputs);
+  absl::Status Run(Graph* graph, FunctionLibraryRuntime* function_library,
+                   const NamedTensorList& inputs,
+                   const std::vector<string>& output_names,
+                   std::vector<Tensor>* outputs);
 
  private:
   std::unique_ptr<Device> device_deleter_;

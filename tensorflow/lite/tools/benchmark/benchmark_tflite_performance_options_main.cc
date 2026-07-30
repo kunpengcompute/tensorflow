@@ -13,9 +13,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+#include <cstdlib>
+
 #include "tensorflow/lite/tools/benchmark/benchmark_performance_options.h"
 #include "tensorflow/lite/tools/benchmark/benchmark_tflite_model.h"
-#include "tensorflow/lite/tools/benchmark/logging.h"
+#include "tensorflow/lite/tools/logging.h"
 
 namespace tflite {
 namespace benchmark {
@@ -23,9 +25,6 @@ namespace benchmark {
 int Main(int argc, char** argv) {
   TFLITE_LOG(INFO) << "STARTING!";
   BenchmarkTfLiteModel benchmark;
-  BenchmarkLoggingListener listener;
-  benchmark.AddListener(&listener);
-
   BenchmarkPerformanceOptions all_options_benchmark(&benchmark);
   all_options_benchmark.Run(argc, argv);
   return EXIT_SUCCESS;

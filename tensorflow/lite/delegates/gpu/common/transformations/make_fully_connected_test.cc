@@ -15,13 +15,19 @@ limitations under the License.
 
 #include "tensorflow/lite/delegates/gpu/common/transformations/make_fully_connected.h"
 
-#include <gmock/gmock.h>
+#include <any>
+#include <memory>
+#include <string>
+#include <vector>
+
 #include <gtest/gtest.h>
+#include "absl/status/status.h"
 #include "absl/types/any.h"
 #include "tensorflow/lite/delegates/gpu/common/model.h"
 #include "tensorflow/lite/delegates/gpu/common/model_transformer.h"
 #include "tensorflow/lite/delegates/gpu/common/operations.h"
 #include "tensorflow/lite/delegates/gpu/common/shape.h"
+#include "tensorflow/lite/delegates/gpu/common/tensor.h"
 
 namespace tflite {
 namespace gpu {
@@ -68,16 +74,16 @@ TEST(MakeFullyConnected, Smoke) {
 
   ASSERT_TRUE(graph.AddConsumer(conv1x1_node0->id, input->id).ok());
 
-  Value<TensorRef<BHWC>>* output;
+  Value* output = nullptr;
   ASSERT_TRUE(AddOutput(&graph, conv1x1_node2, &output).ok());
   output->tensor.shape = BHWC(1, 1, 1, 32);
 
-  Value<TensorRef<BHWC>>* link1;
+  Value* link1 = nullptr;
   ASSERT_TRUE(
       ConnectTwoNodes(&graph, conv1x1_node0, conv4x4_node1, &link1).ok());
   link1->tensor.shape = BHWC(1, 4, 4, 16);
 
-  Value<TensorRef<BHWC>>* link2;
+  Value* link2 = nullptr;
   ASSERT_TRUE(
       ConnectTwoNodes(&graph, conv4x4_node1, conv1x1_node2, &link2).ok());
   link2->tensor.shape = BHWC(1, 1, 1, 16);
@@ -86,7 +92,7 @@ TEST(MakeFullyConnected, Smoke) {
   ASSERT_EQ(4, graph.values().size());
 
   auto transformation = NewMakeFullyConnectedFromConvolution();
-  ModelTransformer transformer(&graph, nullptr);
+  ModelTransformer transformer(&graph);
   transformer.Apply("make_fully_connected", transformation.get());
 
   ASSERT_EQ(3, graph.nodes().size());
@@ -97,7 +103,7 @@ TEST(MakeFullyConnected, Smoke) {
             graph.nodes()[1]->operation.type);
   ASSERT_EQ(ToString(OperationType::FULLY_CONNECTED),
             graph.nodes()[2]->operation.type);
-  auto fc_attr = absl::any_cast<FullyConnectedAttributes>(
+  auto fc_attr = std::any_cast<FullyConnectedAttributes>(
       graph.nodes()[2]->operation.attributes);
   EXPECT_EQ(OHWI(32, 1, 1, 16), fc_attr.weights.shape);
   EXPECT_EQ(Linear(32), fc_attr.bias.shape);

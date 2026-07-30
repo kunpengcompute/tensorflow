@@ -15,9 +15,12 @@ limitations under the License.
 #include "tensorflow/core/distributed_runtime/cluster_function_library_runtime.h"
 
 #include <map>
+#include <memory>
+#include <utility>
+#include <vector>
 
-#include "tensorflow/core/common_runtime/function.h"
-#include "tensorflow/core/common_runtime/process_function_library_runtime.h"
+#include "tensorflow/core/common_runtime/function_def_utils.h"
+#include "tensorflow/core/common_runtime/inline_function_utils.h"
 #include "tensorflow/core/distributed_runtime/worker_session.h"
 #include "tensorflow/core/framework/function.h"
 #include "tensorflow/core/framework/graph_def_util.h"
@@ -26,14 +29,13 @@ limitations under the License.
 #include "tensorflow/core/framework/tensor.pb.h"
 #include "tensorflow/core/graph/node_builder.h"
 #include "tensorflow/core/lib/gtl/cleanup.h"
-#include "tensorflow/core/lib/random/random.h"
 #include "tensorflow/core/protobuf/named_tensor.pb.h"
 #include "tensorflow/core/protobuf/worker.pb.h"
 
 namespace tensorflow {
 
 /* static */
-Status ClusterFunctionLibraryRuntime::ConstructFunctionGraph(
+absl::Status ClusterFunctionLibraryRuntime::ConstructFunctionGraph(
     const OpDef& sig, AttrSlice attrs,
     const FunctionLibraryRuntime::InstantiateOptions& options,
     const FunctionLibraryDefinition& flib_def, GraphDef* gdef,
@@ -102,9 +104,8 @@ Status ClusterFunctionLibraryRuntime::ConstructFunctionGraph(
   for (const auto& p : attrs) {
     (*function_node_def.mutable_attr())[p.first] = p.second;
   }
-  Status status;
-  Node* function_node = g.AddNode(std::move(function_node_def), &status);
-  TF_RETURN_IF_ERROR(status);
+  TF_ASSIGN_OR_RETURN(Node * function_node,
+                      g.AddNode(std::move(function_node_def)));
   for (size_t i = 0; i < input_nodes.size(); ++i) {
     g.AddEdge(input_nodes[i], 0, function_node, i);
   }
@@ -168,7 +169,7 @@ Status ClusterFunctionLibraryRuntime::ConstructFunctionGraph(
   // from the library.
   *(gdef->mutable_library()) = flib_def.ReachableDefinitions(*gdef).ToProto();
 
-  return Status::OK();
+  return absl::OkStatus();
 }
 
 ClusterFunctionLibraryRuntime::~ClusterFunctionLibraryRuntime() {
@@ -186,8 +187,9 @@ void ClusterFunctionLibraryRuntime::Instantiate(
   auto target = options.target;
   VLOG(1) << "CFLR::Instantiate: " << function_name << " on " << target
           << " (this: " << this << ")";
-  WorkerInterface* wi =
-      worker_session_->worker_cache()->GetOrCreateWorker(target);
+  std::shared_ptr<WorkerCacheInterface> worker_cache =
+      worker_session_->GetSharedWorkerCache();
+  WorkerInterface* wi = worker_cache->GetOrCreateWorker(target);
 
   if (wi == nullptr) {
     std::vector<string> workers;
@@ -207,9 +209,9 @@ void ClusterFunctionLibraryRuntime::Instantiate(
     const OpDef& sig = fdef->signature();
     TF_RETURN_IF_ERROR(ConstructFunctionGraph(sig, attrs, options, *lib_def,
                                               &gdef, send_keys, recv_keys));
-    return Status::OK();
+    return absl::OkStatus();
   };
-  Status s;
+  absl::Status s;
   if (options.lib_def) {
     s = construct_graph_fn(options.lib_def);
   } else {
@@ -233,13 +235,14 @@ void ClusterFunctionLibraryRuntime::Instantiate(
 
   wi->RegisterGraphAsync(
       req, resp,
-      [this, handle, req, resp, wi, function_name, target, send_keys, recv_keys,
-       done](const Status& status) {
+      [this, handle, req, resp, worker_cache, wi, function_name, target,
+       send_keys, recv_keys, done](const absl::Status& status) {
         if (status.ok()) {
           mutex_lock l(mu_);
           *handle = function_data_.size();
           function_data_.push_back(FunctionData(resp->graph_handle(), target,
-                                                wi, *send_keys, *recv_keys));
+                                                worker_cache, wi, *send_keys,
+                                                *recv_keys));
           VLOG(1) << "CFLR::Instantiate: [Success] " << function_name << " on "
                   << target << " (this: " << this << ")"
                   << " with handle: " << *handle;
@@ -254,7 +257,7 @@ void ClusterFunctionLibraryRuntime::Instantiate(
 
 void ClusterFunctionLibraryRuntime::Run(
     const FunctionLibraryRuntime::Options& opts,
-    FunctionLibraryRuntime::LocalHandle handle, gtl::ArraySlice<Tensor> args,
+    FunctionLibraryRuntime::LocalHandle handle, absl::Span<const Tensor> args,
     std::vector<Tensor>* rets, FunctionLibraryRuntime::DoneCallback done) {
   FunctionData* function_data = nullptr;
   {
@@ -291,8 +294,9 @@ void ClusterFunctionLibraryRuntime::Run(
   CallOptions* call_options = new CallOptions();
   wi->RunGraphAsync(
       call_options, req, resp,
-      [call_options, req, resp, rets, recv_keys, done](const Status& status) {
-        Status* local_status = new Status(status);
+      [call_options, req, resp, rets, recv_keys,
+       done](const absl::Status& status) {
+        absl::Status* local_status = new absl::Status(status);
         auto cleanup =
             gtl::MakeCleanup([call_options, req, resp, local_status, done] {
               done(*local_status);
@@ -328,6 +332,36 @@ void ClusterFunctionLibraryRuntime::Run(
       });
 }
 
+void ClusterFunctionLibraryRuntime::Run(
+    const FunctionLibraryRuntime::Options& opts,
+    FunctionLibraryRuntime::LocalHandle handle,
+    absl::Span<const FunctionArg> args, std::vector<FunctionRet>* rets,
+    FunctionLibraryRuntime::DoneCallback done) {
+  std::vector<Tensor> tensors;
+  for (const auto& arg : args) {
+    if (arg.index() == 0) {
+      tensors.push_back(std::get<Tensor>(arg));
+    } else {
+      done(
+          errors::Internal("ClusterFunctionLibraryRuntime doesn't support "
+                           "eager::RemoteTensorHandle."));
+      return;
+    }
+  }
+  std::vector<Tensor>* ret_tensors = new std::vector<Tensor>;
+  return Run(
+      opts, handle, tensors, ret_tensors,
+      [rets, ret_tensors, done = std::move(done)](const absl::Status& s) {
+        if (s.ok()) {
+          for (const auto& t : *ret_tensors) {
+            rets->push_back(t);
+          }
+        }
+        delete ret_tensors;
+        done(s);
+      });
+}
+
 void ClusterFunctionLibraryRuntime::CleanUp(
     uint64 step_id, FunctionLibraryRuntime::LocalHandle handle,
     FunctionLibraryRuntime::DoneCallback done) {
@@ -349,7 +383,7 @@ void ClusterFunctionLibraryRuntime::CleanUp(
   CleanupGraphResponse* cleanup_resp = new CleanupGraphResponse;
   wi->CleanupGraphAsync(
       cleanup_req, cleanup_resp,
-      [cleanup_req, cleanup_resp, done](const Status& cleanup_status) {
+      [cleanup_req, cleanup_resp, done](const absl::Status& cleanup_status) {
         done(cleanup_status);
         delete cleanup_req;
         delete cleanup_resp;

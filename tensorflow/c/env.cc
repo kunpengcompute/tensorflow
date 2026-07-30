@@ -15,9 +15,22 @@ limitations under the License.
 
 #include "tensorflow/c/env.h"
 
-#include "tensorflow/c/c_api_internal.h"
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <vector>
+
+#include "absl/status/status.h"
+#include "tensorflow/c/c_api_macros.h"
+#include "tensorflow/c/tf_file_statistics.h"
+#include "tensorflow/c/tf_status.h"
 #include "tensorflow/c/tf_status_helper.h"
 #include "tensorflow/core/platform/env.h"
+#include "tensorflow/core/platform/file_statistics.h"
+#include "tensorflow/core/platform/file_system.h"
+#include "tensorflow/core/platform/path.h"
+#include "tensorflow/core/platform/status.h"
+#include "tensorflow/core/platform/stringpiece.h"
 #include "tensorflow/core/platform/types.h"
 
 struct TF_StringStream {
@@ -39,7 +52,7 @@ void TF_DeleteDir(const char* dirname, TF_Status* status) {
 
 void TF_DeleteRecursively(const char* dirname, int64_t* undeleted_file_count,
                           int64_t* undeleted_dir_count, TF_Status* status) {
-  ::tensorflow::int64 f, d;
+  ::int64_t f, d;
 
   TF_SetStatus(status, TF_OK, "");
   ::tensorflow::Set_TF_Status_from_Status(
@@ -52,8 +65,7 @@ void TF_FileStat(const char* filename, TF_FileStatistics* stats,
                  TF_Status* status) {
   ::tensorflow::FileStatistics cc_stats;
   TF_SetStatus(status, TF_OK, "");
-  ::tensorflow::Status s =
-      ::tensorflow::Env::Default()->Stat(filename, &cc_stats);
+  absl::Status s = ::tensorflow::Env::Default()->Stat(filename, &cc_stats);
   ::tensorflow::Set_TF_Status_from_Status(status, s);
   if (s.ok()) {
     stats->length = cc_stats.length;
@@ -66,8 +78,7 @@ void TF_NewWritableFile(const char* filename, TF_WritableFileHandle** handle,
                         TF_Status* status) {
   std::unique_ptr<::tensorflow::WritableFile> f;
   TF_SetStatus(status, TF_OK, "");
-  ::tensorflow::Status s =
-      ::tensorflow::Env::Default()->NewWritableFile(filename, &f);
+  absl::Status s = ::tensorflow::Env::Default()->NewWritableFile(filename, &f);
   ::tensorflow::Set_TF_Status_from_Status(status, s);
 
   if (s.ok()) {
@@ -99,7 +110,7 @@ void TF_AppendWritableFile(TF_WritableFileHandle* handle, const char* data,
   auto* cc_file = reinterpret_cast<::tensorflow::WritableFile*>(handle);
   TF_SetStatus(status, TF_OK, "");
   ::tensorflow::Set_TF_Status_from_Status(
-      status, cc_file->Append(::tensorflow::StringPiece{data, length}));
+      status, cc_file->Append(absl::string_view{data, length}));
 }
 
 void TF_DeleteFile(const char* filename, TF_Status* status) {
@@ -146,6 +157,10 @@ TF_StringStream* TF_GetLocalTempDirectories() {
   return list;
 }
 
+char* TF_GetTempFileName(const char* extension) {
+  return strdup(::tensorflow::io::GetTempFilename(extension).c_str());
+}
+
 TF_CAPI_EXPORT extern uint64_t TF_NowNanos(void) {
   return ::tensorflow::Env::Default()->NowNanos();
 }
@@ -180,4 +195,23 @@ TF_Thread* TF_StartThread(const TF_ThreadOptions* options,
 void TF_JoinThread(TF_Thread* thread) {
   // ::tensorflow::Thread joins on destruction
   delete reinterpret_cast<::tensorflow::Thread*>(thread);
+}
+
+void* TF_LoadSharedLibrary(const char* library_filename, TF_Status* status) {
+  void* handle = nullptr;
+  TF_SetStatus(status, TF_OK, "");
+  ::tensorflow::Set_TF_Status_from_Status(
+      status, ::tensorflow::Env::Default()->LoadDynamicLibrary(library_filename,
+                                                               &handle));
+  return handle;
+}
+
+void* TF_GetSymbolFromLibrary(void* handle, const char* symbol_name,
+                              TF_Status* status) {
+  void* symbol = nullptr;
+  TF_SetStatus(status, TF_OK, "");
+  ::tensorflow::Set_TF_Status_from_Status(
+      status, ::tensorflow::Env::Default()->GetSymbolFromLibrary(
+                  handle, symbol_name, &symbol));
+  return symbol;
 }

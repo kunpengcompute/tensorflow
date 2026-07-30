@@ -20,10 +20,6 @@ Recognition](https://arxiv.org/abs/1512.03385)
 Adapted from tf.keras.applications.ResNet50. A notable difference is that the
 model here outputs logits while the Keras model outputs probability.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import functools
 
 import tensorflow as tf
@@ -286,8 +282,8 @@ class ResNet50(tf.keras.Model):
       if pooling == 'avg':
         self.global_pooling = functools.partial(
             tf.reduce_mean,
-            reduction_indices=reduction_indices,
-            keep_dims=False)
+            axis=reduction_indices,
+            keepdims=False)
       elif pooling == 'max':
         self.global_pooling = functools.partial(
             tf.reduce_max, reduction_indices=reduction_indices, keep_dims=False)

@@ -15,22 +15,29 @@ limitations under the License.
 
 #include "tensorflow/lite/delegates/gpu/common/transformations/make_padding.h"
 
-#include "absl/memory/memory.h"
+#include <any>
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "absl/types/any.h"
 #include "tensorflow/lite/delegates/gpu/common/model.h"
+#include "tensorflow/lite/delegates/gpu/common/model_transformer.h"
 #include "tensorflow/lite/delegates/gpu/common/operations.h"
+#include "tensorflow/lite/delegates/gpu/common/shape.h"
 #include "tensorflow/lite/delegates/gpu/common/status.h"
+#include "tensorflow/lite/delegates/gpu/common/tensor.h"
 
 namespace tflite {
 namespace gpu {
 namespace {
 
 bool IsConstZeros(const Node& node) {
-  if (node.operation.type != ToString(OperationType::CONST)) {
+  if (node.operation.type != ToString(OperationType::CONSTANT)) {
     return false;
   }
   auto& attr =
-      absl::any_cast<const ConstTensorAttributes&>(node.operation.attributes);
+      std::any_cast<const ConstTensorAttributes&>(node.operation.attributes);
   for (auto f : attr.tensor.data) {
     if (f != 0) {
       return false;
@@ -55,7 +62,7 @@ class MakePaddingFromZerosConcat : public NodeTransformation {
       auto dep = graph->FindProducer(input->id);
       if (dep != nullptr && IsConstZeros(*dep)) {
         auto& concat_attr =
-            absl::any_cast<const ConcatAttributes&>(node->operation.attributes);
+            std::any_cast<const ConcatAttributes&>(node->operation.attributes);
         PadAttributes pad_attr;
         pad_attr.type = PaddingContentType::ZEROS;
         pad_attr.appended = BHWC(0, 0, 0, 0);
@@ -76,10 +83,10 @@ class MakePaddingFromZerosConcat : public NodeTransformation {
                     "Padding for concat axis is unsupported: " +
                         ToString(concat_attr.axis)};
         }
-        Status status = RemovePrecedingNode(graph, dep, node);
+        absl::Status status = RemovePrecedingNode(graph, dep, node);
         if (!status.ok()) {
-          return {TransformStatus::INVALID,
-                  "Unable to remove const node: " + status.error_message()};
+          return {TransformStatus::INVALID, "Unable to remove const node: " +
+                                                std::string(status.message())};
         }
         node->operation.attributes = pad_attr;
         node->operation.type = ToString(OperationType::PAD);
@@ -94,7 +101,7 @@ class MakePaddingFromZerosConcat : public NodeTransformation {
 }  // namespace
 
 std::unique_ptr<NodeTransformation> NewMakePaddingFromConcat() {
-  return absl::make_unique<MakePaddingFromZerosConcat>();
+  return std::make_unique<MakePaddingFromZerosConcat>();
 }
 
 }  // namespace gpu

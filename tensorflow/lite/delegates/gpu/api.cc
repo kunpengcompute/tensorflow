@@ -15,12 +15,15 @@ limitations under the License.
 
 #include "tensorflow/lite/delegates/gpu/api.h"
 
+#include <cstdint>
+#include <variant>
+
 namespace tflite {
 namespace gpu {
 namespace {
 
 struct ObjectTypeGetter {
-  ObjectType operator()(absl::monostate) const { return ObjectType::UNKNOWN; }
+  ObjectType operator()(std::monostate) const { return ObjectType::UNKNOWN; }
   ObjectType operator()(OpenGlBuffer) const { return ObjectType::OPENGL_SSBO; }
   ObjectType operator()(OpenGlTexture) const {
     return ObjectType::OPENGL_TEXTURE;
@@ -31,20 +34,28 @@ struct ObjectTypeGetter {
   ObjectType operator()(OpenClTexture) const {
     return ObjectType::OPENCL_TEXTURE;
   }
+  ObjectType operator()(VulkanBuffer) const {
+    return ObjectType::VULKAN_BUFFER;
+  }
+  ObjectType operator()(VulkanTexture) const {
+    return ObjectType::VULKAN_TEXTURE;
+  }
   ObjectType operator()(CpuMemory) const { return ObjectType::CPU_MEMORY; }
 };
 
 struct ObjectValidityChecker {
-  bool operator()(absl::monostate) const { return false; }
+  bool operator()(std::monostate) const { return false; }
   bool operator()(OpenGlBuffer obj) const { return obj.id != GL_INVALID_INDEX; }
   bool operator()(OpenGlTexture obj) const {
     return obj.id != GL_INVALID_INDEX && obj.format != GL_INVALID_ENUM;
   }
   bool operator()(OpenClBuffer obj) const { return obj.memobj; }
   bool operator()(OpenClTexture obj) const { return obj.memobj; }
+  bool operator()(VulkanBuffer obj) const { return obj.memory; }
+  bool operator()(VulkanTexture obj) const { return obj.memory; }
   bool operator()(CpuMemory obj) const {
     return obj.data != nullptr && obj.size_bytes > 0 &&
-           (data_type == DataType::UNKNOWN ||
+           (data_type == DataType::UNKNOWN || data_type == DataType::BOOL ||
             obj.size_bytes % SizeOf(data_type) == 0);
   }
   DataType data_type;
@@ -59,31 +70,39 @@ bool IsValid(const ObjectDef& def) {
 }
 
 ObjectType GetType(const TensorObject& object) {
-  return absl::visit(ObjectTypeGetter{}, object);
+  return std::visit(ObjectTypeGetter{}, object);
 }
 
 bool IsValid(const TensorObjectDef& def) { return IsValid(def.object_def); }
 
 bool IsValid(const TensorObjectDef& def, const TensorObject& object) {
   return GetType(object) == def.object_def.object_type &&
-         absl::visit(ObjectValidityChecker{def.object_def.data_type}, object);
+         std::visit(ObjectValidityChecker{def.object_def.data_type}, object);
 }
 
 bool IsObjectPresent(ObjectType type, const TensorObject& obj) {
   switch (type) {
     case ObjectType::CPU_MEMORY:
-      return absl::get_if<CpuMemory>(&obj);
+      return std::holds_alternative<CpuMemory>(obj);
     case ObjectType::OPENGL_SSBO:
-      return absl::get_if<OpenGlBuffer>(&obj);
+      return std::holds_alternative<OpenGlBuffer>(obj);
     case ObjectType::OPENGL_TEXTURE:
-      return absl::get_if<OpenGlTexture>(&obj);
+      return std::holds_alternative<OpenGlTexture>(obj);
     case ObjectType::OPENCL_BUFFER:
-      return absl::get_if<OpenClBuffer>(&obj);
+      return std::holds_alternative<OpenClBuffer>(obj);
     case ObjectType::OPENCL_TEXTURE:
-      return absl::get_if<OpenClTexture>(&obj);
+      return std::holds_alternative<OpenClTexture>(obj);
+    case ObjectType::VULKAN_BUFFER:
+      return std::holds_alternative<VulkanBuffer>(obj);
+    case ObjectType::VULKAN_TEXTURE:
+      return std::holds_alternative<VulkanTexture>(obj);
     case ObjectType::UNKNOWN:
       return false;
   }
+}
+
+bool IsObjectInitialized(const TensorObject& obj) {
+  return GetType(obj) != ObjectType::UNKNOWN;
 }
 
 uint32_t NumElements(const TensorObjectDef& def) {

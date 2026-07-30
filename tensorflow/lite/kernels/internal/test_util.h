@@ -57,14 +57,30 @@ float ExponentialRandomPositiveFloat(float percentile, float percentile_val,
                                      float max_val);
 
 // Fills a vector with random floats between |min| and |max|.
-void FillRandom(std::vector<float>* vec, float min, float max);
+void FillRandomFloat(std::vector<float>* vec, float min, float max);
+
+template <typename T>
+void FillRandom(typename std::vector<T>::iterator begin_it,
+                typename std::vector<T>::iterator end_it, T min, T max) {
+  // Workaround for compilers that don't support (u)int8_t uniform_distribution.
+  typedef typename std::conditional<sizeof(T) >= sizeof(int16_t), T,
+                                    std::int16_t>::type rand_type;
+  std::uniform_int_distribution<rand_type> dist(min, max);
+  // TODO(b/154540105): use std::ref to avoid copying the random engine.
+  auto gen = std::bind(dist, RandomEngine());
+  std::generate(begin_it, end_it, [&gen] { return static_cast<T>(gen()); });
+}
 
 // Fills a vector with random numbers between |min| and |max|.
 template <typename T>
 void FillRandom(std::vector<T>* vec, T min, T max) {
-  std::uniform_int_distribution<T> dist(min, max);
-  auto gen = std::bind(dist, RandomEngine());
-  std::generate(std::begin(*vec), std::end(*vec), gen);
+  FillRandom(std::begin(*vec), std::end(*vec), min, max);
+}
+
+// Template specialization for float.
+template <>
+inline void FillRandom<float>(std::vector<float>* vec, float min, float max) {
+  FillRandomFloat(vec, min, max);
 }
 
 // Fills a vector with random numbers.
@@ -73,20 +89,12 @@ void FillRandom(std::vector<T>* vec) {
   FillRandom(vec, std::numeric_limits<T>::min(), std::numeric_limits<T>::max());
 }
 
-template <typename T>
-void FillRandom(typename std::vector<T>::iterator begin_it,
-                typename std::vector<T>::iterator end_it, T min, T max) {
-  std::uniform_int_distribution<T> dist(min, max);
-  auto gen = std::bind(dist, RandomEngine());
-  std::generate(begin_it, end_it, gen);
-}
-
 // Fill with a "skyscraper" pattern, in which there is a central section (across
 // the depth) with higher values than the surround.
 template <typename T>
 void FillRandomSkyscraper(std::vector<T>* vec, int depth,
-                          double middle_proportion, uint8 middle_min,
-                          uint8 sides_max) {
+                          double middle_proportion, uint8_t middle_min,
+                          uint8_t sides_max) {
   for (auto base_it = std::begin(*vec); base_it != std::end(*vec);
        base_it += depth) {
     auto left_it = base_it + std::ceil(0.5 * depth * (1.0 - middle_proportion));

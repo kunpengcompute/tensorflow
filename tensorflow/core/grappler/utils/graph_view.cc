@@ -63,7 +63,7 @@ bool NodeView::HasFanout(const FaninView& fanout) const {
     return false;
   } else if (fanout.index() == Graph::kControlSlot) {
     return view->fanins_set_.contains({this->node(), Graph::kControlSlot});
-  } else if (fanout.index() >= view->regular_fanins_.size()) {
+  } else if (fanout.index() >= static_cast<int>(view->regular_fanins_.size())) {
     return false;
   }
   return view->regular_fanins_[fanout.index()].node_index_ == node_index_;
@@ -81,7 +81,7 @@ namespace {
 const char kGraphViewError[] = "GraphView::GraphView error: ";
 }  // namespace
 
-GraphView::GraphView(const GraphDef* graph, Status* status)
+GraphView::GraphView(const GraphDef* graph, absl::Status* status)
     : GraphViewInternal(graph) {
   const int num_nodes = graph->node_size();
   node_index_by_name_.reserve(num_nodes);
@@ -95,7 +95,7 @@ GraphView::GraphView(const GraphDef* graph, Status* status)
       return;
     }
   }
-  Status s;
+  absl::Status s;
   for (NodeView& node_view : nodes_) {
     s = CheckAndAddFaninsInternal(&node_view);
     if (!s.ok()) {
@@ -104,7 +104,7 @@ GraphView::GraphView(const GraphDef* graph, Status* status)
       return;
     }
   }
-  *status = Status::OK();
+  *status = absl::OkStatus();
 }
 
 bool GraphView::AddUniqueNodeInternal(const NodeDef* node) {
@@ -117,7 +117,7 @@ bool GraphView::AddUniqueNodeInternal(const NodeDef* node) {
   return false;
 }
 
-Status GraphView::CheckAndAddFaninsInternal(NodeView* node_view) {
+absl::Status GraphView::CheckAndAddFaninsInternal(NodeView* node_view) {
   bool has_observed_control = false;
   const NodeDef* node = node_view->node();
   const string& node_name = node->name();
@@ -152,8 +152,9 @@ Status GraphView::CheckAndAddFaninsInternal(NodeView* node_view) {
                                      Graph::kControlSlot);
       has_observed_control = true;
     } else {
-      if (fanin_node_view.regular_fanouts_by_port_.size() <
-          fanin_id.index() + 1) {
+      int fanin_node_view_regular_fanouts_by_port_size =
+          fanin_node_view.regular_fanouts_by_port_.size();
+      if (fanin_node_view_regular_fanouts_by_port_size < fanin_id.index() + 1) {
         fanin_node_view.regular_fanouts_by_port_.resize(fanin_id.index() + 1);
       }
       fanin_node_view.regular_fanouts_by_port_[fanin_id.index()].emplace_back(
@@ -164,7 +165,7 @@ Status GraphView::CheckAndAddFaninsInternal(NodeView* node_view) {
       node_view->fanins_set_.emplace(fanin_node_view.node(), fanin_id.index());
     }
   }
-  return Status::OK();
+  return absl::OkStatus();
 }
 
 MutableFaninView::MutableFaninView(MutableNodeView* node_view, int index)
@@ -197,7 +198,7 @@ bool MutableNodeView::HasFanout(const MutableFaninView& fanout) const {
     return false;
   } else if (fanout.index() == Graph::kControlSlot) {
     return view->fanins_count_.contains({this->node(), Graph::kControlSlot});
-  } else if (fanout.index() >= view->regular_fanins_.size()) {
+  } else if (fanout.index() >= static_cast<int>(view->regular_fanins_.size())) {
     return false;
   }
   return view->regular_fanins_[fanout.index()].node_index_ == node_index_;
@@ -221,7 +222,7 @@ bool IsTensorIdRegular(const TensorId& tensor_id) {
 
 Mutation::Mutation(MutableGraphView* graph_view) : graph_view_(graph_view) {}
 
-MutationNewNode Mutation::AddNode(NodeDef&& node, Status* status) {
+MutationNewNode Mutation::AddNode(NodeDef&& node, absl::Status* status) {
   bool has_observed_control = false;
   const string& node_name = node.name();
   std::vector<SafeTensorId> regular_fanins;
@@ -256,7 +257,7 @@ MutationNewNode Mutation::AddNode(NodeDef&& node, Status* status) {
   mutation_node.regular_fanins = std::move(regular_fanins);
   mutation_node.num_regular_fanins = mutation_node.regular_fanins.size();
   mutation_node.controlling_fanins = std::move(controlling_fanins);
-  *status = Status::OK();
+  *status = absl::OkStatus();
   return MutationNewNode(this, mutation_counter_, new_nodes_.size() - 1);
 }
 
@@ -279,7 +280,8 @@ void Mutation::AddMutation(
 void Mutation::RemoveNode(MutableNodeView* node) {
   auto& update_index = node->update_index_;
   if (update_index != internal::kMissingIndex) {
-    if (update_index < updated_nodes_.size() - 1) {
+    int updated_nodes_size = updated_nodes_.size();
+    if (update_index < updated_nodes_size - 1) {
       graph_view_->nodes_[updated_nodes_.back().node_index].update_index_ =
           update_index;
       std::swap(updated_nodes_[update_index], updated_nodes_.back());
@@ -431,7 +433,7 @@ void Mutation::Reset() {
   ResetInternal();
 }
 
-Status Mutation::Apply() { return graph_view_->ApplyMutationInternal(); }
+absl::Status Mutation::Apply() { return graph_view_->ApplyMutationInternal(); }
 
 namespace {
 const char kMutableGraphViewError[] =
@@ -459,7 +461,7 @@ inline void DecrementFaninCount(
 }
 }  // namespace
 
-MutableGraphView::MutableGraphView(GraphDef* graph, Status* status)
+MutableGraphView::MutableGraphView(GraphDef* graph, absl::Status* status)
     : GraphViewInternal(graph), mutation_(Mutation(this)) {
   const int num_nodes = graph->node_size();
   node_index_by_name_.reserve(num_nodes);
@@ -474,7 +476,7 @@ MutableGraphView::MutableGraphView(GraphDef* graph, Status* status)
     }
   }
   std::vector<std::vector<TensorId>> fanins;
-  Status s = CheckFaninsInternal(&fanins);
+  absl::Status s = CheckFaninsInternal(&fanins);
   if (!s.ok()) {
     *status = s;
     Reset();
@@ -482,7 +484,7 @@ MutableGraphView::MutableGraphView(GraphDef* graph, Status* status)
   }
   AddFaninsInternal(&fanins);
   mutation_.ResetInternal();
-  *status = Status::OK();
+  *status = absl::OkStatus();
 }
 
 Mutation* MutableGraphView::GetMutationBuilder() { return &mutation_; }
@@ -497,7 +499,7 @@ bool MutableGraphView::AddUniqueNodeInternal(NodeDef* node) {
   return false;
 }
 
-Status MutableGraphView::CheckFaninsInternal(
+absl::Status MutableGraphView::CheckFaninsInternal(
     std::vector<std::vector<TensorId>>* fanins) {
   const int num_nodes = nodes_.size();
   fanins->reserve(num_nodes);
@@ -532,7 +534,7 @@ Status MutableGraphView::CheckFaninsInternal(
     }
     fanins->push_back(std::move(node_fanins));
   }
-  return Status::OK();
+  return absl::OkStatus();
 }
 
 void MutableGraphView::AddFaninsInternal(
@@ -574,7 +576,9 @@ void MutableGraphView::AddFaninsInternal(
           --last_pos;
         }
       } else {
-        if (fanin_node_view.regular_fanouts_by_port_.size() <
+        int fanin_node_view_regular_fanouts_by_port_size =
+            fanin_node_view.regular_fanouts_by_port_.size();
+        if (fanin_node_view_regular_fanouts_by_port_size <
             fanin_id.index() + 1) {
           fanin_node_view.regular_fanouts_by_port_.resize(fanin_id.index() + 1);
         }
@@ -599,7 +603,7 @@ void MutableGraphView::AddFaninsInternal(
   }
 }
 
-Status MutableGraphView::GetNodeNamesAndPartitionUpdatedNodes(
+absl::Status MutableGraphView::GetNodeNamesAndPartitionUpdatedNodes(
     absl::flat_hash_map<absl::string_view, int>* node_names,
     std::vector<RenamedOrOverwrittenNode>* renamed_nodes,
     std::vector<int>* inplace_nodes,
@@ -682,10 +686,10 @@ Status MutableGraphView::GetNodeNamesAndPartitionUpdatedNodes(
     }
   }
 
-  return Status::OK();
+  return absl::OkStatus();
 }
 
-Status MutableGraphView::RemovedOrMissingNodeFanoutsWellFormed(
+absl::Status MutableGraphView::RemovedOrMissingNodeFanoutsWellFormed(
     const absl::flat_hash_map<absl::string_view, int>& node_names,
     const std::vector<RenamedOrOverwrittenNode>& renamed_nodes) {
   auto bad_fanout = [](absl::string_view fanout_node_name,
@@ -760,10 +764,10 @@ Status MutableGraphView::RemovedOrMissingNodeFanoutsWellFormed(
     }
   }
 
-  return Status::OK();
+  return absl::OkStatus();
 }
 
-Status MutableGraphView::CheckNodeNamesAndFanins(
+absl::Status MutableGraphView::CheckNodeNamesAndFanins(
     const absl::flat_hash_map<absl::string_view, int>& node_names,
     const std::vector<RenamedOrOverwrittenNode>& renamed_nodes,
     const std::vector<int>& inplace_nodes) {
@@ -797,11 +801,11 @@ Status MutableGraphView::CheckNodeNamesAndFanins(
     }
   }
 
-  return Status::OK();
+  return absl::OkStatus();
 }
 
-Status MutableGraphView::CheckKernelRegisteredForNodes() {
-  Status s;
+absl::Status MutableGraphView::CheckKernelRegisteredForNodes() {
+  absl::Status s;
   for (auto& diff : mutation_.updated_nodes_) {
     if (internal::IsEmpty(&diff)) {
       continue;
@@ -829,7 +833,7 @@ Status MutableGraphView::CheckKernelRegisteredForNodes() {
                                   diff.update_op ? diff.op : node->op(), device,
                                   AttrSlice(&(*diff.processed_attrs)));
     if (!s.ok()) {
-      LOG(WARNING) << s.error_message();
+      LOG(WARNING) << s.message();
     }
   }
   for (const auto& new_node_holder : mutation_.new_nodes_) {
@@ -842,18 +846,20 @@ Status MutableGraphView::CheckKernelRegisteredForNodes() {
     }
     s = IsKernelRegisteredForNode(new_node_def);
     if (!s.ok()) {
-      LOG(WARNING) << s.error_message();
+      LOG(WARNING) << s.message();
     }
   }
-  return Status::OK();
+  return absl::OkStatus();
 }
 
 template <typename T>
 void MutableGraphView::ReplaceNodeFanouts(MutableNodeView* node, T* fanouts) {
   node->num_regular_fanouts_ = fanouts->num_regular_fanouts_;
   node->regular_fanouts_by_port_ = std::move(fanouts->regular_fanouts_by_port_);
-  for (int i = 0; i < node->regular_fanouts_by_port_.size(); ++i) {
-    for (int j = 0; j < node->regular_fanouts_by_port_[i].size(); ++j) {
+  for (int i = 0, i_max = node->regular_fanouts_by_port_.size(); i < i_max;
+       ++i) {
+    for (int j = 0, j_max = node->regular_fanouts_by_port_[i].size(); j < j_max;
+         ++j) {
       auto& fanout = node->regular_fanouts_by_port_[i][j];
       auto* fanout_node_view = fanout.node_view();
       auto& fanout_fanin = fanout_node_view->regular_fanins_[fanout.index()];
@@ -868,7 +874,7 @@ void MutableGraphView::ReplaceNodeFanouts(MutableNodeView* node, T* fanouts) {
     }
   }
   node->controlled_fanouts_ = std::move(fanouts->controlled_fanouts_);
-  for (int i = 0; i < node->controlled_fanouts_.size(); ++i) {
+  for (int i = 0, i_max = node->controlled_fanouts_.size(); i < i_max; ++i) {
     auto& fanout = node->controlled_fanouts_[i];
     auto* fanout_node_view = fanout.node_view();
     auto& fanout_fanin =
@@ -1017,7 +1023,8 @@ inline void MutableGraphView::RemoveRegularFaninFanoutInternal(
                       {&graph_->node(fanin.node_index_), fanin.index()});
   auto* fanin_node_view = fanin.node_view();
   auto& fanouts = fanin_node_view->regular_fanouts_by_port_[fanin.index()];
-  if (fanin.fanout_index_ < fanouts.size() - 1) {
+  int fanouts_size = fanouts.size();
+  if (fanin.fanout_index_ < fanouts_size - 1) {
     // Swap fanout with last fanout in vector, and update it's associated fanin
     // index.
     MutableFaninView& last_fanout = fanouts.back();
@@ -1043,7 +1050,9 @@ inline void MutableGraphView::RemoveRegularFaninFanoutInternal(
       break;
     }
   }
-  if (last_fanout_index < fanin_node_view->regular_fanouts_by_port_.size()) {
+  int fanin_node_view_regular_fanouts_by_port_size =
+      fanin_node_view->regular_fanouts_by_port_.size();
+  if (last_fanout_index < fanin_node_view_regular_fanouts_by_port_size) {
     fanin_node_view->regular_fanouts_by_port_.resize(last_fanout_index);
   }
 }
@@ -1052,7 +1061,9 @@ inline void MutableGraphView::AddRegularFaninInternal(
     MutableNodeView* node_view, const SafeTensorId& fanin_id) {
   MutableNodeView* fanin_node_view = GetNode(fanin_id.node());
   // Resize fanouts to include new output port index.
-  if (fanin_node_view->regular_fanouts_by_port_.size() < fanin_id.index() + 1) {
+  int fanin_node_view_regular_fanouts_by_port_size =
+      fanin_node_view->regular_fanouts_by_port_.size();
+  if (fanin_node_view_regular_fanouts_by_port_size < fanin_id.index() + 1) {
     fanin_node_view->regular_fanouts_by_port_.resize(fanin_id.index() + 1);
   }
 
@@ -1078,7 +1089,9 @@ inline void MutableGraphView::UpdateRegularFaninInternal(
 
   MutableNodeView* fanin_node_view = GetNode(fanin_id.node());
   // Resize fanouts to include new output port index.
-  if (fanin_node_view->regular_fanouts_by_port_.size() < fanin_id.index() + 1) {
+  int fanin_node_view_regular_fanouts_by_port_size =
+      fanin_node_view->regular_fanouts_by_port_.size();
+  if (fanin_node_view_regular_fanouts_by_port_size < fanin_id.index() + 1) {
     fanin_node_view->regular_fanouts_by_port_.resize(fanin_id.index() + 1);
   }
 
@@ -1110,8 +1123,10 @@ inline void MutableGraphView::RemoveControllingFaninFanoutInternal(
     // controlled fanout in controlling fanin with controlled fanout to be
     // removed.
     auto* control_to_remove_view = control_to_remove.node_view();
+    int control_to_remove_view_controlled_fanouts_size =
+        control_to_remove_view->controlled_fanouts_.size();
     if (control_to_remove.fanout_index_ <
-        control_to_remove_view->controlled_fanouts_.size() - 1) {
+        control_to_remove_view_controlled_fanouts_size - 1) {
       auto& control_to_remove_view_last_control =
           control_to_remove_view->controlled_fanouts_.back();
       control_to_remove_view_last_control.node_view()
@@ -1137,7 +1152,9 @@ inline void MutableGraphView::RemoveControllingFaninInternal(
     RemoveControllingFaninFanoutInternal(node_view, control_index);
 
     // Swap last controlling fanin in node with controlling fanin to be removed.
-    if (control_index < node_view->controlling_fanins_.size() - 1) {
+    int node_view_controlling_fanins_size =
+        node_view->controlling_fanins_.size();
+    if (control_index < node_view_controlling_fanins_size - 1) {
       auto& last_control = node_view->controlling_fanins_.back();
       auto* last_control_view = last_control.node_view();
       last_control_view->controlled_fanouts_[last_control.fanout_index_]
@@ -1406,7 +1423,7 @@ struct Edge {
 };
 }  // namespace
 
-Status MutableGraphView::SortTopologically(
+absl::Status MutableGraphView::SortTopologically(
     bool ignore_cycles,
     absl::Span<const TopologicalDependency> extra_dependencies) {
   if (!mutation_.updated_nodes_.empty() || !mutation_.new_nodes_.empty()) {
@@ -1600,10 +1617,10 @@ Status MutableGraphView::SortTopologically(
   // Permute graph NodeDefs.
   PermuteNodesInPlace(graph_, &order, /*invert_permutation=*/false);
 
-  return Status::OK();
+  return absl::OkStatus();
 }
 
-inline Status MutableGraphView::ValidateInternal(
+inline absl::Status MutableGraphView::ValidateInternal(
     absl::flat_hash_map<absl::string_view, int>* node_names,
     std::vector<RenamedOrOverwrittenNode>* renamed_nodes,
     std::vector<int>* inplace_nodes,
@@ -1620,10 +1637,10 @@ inline Status MutableGraphView::ValidateInternal(
   // Check if nodes after mutation have kernels registered.
   TF_RETURN_IF_ERROR(CheckKernelRegisteredForNodes());
 
-  return Status::OK();
+  return absl::OkStatus();
 }
 
-Status MutableGraphView::ApplyMutationInternal() {
+absl::Status MutableGraphView::ApplyMutationInternal() {
   // Node name -> node index mapping. If a node index is -1, the associated node
   // with key node name exists. Otherwise the node index is the node's index in
   // the graph.
@@ -1684,7 +1701,7 @@ Status MutableGraphView::ApplyMutationInternal() {
 
   mutation_.mutation_counter_++;
 
-  return Status::OK();
+  return absl::OkStatus();
 }
 
 }  // namespace utils

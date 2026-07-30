@@ -16,13 +16,15 @@ limitations under the License.
 #ifndef TENSORFLOW_LITE_KERNELS_CPU_BACKEND_GEMM_GEMMLOWP_H_
 #define TENSORFLOW_LITE_KERNELS_CPU_BACKEND_GEMM_GEMMLOWP_H_
 
+#include <tuple>
+
+#include "tensorflow/lite/kernels/internal/compatibility.h"
 #ifndef TFLITE_WITH_RUY
 
 #include <cstdint>
 #include <type_traits>
 
 #include "public/gemmlowp.h"
-#include "tensorflow/lite/experimental/ruy/ruy.h"
 #include "tensorflow/lite/kernels/cpu_backend_context.h"
 #include "tensorflow/lite/kernels/cpu_backend_gemm_params.h"
 #include "tensorflow/lite/kernels/cpu_backend_gemm_ruy.h"
@@ -91,7 +93,7 @@ struct GemmImplUsingGemmlowp<
         dst_data, dst_params.rows, dst_params.cols);
 
     using ColVectorMap =
-        gemmlowp::VectorMap<const int32, gemmlowp::VectorShape::Col>;
+        gemmlowp::VectorMap<const int32_t, gemmlowp::VectorShape::Col>;
     gemmlowp::OutputStageScaleInt32ByFixedPointAndExponent scale_stage;
     scale_stage.result_offset_after_shift = dst_params.zero_point;
     scale_stage.result_fixedpoint_multiplier = params.multiplier_fixedpoint;

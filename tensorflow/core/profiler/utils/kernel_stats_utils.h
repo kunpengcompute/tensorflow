@@ -16,41 +16,6 @@ limitations under the License.
 #ifndef TENSORFLOW_CORE_PROFILER_UTILS_KERNEL_STATS_UTILS_H_
 #define TENSORFLOW_CORE_PROFILER_UTILS_KERNEL_STATS_UTILS_H_
 
-#include <vector>
-
-#include "absl/strings/string_view.h"
-#include "tensorflow/core/profiler/protobuf/kernel_stats.pb.h"
-
-namespace tensorflow {
-namespace profiler {
-
-// Populates kernel launch information from a KernelDetails XStat.
-void ParseKernelLaunchParams(absl::string_view xstat_kernel_details,
-                             KernelReport* kernel);
-
-// Returns true if kernel uses TensorCores.
-bool IsKernelUsingTensorCore(absl::string_view kernel_name);
-
-// Returns true if operation is eligible to use TensorCores.
-bool IsOpTensorCoreEligible(absl::string_view tf_op_name);
-
-// Less than comparator for Kernel Reports.
-struct KernelReportLessThanComparator {
-  bool operator()(const KernelReport& lhs, const KernelReport& rhs);
-};
-
-// Equal to comparator for Kernel Reports.
-struct KernelReportEqualToComparator {
-  bool operator()(const KernelReport& lhs, const KernelReport& rhs);
-};
-
-// Sorts kernel reorts by total duration descendingly.
-void SortKernelsByTotalDurationDesc(KernelStatsDb* kernel_stats_db);
-
-// Groups and aggregate common reports into destination KernelStatsDb.
-void GroupKernelReports(std::vector<KernelReport>* reports, KernelStatsDb* dst);
-
-}  // namespace profiler
-}  // namespace tensorflow
+#include "xprof/utils/kernel_stats_utils.h"  // from @org_xprof  // IWYU pragma: export
 
 #endif  // TENSORFLOW_CORE_PROFILER_UTILS_KERNEL_STATS_UTILS_H_

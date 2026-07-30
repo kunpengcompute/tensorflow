@@ -19,16 +19,17 @@ limitations under the License.
 
 #include "fixedpoint/fixedpoint.h"
 #include "tensorflow/lite/kernels/internal/common.h"
+#include "tensorflow/lite/kernels/internal/cppmath.h"
 #include "tensorflow/lite/kernels/internal/quantization_util.h"
-#include "tensorflow/lite/kernels/internal/round.h"
 #include "tensorflow/lite/kernels/internal/types.h"
 #include "tensorflow/lite/kernels/op_macros.h"
 
 namespace tflite {
 namespace reference_ops {
 
-inline void Logistic(const RuntimeShape& input_shape, const float* input_data,
-                     const RuntimeShape& output_shape, float* output_data) {
+template <typename T>
+inline void Logistic(const RuntimeShape& input_shape, const T* input_data,
+                     const RuntimeShape& output_shape, T* output_data) {
   const float cutoff_upper = 16.619047164916992188f;
   const float cutoff_lower = -9.f;
 
@@ -43,7 +44,7 @@ inline void Logistic(const RuntimeShape& input_shape, const float* input_data,
   // optimized kernels. (check the definition of scalar_logistic_op<float>)
 
   for (int i = 0; i < flat_size; i++) {
-    float val = input_data[i];
+    T val = input_data[i];
     float result;
     if (val > cutoff_upper) {
       result = 1.0f;
@@ -52,7 +53,7 @@ inline void Logistic(const RuntimeShape& input_shape, const float* input_data,
     } else {
       result = 1.f / (1.f + std::exp(-val));
     }
-    output_data[i] = result;
+    output_data[i] = static_cast<T>(result);
   }
 }
 
@@ -66,8 +67,8 @@ inline void Logistic(const LogisticParams&, const RuntimeShape& input_shape,
 }
 
 inline void Logistic(const LogisticParams& params,
-                     const RuntimeShape& input_shape, const int16* input_data,
-                     const RuntimeShape& output_shape, int16* output_data) {
+                     const RuntimeShape& input_shape, const int16_t* input_data,
+                     const RuntimeShape& output_shape, int16_t* output_data) {
   const int flat_size = MatchingFlatSize(input_shape, output_shape);
 
   for (int i = 0; i < flat_size; i++) {
@@ -84,12 +85,12 @@ inline void Logistic(const LogisticParams& params,
   }
 }
 
-// Quantized int8 logistic activation.  Cheats by dequantizing and requantizing
-// around the floating point logistic method.  This implementation is slow on
-// platforms without a floating point unit.
+// Quantized int8_t logistic activation.  Cheats by dequantizing and
+// requantizing around the floating point logistic method.  This implementation
+// is slow on platforms without a floating point unit.
 
-// TODO(b/141211002): Delete this int8 implementation once we can reuse the
-// approach used in TFLite for int8 Logistic.
+// TODO(b/141211002): Delete this int8_t implementation once we can reuse the
+// approach used in TFLite for int8_t Logistic.
 inline void Logistic(const RuntimeShape& input_shape, const int8_t* input_data,
                      float input_scale, int input_zero_point,
                      const RuntimeShape& output_shape, int8_t* output_data,

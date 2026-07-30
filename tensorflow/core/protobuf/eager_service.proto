@@ -11,7 +11,7 @@ import "tensorflow/core/framework/versions.proto";
 import "tensorflow/core/protobuf/remote_tensor_handle.proto";
 import "tensorflow/core/protobuf/tensorflow_server.proto";
 
-option go_package = "github.com/tensorflow/tensorflow/tensorflow/go/core/core_protos_go_proto";
+option go_package = "github.com/tensorflow/tensorflow/tensorflow/go/core/protobuf/for_core_protos_go_proto";
 
 // A proto representation of an eager operation.
 message Operation {
@@ -23,7 +23,15 @@ message Operation {
   // future.
   int64 id = 1;
   string name = 2;
-  repeated RemoteTensorHandle inputs = 3;
+
+  message Input {
+    oneof item {
+      RemoteTensorHandle remote_handle = 1;
+      TensorProto tensor = 2;
+    }
+  }
+
+  repeated Input op_inputs = 10;
 
   // Control Operation IDs that will be respected when ops are re-ordered by
   // async execution. If async execution (+ op re-ordering) is not enabled, this
@@ -42,6 +50,8 @@ message Operation {
   int64 func_step_id = 8;
   // Indicates whether the op is a function.
   bool is_function = 9;
+
+  reserved 3;
 }
 
 message QueueItem {
@@ -59,11 +69,21 @@ message QueueItem {
     // enqueued in streaming call. Request with this item type waits for pending
     // nodes to finish on the remote executor and report status.
     SyncRemoteExecutorForStream sync_remote_executor_for_stream = 6;
+    SendPackedHandleOp send_packed_handle = 7;
+    // Takes a FunctionDef signature name and remove it from the remote worker.
+    RemoveFunctionOp remove_function = 8;
   }
 }
 
 message QueueResponse {
+  // `shape` and `tensor` cannot be set in the same response.
+  // Shapes of output tensors for creating remote TensorHandles.
   repeated TensorShapeProto shape = 1;
+  // Optional. If set, represents the output devices of a function.
+  repeated string device = 3;
+
+  // Output tensors of a remote function. Set when Operation.id is invalid.
+  repeated TensorProto tensor = 2;
 }
 
 message CreateContextRequest {
@@ -100,6 +120,9 @@ message CreateContextRequest {
   // the default function device; if true, lazily copy remote inputs to their
   // target devices after function instantiation to avoid redundant copies.
   bool lazy_copy_remote_function_inputs = 9;
+
+  // If true, clears resource managers created in the worker environment.
+  bool clear_existing_contexts = 10;
 
   reserved 5;
 }
@@ -158,6 +181,21 @@ message WaitQueueDoneResponse {
   // propagate some stats.
 }
 
+message RunComponentFunctionRequest {
+  fixed64 context_id = 1;
+
+  Operation operation = 2;
+
+  // The output indices of its parent function.
+  repeated int32 output_num = 3;
+}
+
+message RunComponentFunctionResponse {
+  repeated TensorShapeProto shape = 1;
+
+  repeated TensorProto tensor = 2;
+}
+
 message KeepAliveRequest {
   fixed64 context_id = 1;
 }
@@ -190,6 +228,11 @@ message RegisterFunctionOp {
   FunctionDefLibrary library = 3;
 }
 
+message RemoveFunctionOp {
+  // The signature name of function_def to be removed from remote workers.
+  string function_name = 1;
+}
+
 // Cleanup the step state of a multi-device function (e.g. tensors buffered by
 // a `Send` op but not picked up by its corresponding `Recv` op).
 message CleanupFunctionOp {
@@ -208,6 +251,29 @@ message SendTensorOp {
   repeated TensorProto tensors = 2;
 
   // The device on which the tensors should be resident.
+  string device_name = 3;
+}
+
+// Send a packed TensorHandle to a remote worker.
+message SendPackedHandleOp {
+  // Op id of the remote packed TensorHandle.
+  int64 op_id = 1;
+
+  message LocalTensorHandle {
+    TensorProto tensor = 1;
+    // Device where the tensor is produced.
+    string device = 2;
+  }
+
+  message Handle {
+    oneof item {
+      LocalTensorHandle local_handle = 1;
+      RemoteTensorHandle remote_handle = 2;
+    }
+  }
+
+  repeated Handle handles = 2;
+
   string device_name = 3;
 }
 
@@ -232,18 +298,24 @@ service EagerService {
   // This initializes the worker, informing it about the other workers in the
   // cluster and exchanging authentication tokens which will be used in all
   // other RPCs to detect whether the worker has restarted.
-  rpc CreateContext(CreateContextRequest) returns (CreateContextResponse);
+  rpc CreateContext(CreateContextRequest) returns (CreateContextResponse) {
+    // [AUTOMATION]: Internal rpc option goes here.
+  }
 
   // This updates the eager context on an existing worker when updating the set
   // of servers in a distributed eager cluster.
-  rpc UpdateContext(UpdateContextRequest) returns (UpdateContextResponse);
+  rpc UpdateContext(UpdateContextRequest) returns (UpdateContextResponse) {
+    // [AUTOMATION]: Internal rpc option goes here.
+  }
 
   // This takes a list of Execute and DeleteTensorHandle operations and enqueues
   // (in async mode) or executes (in sync mode) them on the remote server.
   // All outputs of ops which were not explicitly deleted with
   // DeleteTensorHandle entries will be assumed to be alive and are usable by
   // future calls to Enqueue.
-  rpc Enqueue(EnqueueRequest) returns (EnqueueResponse);
+  rpc Enqueue(EnqueueRequest) returns (EnqueueResponse) {
+    // [AUTOMATION]: Internal rpc option goes here.
+  }
 
   // A streaming version of Enqueue.
   // Current server implementation sends one response per received request.
@@ -251,11 +323,33 @@ service EagerService {
   // can be sent without waiting for a response to the previous request. This
   // synchronization is required in the regular Enqueue call because gRPC does
   // not guarantee to preserve request order.
-  rpc StreamingEnqueue(stream EnqueueRequest) returns (stream EnqueueResponse);
+  rpc StreamingEnqueue(stream EnqueueRequest) returns (stream EnqueueResponse) {
+    // [AUTOMATION]: Internal rpc option goes here.
+  }
 
   // Takes a set of op IDs and waits until those ops are done. Returns any error
   // in the stream so far.
-  rpc WaitQueueDone(WaitQueueDoneRequest) returns (WaitQueueDoneResponse);
+  rpc WaitQueueDone(WaitQueueDoneRequest) returns (WaitQueueDoneResponse) {
+    // [AUTOMATION]: Internal rpc option goes here.
+  }
+
+  // This takes an Eager operation and executes it in async mode on the remote
+  // server. Different from EnqueueRequest, ops/functions sent through this
+  // type of requests are allowed to execute in parallel and no ordering is
+  // preserved by RPC stream or executor.
+  // This request type should only be used for executing component functions.
+  // Ordering of component functions should be enforced by their corresponding
+  // main functions. The runtime ensures the following invarients for component
+  // functions (CFs) and their main functions (MFs):
+  // (1) MF1 -> MF2 ==> CF1 -> CF2 ("->" indicates order of execution);
+  // (2) MF1 || MF2 ==> CF1 || CF2 ("||" indicates possible parallel execution);
+  // (3) For CF1 and CF2 that come from the same MF, CF1 || CF2
+  // For executing ops/main functions, use Enqueue or StreamingEnqueue instead
+  // for correct ordering.
+  rpc RunComponentFunction(RunComponentFunctionRequest)
+      returns (RunComponentFunctionResponse) {
+    // [AUTOMATION]: Internal rpc option goes here.
+  }
 
   // Contexts are always created with a deadline and no RPCs within a deadline
   // will trigger a context garbage collection. KeepAlive calls can be used to
@@ -264,9 +358,13 @@ service EagerService {
   // ID and the current context view ID. This is useful for checking if the
   // remote worker (potentially with the same task name and hostname / port) is
   // replaced with a new process.
-  rpc KeepAlive(KeepAliveRequest) returns (KeepAliveResponse);
+  rpc KeepAlive(KeepAliveRequest) returns (KeepAliveResponse) {
+    // [AUTOMATION]: Internal rpc option goes here.
+  }
 
   // Closes the context. No calls to other methods using the existing context ID
   // are valid after this.
-  rpc CloseContext(CloseContextRequest) returns (CloseContextResponse);
+  rpc CloseContext(CloseContextRequest) returns (CloseContextResponse) {
+    // [AUTOMATION]: Internal rpc option goes here.
+  }
 }

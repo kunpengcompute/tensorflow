@@ -59,23 +59,13 @@ These implement transformer.Base, rather than converter.Base, to avoid a
 dependency on AutoGraph.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
-import collections
 import enum
 
 from tensorflow.python.autograph.pyct import anno
 from tensorflow.python.autograph.pyct import ast_util
-from tensorflow.python.autograph.pyct import cfg
 from tensorflow.python.autograph.pyct import parser
-from tensorflow.python.autograph.pyct import qual_names
 from tensorflow.python.autograph.pyct import templates
 from tensorflow.python.autograph.pyct import transformer
-from tensorflow.python.autograph.pyct.static_analysis import activity
-from tensorflow.python.autograph.pyct.static_analysis import liveness
-from tensorflow.python.autograph.pyct.static_analysis import reaching_definitions
 from tensorflow.python.util.tf_export import tf_export
 
 # TODO(mdan): These contexts can be refactored into first class objects.
@@ -108,9 +98,8 @@ class Feature(enum.Enum):
     ASSERT_STATEMENTS: Convert Tensor-dependent assert statements to tf.Assert.
     BUILTIN_FUNCTIONS: Convert builtin functions applied to Tensors to
       their TF counterparts.
-    EQUALITY_OPERATORS: Whether to convert the comparison operators, like
-      equality. This is soon to be deprecated as support is being added to the
-      Tensor class.
+    EQUALITY_OPERATORS: Whether to convert the equality operator ('==') to
+      tf.math.equal.
     LISTS: Convert list idioms, like initializers, slices, append, etc.
     NAME_SCOPES: Insert name scopes that name ops according to context, like the
       function they were defined in.
@@ -149,7 +138,7 @@ class ConversionOptions(object):
       classes that the converted function may use.
     user_requested: bool, whether the conversion was explicitly requested by
       the user, as opposed to being performed as a result of other logic. This
-      value always auto-resets resets to False in child conversions.
+      value always auto-resets to False in child conversions.
     optional_features: Union[Feature, Set[Feature]], controls the use of
       optional features in the conversion process. See Feature for available
       options.
@@ -239,37 +228,17 @@ STANDARD_OPTIONS = ConversionOptions(
     optional_features=None)
 
 
-class ProgramContext(
-    collections.namedtuple('ProgramContext', ('options', 'autograph_module'))):
+class ProgramContext(object):
   """ProgramContext keeps track of converting function hierarchies.
-
-  This object is mutable, and is updated during conversion. Not thread safe.
 
   Attributes:
     options: ConversionOptions
-    autograph_module: Module, a reference to the autograph module. This needs to
-      be specified by the caller to avoid circular dependencies.
-  """
-  pass
-
-
-class EntityContext(transformer.Context):
-  """Tracks the conversion of a single entity.
-
-  This object is mutable, and is updated during conversion. Not thread safe.
-
-  Attributes:
-    namer: Namer
-    info: transformer.EntityInfo
-    program: ProgramContext,
-    targe_name: Text
+    autograph_module: Deprecated. Do not use.
   """
 
-  def __init__(self, namer, entity_info, program_ctx, target_name=None):
-    super(EntityContext, self).__init__(entity_info)
-    self.namer = namer
-    self.program = program_ctx
-    self.target_name = target_name
+  def __init__(self, options, autograph_module=None):
+    self.options = options
+    self.autograph_module = autograph_module
 
 
 class Base(transformer.Base):
@@ -345,56 +314,3 @@ class Base(transformer.Base):
       return super(Base, self).visit(node)
     finally:
       self._ast_depth -= 1
-
-
-class AnnotatedDef(reaching_definitions.Definition):
-
-  def __init__(self):
-    super(AnnotatedDef, self).__init__()
-    self.directives = {}
-
-
-def standard_analysis(node, context, is_initial=False):
-  """Performs a complete static analysis of the given code.
-
-  Args:
-    node: ast.AST
-    context: converter.EntityContext
-    is_initial: bool, whether this is the initial analysis done on the input
-      source code
-
-  Returns:
-    ast.AST, same as node, with the static analysis annotations added
-  """
-  # TODO(mdan): Clear static analysis here.
-  # TODO(mdan): Consider not running all analyses every time.
-  # TODO(mdan): Don't return a node because it's modified by reference.
-  graphs = cfg.build(node)
-  node = qual_names.resolve(node)
-  node = activity.resolve(node, context, None)
-  node = reaching_definitions.resolve(node, context, graphs, AnnotatedDef)
-  node = liveness.resolve(node, context, graphs)
-  if is_initial:
-    anno.dup(
-        node,
-        {
-            anno.Static.DEFINITIONS: anno.Static.ORIG_DEFINITIONS,
-        },
-    )
-  return node
-
-
-def apply_(node, context, converter_module):
-  """Applies a converter to an AST.
-
-  Args:
-    node: ast.AST
-    context: converter.EntityContext
-    converter_module: converter.Base
-
-  Returns:
-    ast.AST, the result of applying converter to node
-  """
-  node = standard_analysis(node, context)
-  node = converter_module.transform(node, context)
-  return node

@@ -26,6 +26,7 @@ limitations under the License.
 #include "tensorflow/core/framework/variant_tensor_data.h"
 #include "tensorflow/core/lib/strings/strcat.h"
 #include "tensorflow/core/platform/abi.h"
+#include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/platform/protobuf.h"
 
 namespace tensorflow {
@@ -39,11 +40,13 @@ namespace tensorflow {
 // * A protocol buffer (TypeResolver<T, false, false, true>)
 // * None of the above (TypeResolver<T, false, false, false>)
 //
-template <typename T, bool = std::is_pod<typename std::decay<T>::type>::value,
-          bool = std::is_same<typename std::decay<T>::type,
-                              ::tensorflow::Tensor>::value,
-          bool = std::is_base_of<protobuf::MessageLite,
-                                 typename std::decay<T>::type>::value>
+template <
+    typename T,
+    bool = std::is_trivially_copyable<typename std::decay<T>::type>::value,
+    bool =
+        std::is_same<typename std::decay<T>::type, ::tensorflow::Tensor>::value,
+    bool = std::is_base_of<protobuf::MessageLite,
+                           typename std::decay<T>::type>::value>
 struct TypeResolver {};
 
 // Specialization for POD type
@@ -68,7 +71,10 @@ void EncodeVariantImpl(const T& value,
                        TypeResolver<T, false /* is_pod */, false /* Tensor */,
                                     true /* protobuf */>,
                        VariantTensorData* data) {
-  value.SerializeToString(&data->metadata_);
+  if (!value.SerializeToString(&data->metadata_)) {
+    data->metadata_.clear();
+    LOG(ERROR) << "Failed to encode variant " << value.DebugString();
+  }
 }
 
 // Specialization for other types
@@ -105,7 +111,7 @@ bool DecodeVariantImpl(VariantTensorData data,
                        TypeResolver<T, false /* is_pod */, false /* Tensor */,
                                     true /* protobuf */>,
                        T* value) {
-  string metadata;
+  std::string metadata;
   data.get_metadata(&metadata);
   return value->ParseFromString(std::move(metadata));
 }
@@ -136,35 +142,35 @@ template <typename T, bool = has_type_name<typename std::decay<T>::type>::value,
 struct TypeNameResolver {};
 
 template <typename T>
-string TypeNameVariantImpl(const T& value,
-                           TypeNameResolver<T, true /* has_type_name */>) {
+std::string TypeNameVariantImpl(const T& value,
+                                TypeNameResolver<T, true /* has_type_name */>) {
   return value.TypeName();
 }
 
 template <typename T>
-string TypeNameVariantImpl(
+std::string TypeNameVariantImpl(
     const T& value,
     TypeNameResolver<T, false /* has_type_name */, true /* Tensor */>) {
   return "tensorflow::Tensor";
 }
 
 template <typename T>
-string TypeNameVariantImpl(
+std::string TypeNameVariantImpl(
     const T& value, TypeNameResolver<T, false /* has_type_name */,
                                      false /* Tensor */, true /* protobuf */>) {
-  return value.GetTypeName();
+  return std::string(value.GetTypeName());
 }
 
 template <typename T>
-string TypeNameVariantImpl(
+std::string TypeNameVariantImpl(
     const T& value,
     TypeNameResolver<T, false /* has_type_name */, false /* Tensor */,
                      false /* protobuf */>) {
-  return port::MaybeAbiDemangle(MakeTypeIndex<T>().name());
+  return port::MaybeAbiDemangle(TypeIndex::Make<T>().name());
 }
 
 template <typename T>
-string TypeNameVariant(const T& value) {
+std::string TypeNameVariant(const T& value) {
   return TypeNameVariantImpl(value, TypeNameResolver<T>());
 }
 
@@ -194,27 +200,27 @@ struct DebugStringResolver {};
 // TODO(ebrevdo): Expand DebugStringResolver to return TypeString if
 // there is no StrCat<T>() constructor.
 template <typename T>
-string DebugStringVariantImpl(
+std::string DebugStringVariantImpl(
     const T& value, DebugStringResolver<T, true /* has_debug_string */>) {
   return value.DebugString();
 }
 
 template <typename T>
-string DebugStringVariantImpl(
+std::string DebugStringVariantImpl(
     const T& value, DebugStringResolver<T, false /* has_debug_string */,
                                         true /* can_strcat */>) {
   return strings::StrCat(value);
 }
 
 template <typename T>
-string DebugStringVariantImpl(
+std::string DebugStringVariantImpl(
     const T& value, DebugStringResolver<T, false /* has_debug_string */,
                                         false /* can_strcat */>) {
   return "?";
 }
 
 template <typename T>
-string DebugStringVariant(const T& value) {
+std::string DebugStringVariant(const T& value) {
   return DebugStringVariantImpl(value, DebugStringResolver<T>());
 }
 
@@ -230,7 +236,7 @@ bool DecodeVariant(VariantTensorData* data, T* value) {
 }
 
 template <typename T>
-void EncodeVariant(const T& value, string* buf) {
+void EncodeVariant(const T& value, std::string* buf) {
   VariantTensorData data;
   EncodeVariantImpl(value, TypeResolver<T>(), &data);
   data.set_type_name(TypeNameVariant(value));
@@ -239,7 +245,7 @@ void EncodeVariant(const T& value, string* buf) {
 }
 
 template <typename T>
-bool DecodeVariant(string* buf, T* value) {
+bool DecodeVariant(std::string* buf, T* value) {
   VariantTensorData data;
   if (!data.ParseFromString(*buf)) return false;
   if (!DecodeVariantImpl(std::move(data), TypeResolver<T>(), value)) {
@@ -250,7 +256,7 @@ bool DecodeVariant(string* buf, T* value) {
 
 // Specializations for VariantTensorDataProto
 template <>
-string TypeNameVariant(const VariantTensorDataProto& value);
+std::string TypeNameVariant(const VariantTensorDataProto& value);
 
 template <>
 void EncodeVariant(const VariantTensorDataProto& value,
@@ -260,20 +266,20 @@ template <>
 bool DecodeVariant(VariantTensorData* data, VariantTensorDataProto* value);
 
 template <>
-void EncodeVariant(const VariantTensorDataProto& value, string* buf);
+void EncodeVariant(const VariantTensorDataProto& value, std::string* buf);
 
 template <>
-bool DecodeVariant(string* buf, VariantTensorDataProto* value);
+bool DecodeVariant(std::string* buf, VariantTensorDataProto* value);
 
 // Encodes an array of Variant objects in to the given StringListEncoder.
 // `variant_array` is assumed to point to an array of `n` Variant objects.
-void EncodeVariantList(const Variant* variant_array, int64 n,
+void EncodeVariantList(const Variant* variant_array, int64_t n,
                        std::unique_ptr<port::StringListEncoder> e);
 
 // Decodes an array of Variant objects from the given StringListDecoder.
 // `variant_array` is assumed to point to an array of `n` Variant objects.
 bool DecodeVariantList(std::unique_ptr<port::StringListDecoder> d,
-                       Variant* variant_array, int64 n);
+                       Variant* variant_array, int64_t n);
 
 }  // end namespace tensorflow
 

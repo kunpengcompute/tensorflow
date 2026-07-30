@@ -12,19 +12,22 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "absl/log/check.h"
+#include "absl/status/status.h"
+#include "tensorflow/core/platform/status.h"
 #include "tensorflow/lite/toco/graph_transformations/graph_transformations.h"
 #include "tensorflow/lite/toco/model.h"
 #include "tensorflow/lite/toco/tooling_util.h"
 
 namespace toco {
 
-::tensorflow::Status UnpartitionEmbeddingLookup::Run(Model* model,
-                                                     std::size_t op_index,
-                                                     bool* modified) {
+absl::Status UnpartitionEmbeddingLookup::Run(Model* model, std::size_t op_index,
+                                             bool* modified) {
   *modified = false;
   // Collapses a partitioned tf.nn.embedding_lookup back into a single Gather.
   // https://www.tensorflow.org/api_docs/python/tf/nn/embedding_lookup
@@ -50,24 +53,26 @@ namespace toco {
   // First look for the final DynamicStitch.
   auto op_it = model->operators.begin() + op_index;
   if (op_it->get()->type != OperatorType::kDynamicStitch) {
-    return ::tensorflow::Status::OK();
+    return absl::OkStatus();
   }
   auto* stitch_op = static_cast<DynamicStitchOperator*>(op_it->get());
 
   // Split up the DynamicStitch inputs into the indices and data.
-  std::vector<string> stitch_indices_inputs;
-  std::vector<string> stitch_data_inputs;
-  for (size_t i = 0; i < stitch_op->num_partitions; ++i) {
+  std::vector<std::string> stitch_indices_inputs;
+  std::vector<std::string> stitch_data_inputs;
+  stitch_indices_inputs.reserve(stitch_op->num_partitions);
+  for (int i = 0; i < stitch_op->num_partitions; ++i) {
     stitch_indices_inputs.push_back(stitch_op->inputs[i]);
   }
-  for (size_t i = stitch_op->num_partitions; i < stitch_op->num_partitions * 2;
+  for (int i = stitch_op->num_partitions; i < stitch_op->num_partitions * 2;
        ++i) {
     stitch_data_inputs.push_back(stitch_op->inputs[i]);
   }
 
   // Validate all indices come from the same DynamicPartition.
   DynamicPartitionOperator* indices_partition_op = nullptr;
-  for (const string& indices_partition_output_name : stitch_indices_inputs) {
+  for (const std::string& indices_partition_output_name :
+       stitch_indices_inputs) {
     auto* op = GetOpWithOutput(*model, indices_partition_output_name);
     CHECK(op) << "Source of " << indices_partition_output_name << " not found";
     if (op->type != OperatorType::kDynamicPartition) {
@@ -75,7 +80,7 @@ namespace toco {
           "Skipping because indices input %s into "
           "%s is unexpected",
           LogName(*op), LogName(*stitch_op));
-      return ::tensorflow::Status::OK();
+      return absl::OkStatus();
     }
     if (!indices_partition_op) {
       indices_partition_op = static_cast<DynamicPartitionOperator*>(op);
@@ -86,7 +91,7 @@ namespace toco {
             "Skipping because indices input %s into "
             "%s is from a different source op than others",
             LogName(*op), LogName(*stitch_op));
-        return ::tensorflow::Status::OK();
+        return absl::OkStatus();
       }
     }
   }
@@ -95,12 +100,12 @@ namespace toco {
   // The data for the indices must be a constant range of the array shape.
   if (!IsConstantParameterArray(*model, indices_partition_op->inputs[0])) {
     AddMessageF("Skipping because indices partition data is non-constant");
-    return ::tensorflow::Status::OK();
+    return absl::OkStatus();
   }
   auto& indices_data_array = model->GetArray(indices_partition_op->inputs[0]);
   if (indices_data_array.data_type == ArrayDataType::kNone) {
     // Yield until data types are propagated.
-    return ::tensorflow::Status::OK();
+    return absl::OkStatus();
   }
   CHECK(indices_data_array.data_type == ArrayDataType::kInt32)
       << "Indices partition inputs must be int32";
@@ -112,7 +117,7 @@ namespace toco {
 
   // Find all of the gathers used for the data inputs.
   std::vector<GatherOperator*> gather_ops;
-  for (const string& gather_output_name : stitch_data_inputs) {
+  for (const std::string& gather_output_name : stitch_data_inputs) {
     auto* op = GetOpWithOutput(*model, gather_output_name);
     CHECK(op) << "Source of " << gather_output_name << " not found";
     if (op->type != OperatorType::kGather) {
@@ -120,7 +125,7 @@ namespace toco {
           "Skipping because data input %s into %s "
           "is unexpected",
           LogName(*op), LogName(*stitch_op));
-      return ::tensorflow::Status::OK();
+      return absl::OkStatus();
     }
     gather_ops.push_back(static_cast<GatherOperator*>(op));
   }
@@ -135,7 +140,7 @@ namespace toco {
           "Skipping because data input %s into "
           "%s is unexpected",
           LogName(*op), LogName(*gather_op));
-      return ::tensorflow::Status::OK();
+      return absl::OkStatus();
     }
     if (!data_partition_op) {
       data_partition_op = static_cast<DynamicPartitionOperator*>(op);
@@ -146,7 +151,7 @@ namespace toco {
             "Skipping because data input %s into "
             "%s is from a different source op than others",
             LogName(*op), LogName(*gather_op));
-        return ::tensorflow::Status::OK();
+        return absl::OkStatus();
       }
     }
   }
@@ -240,7 +245,7 @@ namespace toco {
   DeleteOpAndArrays(model, data_partition_op);
   DeleteOpAndArrays(model, stitch_op);
   *modified = true;
-  return ::tensorflow::Status::OK();
+  return absl::OkStatus();
 }
 
 }  // namespace toco

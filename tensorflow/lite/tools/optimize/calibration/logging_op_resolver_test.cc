@@ -14,9 +14,14 @@ limitations under the License.
 ==============================================================================*/
 #include "tensorflow/lite/tools/optimize/calibration/logging_op_resolver.h"
 
-#include <gmock/gmock.h>
+#include <string>
+
 #include <gtest/gtest.h>
+#include "tensorflow/lite/c/c_api_types.h"
+#include "tensorflow/lite/c/common.h"
 #include "tensorflow/lite/mutable_op_resolver.h"
+#include "tensorflow/lite/schema/schema_generated.h"
+#include "tensorflow/lite/tools/optimize/calibration/calibration_common.h"
 
 namespace tflite {
 namespace optimize {
@@ -70,7 +75,7 @@ TEST(LoggingOpResolverTest, KernelInvokesAreReplaced) {
   };
 
   LoggingOpResolver resolver(ops_to_replace, CustomOpsSet(), base_resolver,
-                             WrappingInvoke);
+                             WrappingInvoke, /*error_reporter=*/nullptr);
 
   auto reg = resolver.FindOp(BuiltinOperator_CONV_2D, 1);
 
@@ -104,7 +109,7 @@ TEST(LoggingOpResolverTest, OriginalKernelInvokesAreRetained) {
   };
 
   LoggingOpResolver resolver(ops_to_replace, CustomOpsSet(), base_resolver,
-                             WrappingInvoke);
+                             WrappingInvoke, /*error_reporter=*/nullptr);
   auto kernel_invoke =
       resolver.GetWrappedKernelInvoke(BuiltinOperator_CONV_2D, 1);
   EXPECT_TRUE(kernel_invoke == ConvEval);
@@ -131,7 +136,7 @@ TEST(LoggingOpResolverTest, OnlyOpsInReplacementSetAreReplaces) {
   };
 
   LoggingOpResolver resolver(ops_to_replace, CustomOpsSet(), base_resolver,
-                             WrappingInvoke);
+                             WrappingInvoke, /*error_reporter=*/nullptr);
   auto reg = resolver.FindOp(BuiltinOperator_CONV_2D, 1);
   EXPECT_EQ(reg->builtin_code, BuiltinOperator_CONV_2D);
   EXPECT_TRUE(reg->prepare == ConvPrepare);
@@ -155,7 +160,7 @@ TEST(LoggingOpResolverTest, CustomOps) {
   };
 
   LoggingOpResolver resolver(BuiltinOpsSet(), ops_to_replace, base_resolver,
-                             WrappingInvoke);
+                             WrappingInvoke, /*error_reporter=*/nullptr);
 
   auto reg = resolver.FindOp(custom_op_name.c_str(), 1);
 
@@ -165,13 +170,54 @@ TEST(LoggingOpResolverTest, CustomOps) {
   EXPECT_TRUE(reg->invoke == WrappingInvoke);
 }
 
+TEST(LoggingOpResolverTest, UnresolvedCustomOps) {
+  // No custom op registration.
+  MutableOpResolver base_resolver;
+
+  std::string custom_op_name = "unresolved_custom_op";
+
+  CustomOpsSet ops_to_replace = {
+      {custom_op_name, /*version*/ 1},
+  };
+
+  // Expect no death.
+  LoggingOpResolver(BuiltinOpsSet(), ops_to_replace, base_resolver,
+                    WrappingInvoke, /*error_reporter=*/nullptr);
+}
+
+TEST(LoggingOpResolverTest, UnresolvedBuiltinOps) {
+  // No builtin op registration.
+  MutableOpResolver base_resolver;
+
+  BuiltinOpsSet ops_to_replace = {
+      {BuiltinOperator_CONV_2D, /*version*/ 1},
+      {BuiltinOperator_ADD, /*version*/ 1},
+  };
+
+  // Expect no death.
+  LoggingOpResolver resolver(ops_to_replace, CustomOpsSet(), base_resolver,
+                             WrappingInvoke, /*error_reporter=*/nullptr);
+}
+
+TEST(LoggingOpResolverTest, FlexOps) {
+  // No flex op registration.
+  MutableOpResolver base_resolver;
+
+  std::string custom_op_name = "FlexAdd";
+
+  CustomOpsSet ops_to_replace = {
+      {custom_op_name, /*version*/ 1},
+  };
+
+  LoggingOpResolver resolver(BuiltinOpsSet(), ops_to_replace, base_resolver,
+                             WrappingInvoke, /*error_reporter=*/nullptr);
+
+  auto reg = resolver.FindOp(custom_op_name.c_str(), 1);
+
+  EXPECT_TRUE(!reg);
+}
+
 }  // namespace
 }  // namespace calibration
 }  // namespace optimize
 }  // namespace tflite
-
-int main(int argc, char** argv) {
-  // On Linux, add: FLAGS_logtostderr = true;
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}

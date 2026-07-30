@@ -18,32 +18,55 @@ limitations under the License.
 
 #include "absl/memory/memory.h"
 #include "tensorflow/core/common_runtime/device_mgr.h"
+#include "tensorflow/core/framework/device_attributes.pb.h"
 #include "tensorflow/core/lib/core/status.h"
+#include "tensorflow/core/lib/strings/strcat.h"
+#include "tensorflow/core/platform/notification.h"
+#include "tensorflow/core/platform/status.h"
 #include "tensorflow/core/platform/test.h"
-#include "tensorflow/core/util/ptr_util.h"
 
 namespace tensorflow {
 namespace {
 
 // Return a fake device with the specified type and name.
-static Device* CreateDevice(const char* type, const char* name) {
+static Device* CreateDevice(const char* type, const char* name,
+                            Notification* n = nullptr) {
   class FakeDevice : public Device {
    public:
     explicit FakeDevice(const DeviceAttributes& attr) : Device(nullptr, attr) {}
-    Status Sync() override { return Status::OK(); }
+    absl::Status Sync() override { return absl::OkStatus(); }
     Allocator* GetAllocator(AllocatorAttributes) override { return nullptr; }
   };
+
+  class FakeDeviceWithDestructorNotification : public FakeDevice {
+   public:
+    FakeDeviceWithDestructorNotification(const DeviceAttributes& attr,
+                                         Notification* n)
+        : FakeDevice(attr), n_(n) {}
+    ~FakeDeviceWithDestructorNotification() override { n_->Notify(); }
+
+   private:
+    Notification* n_;
+  };
+
   DeviceAttributes attr;
   attr.set_name(name);
   attr.set_device_type(type);
+  do {
+    attr.set_incarnation(random::New64());
+  } while (attr.incarnation() == 0);
+
+  if (n) {
+    return new FakeDeviceWithDestructorNotification(attr, n);
+  }
   return new FakeDevice(attr);
 }
 
 TEST(DynamicDeviceMgrTest, AddDeviceToMgr) {
-  std::unique_ptr<Device> d0(CreateDevice("CPU", "/device:CPU:0"));
-  std::unique_ptr<Device> d1(CreateDevice("CPU", "/device:CPU:1"));
+  std::unique_ptr<Device> d0(CreateDevice("CPU", "/device:CPU:1"));
+  std::unique_ptr<Device> d1(CreateDevice("CPU", "/device:CPU:0"));
 
-  auto dm = MakeUnique<DynamicDeviceMgr>();
+  auto dm = std::make_unique<DynamicDeviceMgr>();
   EXPECT_EQ(dm->ListDevices().size(), 0);
 
   std::vector<std::unique_ptr<Device>> added_devices;
@@ -51,14 +74,19 @@ TEST(DynamicDeviceMgrTest, AddDeviceToMgr) {
   added_devices.emplace_back(std::move(d1));
   TF_CHECK_OK(dm->AddDevices(std::move(added_devices)));
   EXPECT_EQ(dm->ListDevices().size(), 2);
+  // Checks that list is sorted by the device name order, not insertion order.
+  // Insertion order is flipped above.
+  EXPECT_EQ(dm->ListDevices()[0]->name(), "/device:CPU:0");
+  EXPECT_EQ(dm->ListDevices()[1]->name(), "/device:CPU:1");
 }
 
 TEST(DynamicDeviceMgrTest, RemoveDeviceFromMgr) {
   std::unique_ptr<Device> d0(CreateDevice("CPU", "/device:CPU:0"));
   std::unique_ptr<Device> d1(CreateDevice("CPU", "/device:CPU:1"));
   Device* d1_ptr = d1.get();
+  const int64_t d1_incarnation = d1->attributes().incarnation();
 
-  auto dm = MakeUnique<DynamicDeviceMgr>();
+  auto dm = std::make_unique<DynamicDeviceMgr>();
   std::vector<std::unique_ptr<Device>> devices;
   devices.emplace_back(std::move(d0));
   devices.emplace_back(std::move(d1));
@@ -68,6 +96,38 @@ TEST(DynamicDeviceMgrTest, RemoveDeviceFromMgr) {
   std::vector<Device*> removed_devices{d1_ptr};
   TF_CHECK_OK(dm->RemoveDevices(removed_devices));
   EXPECT_EQ(dm->ListDevices().size(), 1);
+  EXPECT_FALSE(dm->ContainsDevice(d1_incarnation));
+
+  // Device still accessible shortly through the raw pointer after removal.
+  EXPECT_EQ(d1_ptr->name(), "/device:CPU:1");
+  EXPECT_EQ(d1_ptr->device_type(), "CPU");
+}
+
+TEST(DynamicDeviceMgrTest, RemoveDeviceFromMgrBuffer) {
+  // Create a device whose destructor will send a notification.
+  Notification n;
+  std::unique_ptr<Device> d0(CreateDevice("CPU", "/device:CPU:0", &n));
+  Device* d0_ptr = d0.get();
+  std::vector<std::unique_ptr<Device>> added_devices;
+  added_devices.emplace_back(std::move(d0));
+  auto dm = std::make_unique<DynamicDeviceMgr>();
+  TF_CHECK_OK(dm->AddDevices(std::move(added_devices)));
+  std::vector<Device*> removed_devices{d0_ptr};
+  TF_CHECK_OK(dm->RemoveDevices(removed_devices));
+
+  // Repeatedly add and remove devices to fill up the stale devices buffer.
+  for (int i = 0; i < kStaleDeviceBufferSize; i++) {
+    added_devices.clear();
+    removed_devices.clear();
+    std::unique_ptr<Device> d(CreateDevice("CPU", "/device:CPU:0"));
+    Device* d_ptr = d.get();
+    added_devices.emplace_back(std::move(d));
+    TF_CHECK_OK(dm->AddDevices(std::move(added_devices)));
+    removed_devices.emplace_back(d_ptr);
+    TF_CHECK_OK(dm->RemoveDevices(removed_devices));
+  }
+  // Verify that d0 destructor is called after the buffer is full.
+  n.WaitForNotification();
 }
 
 TEST(DynamicDeviceMgrTest, RemoveDeviceByNameFromMgr) {
@@ -75,7 +135,7 @@ TEST(DynamicDeviceMgrTest, RemoveDeviceByNameFromMgr) {
   std::unique_ptr<Device> d1(CreateDevice("CPU", "/device:CPU:1"));
   string d1_name = "/device:CPU:1";
 
-  auto dm = MakeUnique<DynamicDeviceMgr>();
+  auto dm = std::make_unique<DynamicDeviceMgr>();
   std::vector<std::unique_ptr<Device>> devices;
   devices.emplace_back(std::move(d0));
   devices.emplace_back(std::move(d1));
@@ -91,7 +151,7 @@ TEST(DynamicDeviceMgrTest, AddRepeatedDeviceToMgr) {
   std::unique_ptr<Device> d0(CreateDevice("CPU", "/device:CPU:0"));
   std::unique_ptr<Device> d1(CreateDevice("CPU", "/device:CPU:0"));
 
-  auto dm = MakeUnique<DynamicDeviceMgr>();
+  auto dm = std::make_unique<DynamicDeviceMgr>();
   std::vector<std::unique_ptr<Device>> devices;
   devices.emplace_back(std::move(d0));
   TF_CHECK_OK(dm->AddDevices(std::move(devices)));
@@ -99,9 +159,9 @@ TEST(DynamicDeviceMgrTest, AddRepeatedDeviceToMgr) {
 
   std::vector<std::unique_ptr<Device>> added_devices;
   added_devices.emplace_back(std::move(d1));
-  Status s = dm->AddDevices(std::move(added_devices));
-  EXPECT_TRUE(absl::StrContains(s.error_message(),
-                                "name conflicts with an existing device"));
+  absl::Status s = dm->AddDevices(std::move(added_devices));
+  EXPECT_TRUE(
+      absl::StrContains(s.message(), "name conflicts with an existing device"));
 }
 
 TEST(DynamicDeviceMgrTest, RemoveNonExistingDeviceFromMgr) {
@@ -110,15 +170,15 @@ TEST(DynamicDeviceMgrTest, RemoveNonExistingDeviceFromMgr) {
   Device* d0_ptr = d0.get();
   Device* d1_ptr = d1.get();
 
-  auto dm = MakeUnique<DynamicDeviceMgr>();
+  auto dm = std::make_unique<DynamicDeviceMgr>();
   std::vector<std::unique_ptr<Device>> devices;
   devices.emplace_back(std::move(d0));
   TF_CHECK_OK(dm->AddDevices(std::move(devices)));
   EXPECT_EQ(dm->ListDevices().size(), 1);
 
   std::vector<Device*> removed_devices{d0_ptr, d1_ptr};
-  Status s = dm->RemoveDevices(removed_devices);
-  EXPECT_TRUE(absl::StrContains(s.error_message(), "Unknown device"));
+  absl::Status s = dm->RemoveDevices(removed_devices);
+  EXPECT_TRUE(absl::StrContains(s.message(), "Unknown device"));
   EXPECT_EQ(dm->ListDevices().size(), 1);  // d0 *not* removed.
 }
 
@@ -127,20 +187,20 @@ TEST(DynamicDeviceMgrTest, RemoveNonExistingDeviceByNameFromMgr) {
   string d0_name = "/device:GPU:0";
   string d1_name = "/device:CPU:0";
 
-  auto dm = MakeUnique<DynamicDeviceMgr>();
+  auto dm = std::make_unique<DynamicDeviceMgr>();
   std::vector<std::unique_ptr<Device>> devices;
   devices.emplace_back(std::move(d0));
   TF_CHECK_OK(dm->AddDevices(std::move(devices)));
   EXPECT_EQ(dm->ListDevices().size(), 1);
 
   std::vector<string> removed_devices{d0_name, d1_name};
-  Status s = dm->RemoveDevicesByName(removed_devices);
-  EXPECT_TRUE(absl::StrContains(s.error_message(), "unknown device"));
+  absl::Status s = dm->RemoveDevicesByName(removed_devices);
+  EXPECT_TRUE(absl::StrContains(s.message(), "unknown device"));
   EXPECT_EQ(dm->ListDevices().size(), 1);  // d0 *not* removed
 }
 
 TEST(DynamicDeviceMgrTest, HostCPU) {
-  auto dm = MakeUnique<DynamicDeviceMgr>();
+  auto dm = std::make_unique<DynamicDeviceMgr>();
 
   // If there are no CPU devices, HostCPU() should return nullptr.
   std::unique_ptr<Device> gpu(CreateDevice("GPU", "/device:GPU:0"));
@@ -171,7 +231,7 @@ TEST(DynamicDeviceMgrTest, HostCPU) {
 
   // Once we have a HostCPU() device, we can't remove it ...
   std::vector<Device*> removed{gpu_ptr, cpu0_ptr};
-  EXPECT_TRUE(absl::StrContains(dm->RemoveDevices(removed).error_message(),
+  EXPECT_TRUE(absl::StrContains(dm->RemoveDevices(removed).message(),
                                 "Can not remove HostCPU device"));
   EXPECT_EQ(dm->ListDevices().size(), 3);
   EXPECT_EQ(dm->HostCPU(), cpu0_ptr);

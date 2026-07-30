@@ -13,10 +13,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include "tensorflow/core/common_runtime/graph_optimizer.h"
-
-#include "tensorflow/core/common_runtime/constant_folding.h"
-#include "tensorflow/core/common_runtime/function.h"
 #include "tensorflow/core/common_runtime/optimization_registry.h"
 #include "tensorflow/core/graph/algorithm.h"
 #include "tensorflow/core/graph/node_builder.h"
@@ -30,11 +26,11 @@ namespace {
 // leaves it untouched otherwise.
 class ParallelConcatRemovePass : public GraphOptimizationPass {
  public:
-  Status Run(const GraphOptimizationPassOptions& options) override {
+  absl::Status Run(const GraphOptimizationPassOptions& options) override {
     if (options.graph == nullptr) {
       // TODO(apassos) returning OK feels weird here as we can't do anything
       // without a graph, but some tests require this.
-      return Status::OK();
+      return absl::OkStatus();
     }
     Graph* g = options.graph->get();
     if (g == nullptr) {
@@ -42,7 +38,7 @@ class ParallelConcatRemovePass : public GraphOptimizationPass {
           "Parallel concat removal should happen before partitioning and a "
           "graph should be available.");
     }
-    gtl::InlinedVector<Node*, 2> matches;
+    absl::InlinedVector<Node*, 2UL> matches;
     for (Node* n : g->op_nodes()) {
       if (n->type_string() == "ParallelConcat") {
         matches.push_back(n);
@@ -114,7 +110,7 @@ class ParallelConcatRemovePass : public GraphOptimizationPass {
       }
       g->RemoveNode(n);
     }
-    return Status::OK();
+    return absl::OkStatus();
   }
 };
 REGISTER_OPTIMIZATION(OptimizationPassRegistry::PRE_PLACEMENT, 10,

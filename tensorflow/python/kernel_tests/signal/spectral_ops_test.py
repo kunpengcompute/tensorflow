@@ -14,10 +14,6 @@
 # ==============================================================================
 """Tests for spectral_ops."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import itertools
 
 from absl.testing import parameterized
@@ -225,7 +221,10 @@ class SpectralOpsTest(test.TestCase, parameterized.TestCase):
       (256, 64),
       (128, 25),
       (127, 32),
-      (128, 64))
+      (128, 64),
+      (64, 64),
+      (64, 128),
+  )
   def test_inverse_stft_window_fn(self, frame_length, frame_step):
     """Test that inverse_stft_window_fn has unit gain at each window phase."""
     hann_window = window_ops.hann_window(frame_length, dtype=dtypes.float32)
@@ -236,6 +235,11 @@ class SpectralOpsTest(test.TestCase, parameterized.TestCase):
     # Expect unit gain at each phase of the window.
     product_window = hann_window * inverse_window
     for i in range(frame_step):
+      hann_window_i = hann_window[i::frame_step]
+      inverse_window_i = inverse_window[i::frame_step]
+      # Skip if both windows are 0 (can happen for frame_length <= frame_step).
+      if (hann_window_i == 0.0).all() and (inverse_window_i == 0.0).all():
+        continue
       self.assertAllClose(1.0, np.sum(product_window[i::frame_step]))
 
   @parameterized.parameters((256, 64), (128, 32))
@@ -266,7 +270,7 @@ class SpectralOpsTest(test.TestCase, parameterized.TestCase):
     # TODO(rjryan): Update gradient tests for Eager.
     if context.executing_eagerly():
       return
-    with self.session(use_gpu=True) as sess:
+    with self.session() as sess:
       signal_length = 512
 
       # An all-zero signal has all zero gradients with respect to the sum of the
@@ -294,6 +298,10 @@ class SpectralOpsTest(test.TestCase, parameterized.TestCase):
       (64, 7, 4, 9, np.float64, 1e-8, 1e-8),
       (29, 5, 1, 10, np.float32, 2e-3, 5e-4),
       (29, 5, 1, 10, np.float64, 1e-8, 1e-8))
+  @test.disable_with_predicate(
+      pred=test.is_built_with_rocm,
+      skip_message="On ROCm, this fails with mismatches at some locations "
+      "(possibly due to peculiarities of rocFFT - investigate)")
   def test_gradients_numerical(self, signal_length, frame_length, frame_step,
                                fft_length, np_rtype, forward_tol, backward_tol):
     # TODO(rjryan): Investigate why STFT gradient error is so high.

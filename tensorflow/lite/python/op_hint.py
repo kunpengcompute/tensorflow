@@ -65,18 +65,10 @@ contain a custom operator called "cool_activation". Developer needs to implement
 and register this operator in TensorFlow Lite in order to do inference.
 """
 
-# TODO(aselle): Make this use generic graph transformations.
-# TODO(aselle): _tensor_name_base should be called _tensor_name_to_op_name.
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import collections as _collections
 import copy as _copy
 import json as _json
 import uuid as _uuid
-import six as _six
 
 from tensorflow.core.framework import attr_value_pb2 as _attr_value_pb2
 from tensorflow.core.framework import graph_pb2 as _graph_pb2
@@ -84,17 +76,23 @@ from tensorflow.core.framework import node_def_pb2 as _node_def_pb2
 from tensorflow.python.framework import dtypes as _dtypes
 from tensorflow.python.framework import ops as _ops
 from tensorflow.python.framework import tensor_util as _tensor_util
-# TODO(aselle): publicize these apis if we continue to use these.
 from tensorflow.python.framework.graph_util_impl import _bfs_for_reachable_nodes
 from tensorflow.python.framework.graph_util_impl import _extract_graph_summary
 from tensorflow.python.ops import array_ops as _array_ops
 from tensorflow.python.util import compat as _compat
+from tensorflow.python.util import deprecation as _deprecation
 from tensorflow.python.util.all_util import remove_undocumented
 from tensorflow.python.util.tf_export import tf_export as _tf_export
 
 
 @_tf_export(v1=["lite.OpHint"])
-class OpHint(object):
+@_deprecation.deprecated(
+    None,
+    "Please follow instructions under "
+    "https://www.tensorflow.org/lite/convert/operation_fusion for operation"
+    "fusion in tflite."
+)
+class OpHint:
   """A class that helps build tflite function invocations.
 
   It allows you to take a bunch of TensorFlow ops and annotate the construction
@@ -109,9 +107,6 @@ class OpHint(object):
   is to be exported from the current op.
 
   """
-  # TODO(aselle): When TensorFlow functions functionality works for arbitrary
-  # constructs, this mechanism can be retired and changed to use python defun's.
-
   # Attr constants that are used for representation in the GraphDef. These
   # will be used on every Identity op that is involved in a total OpHint.
 
@@ -159,7 +154,7 @@ class OpHint(object):
   # static rnn.
   AGGREGATE_LAST = "last"
 
-  class OpHintArgumentTracker(object):
+  class OpHintArgumentTracker:
     """Conceptually tracks indices of arguments of "OpHint functions".
 
     The inputs and arguments of these functions both use an instance
@@ -338,7 +333,7 @@ class OpHint(object):
     self._children_inputs_mappings = children_inputs_mappings
     if self._children_inputs_mappings is not None:
       self._validate_children_inputs_mappings(self._children_inputs_mappings)
-    self._unique_function_id = _uuid.uuid1().hex  # TODO(aselle): Unique enough?
+    self._unique_function_id = _uuid.uuid1().hex
     self._attrs_to_store_later = kwargs
     self._stored_attrs = False
     self._inputs = OpHint.OpHintArgumentTracker(
@@ -435,6 +430,7 @@ class OpHint(object):
     Args:
       *args: List of inputs to be converted (should be Tf.Tensor).
       **kwargs: This allows 'names' which should be a list of names.
+
     Returns:
       Wrapped inputs (identity standins that have additional metadata). These
       are also are also tf.Tensor's.
@@ -453,6 +449,7 @@ class OpHint(object):
     Args:
       *args: List of outputs to be converted (should be tf.Tensor).
       **kwargs: See
+
     Returns:
       Wrapped outputs (identity standins that have additional metadata). These
       are also tf.Tensor's.
@@ -466,7 +463,7 @@ class OpHint(object):
       return [self._outputs.add(arg) for arg in args]
 
 
-class _LiteOperand(object):
+class _LiteOperand:
   """Abstract operand for a tflite hint function._dynamic_rnn_loop.
 
   This is a base class that handles representing arguments to an OpHint.
@@ -562,7 +559,7 @@ class _LiteAggregateOperand(_LiteOperand):
     """Return a list of all the node protos in aggregation sorted order."""
     if not self.flattened:
       self.flattened = [None] * len(self.nodes)
-      for idx, node in _six.iteritems(self.nodes):
+      for idx, node in self.nodes.items():
         self.flattened[idx] = node
       for n in self.nodes:
         if n is None:
@@ -574,8 +571,8 @@ class _LiteAggregateOperand(_LiteOperand):
       elif self.aggregation == OpHint.AGGREGATE_STACK:
         pass
       else:
-        raise ValueError(
-            "Invalid aggregation type %r specified" % self.aggregation)
+        raise ValueError("Invalid aggregation type %r specified" %
+                         self.aggregation)
     return self.flattened
 
   def flatten(self):
@@ -587,7 +584,7 @@ class _LiteAggregateOperand(_LiteOperand):
 
     In particular, if you have 4 inputs to a hint stub, this will be the
     node that you can use as an output. I.e. you have 4 timesteps from a
-    static rnn, then a fused UnidriecitonalLSTM will expect 1 input with
+    static rnn, then a fused UnidirectionalLSTM will expect 1 input with
     all 4 time steps. So here we make a pack and return the output name of
     that pack.
 
@@ -646,8 +643,8 @@ class _LiteAggregateOperand(_LiteOperand):
       stack_node.attr["num"].i = len(flattened)
       output_type = flattened[0].attr["T"].type
       stack_node.attr["T"].type = output_type
-      stack_node.input.append(_tensorflow_output_name(
-          fused_op_name, output_index))
+      stack_node.input.append(
+          _tensorflow_output_name(fused_op_name, output_index))
       out_graphdef.node.extend([stack_node])
 
       for idx, discrete in enumerate(flattened):
@@ -665,7 +662,7 @@ class _LiteAggregateOperand(_LiteOperand):
     return s
 
 
-class _LiteFuncCall(object):
+class _LiteFuncCall:
   """Represent a TensorFlow Lite custom function.
 
   This is uses to accumulate found hints in the graphdef into a single
@@ -675,11 +672,10 @@ class _LiteFuncCall(object):
     inputs: inputs to the op (hash from index # to argument)
     outputs: outputs to the op (hash from index # to argument)
     function_name: the tflite custom op name to use
-    uuid: a unique call id for this particular call  (i.e.
-      multiple function calls would have the same function_name but different
-      uuids.
-    params: A param name to key value for op constant data. I.e. for
-      axis on a reduction, strides on a convolution, etc.
+    uuid: a unique call id for this particular call  (i.e. multiple function
+      calls would have the same function_name but different uuids.
+    params: A param name to key value for op constant data. I.e. for axis on a
+      reduction, strides on a convolution, etc.
     level: Level of the OpHint.
     children_inputs_mappings: If the Ophint has children, children inputs
       mappings indicate how their inputs & outputs are mapped.
@@ -700,6 +696,7 @@ class _LiteFuncCall(object):
     Returns:
       Tuple of (inputs, outputs). where input and output i a list of names.
     """
+
     def _flatten(input_or_output_dict):
       flattened_items = []
       for item in input_or_output_dict.values():
@@ -709,6 +706,7 @@ class _LiteFuncCall(object):
     return _flatten(self.inputs), _flatten(self.outputs)
 
   def __str__(self):
+
     def format_args(items):
       s = ""
       for idx, item in items.iteritems():
@@ -739,8 +737,8 @@ def _find_all_hints_in_nodes(nodes):
   for node in nodes:
     attr = node.attr
     # This is an op hint if it has a FUNCTION_UUID_ATTR, otherwise skip
-    if (OpHint.FUNCTION_UUID_ATTR not in attr
-        or not attr[OpHint.FUNCTION_UUID_ATTR].s):
+    if (OpHint.FUNCTION_UUID_ATTR not in attr or
+        not attr[OpHint.FUNCTION_UUID_ATTR].s):
       continue
     uuid = attr[OpHint.FUNCTION_UUID_ATTR].s
 
@@ -751,9 +749,11 @@ def _find_all_hints_in_nodes(nodes):
     call_def.level = attr[OpHint.FUNCTION_LEVEL_ATTR].i
     # Get sorting and aggregation information
 
-    sort = (attr[OpHint.FUNCTION_SORT_INDEX_ATTR].i
-            if OpHint.FUNCTION_SORT_INDEX_ATTR in attr else None)
-    if sort == -1: sort = None
+    sort = (
+        attr[OpHint.FUNCTION_SORT_INDEX_ATTR].i
+        if OpHint.FUNCTION_SORT_INDEX_ATTR in attr else None)
+    if sort == -1:
+      sort = None
     aggregation = None
     if OpHint.FUNCTION_AGGREGATE_ATTR in attr:
       aggregation = _compat.as_text(attr[OpHint.FUNCTION_AGGREGATE_ATTR].s)
@@ -814,7 +814,7 @@ def _find_children_hints_in_while_loop(function_def, nodes_mapping):
   children_hints = _find_all_hints_in_nodes(new_nodes)
   children_hints_q = []
   # Ordered by the outputs.
-  for hint in _six.itervalues(children_hints):
+  for hint in children_hints.values():
     _, output_names = hint.flattened_inputs_and_outputs()
     seq = name_to_seq_num[output_names[0]]
     for output_name in output_names:
@@ -868,7 +868,6 @@ def _find_children_hints(call, graph_def):
               nodes_mapping = {}
               for i, function_input in enumerate(function_inputs):
                 nodes_mapping[function_input.name] = inputs_outside_loop[i]
-              # TODO(b/123050804): Consider use grappler.
               (children_hints_in_loop,
                new_nodes) = _find_children_hints_in_while_loop(
                    function_def, nodes_mapping)
@@ -887,6 +886,7 @@ def _tensor_name_base(full_tensor_name):
   Args:
     full_tensor_name: A tensor name that is annotated with a device placement
       (this is what tensor flow introspection gives).
+
   Returns:
     A name without any device assignment.
   """
@@ -900,7 +900,6 @@ def _tensorflow_output_name(tensor_name, output_index):
                                                           output_index)
 
 
-# TODO(aselle): This should be converted to grappler in the future.
 def _check_subgraph_closed(n, reachable_by_input, input_nodes_set,
                            name_to_input_name):
   """Checks to make sure node only connects to predecessor graph through inputs.
@@ -919,10 +918,10 @@ def _check_subgraph_closed(n, reachable_by_input, input_nodes_set,
   while next_to_visit:
     current_node = next_to_visit.pop()
     visited.add(current_node)
-    if (current_node in reachable_by_input
-        and current_node not in input_nodes_set):
-      raise TypeError(
-          "Node %s uses input %s not in input_nodes." % (n, current_node))
+    if (current_node in reachable_by_input and
+        current_node not in input_nodes_set):
+      raise TypeError("Node %s uses input %s not in input_nodes." %
+                      (n, current_node))
     if current_node not in input_nodes_set:
       next_to_visit += [
           input_node for input_node in name_to_input_name[current_node]
@@ -930,7 +929,6 @@ def _check_subgraph_closed(n, reachable_by_input, input_nodes_set,
       ]
 
 
-# TODO(aselle): This should be converted to grappler in the future.
 def _convert_single_op_hint_to_stub(call,
                                     graph_def,
                                     function_def_nodes=None,
@@ -991,7 +989,6 @@ def _convert_single_op_hint_to_stub(call,
 
   # Create any stacks to aggregate arguments into to a single input
   # i.e. for static_rnn's.
-  # TODO(aselle): Check that the inputs are complete i.e. 0 to n-1
   sorted_input_indices = list(call.inputs.keys())
   sorted_input_indices.sort()
   sorted_output_indices = list(call.outputs.keys())
@@ -1041,7 +1038,6 @@ def _convert_single_op_hint_to_stub(call,
       output_dtype = optional_input_node.attr["type"].i
     output_dtypes.append(output_dtype)
   new_node.attr["_output_types"].list.type[:] = output_dtypes
-  # TODO(aselle): what is right here?
   new_node.attr["_output_quantized"].b = False
 
   # Add post output nodes that do not depend on the outputs
@@ -1060,12 +1056,12 @@ def _convert_single_op_hint_to_stub(call,
   return out
 
 
-# TODO(aselle): This should be converted to grappler in the future.
 def _remove_one_redundant_stack_unstack(in_graph_def):
   """Removes a stack->unstack pattern from in_graph_def in a returned graph.
 
   Args:
     in_graph_def: Graph def to use as input.
+
   Returns:
     Simplified tuple (graph_def, changed_something) where changed_something
     is true if anything was done.
@@ -1074,7 +1070,6 @@ def _remove_one_redundant_stack_unstack(in_graph_def):
       in_graph_def)
   del name_to_seq_num
 
-  # TODO(aselle): Make this not hardcoded.
   do_generic_pack_unpack = True
 
   out = _graph_pb2.GraphDef()
@@ -1101,15 +1096,15 @@ def _remove_one_redundant_stack_unstack(in_graph_def):
       node = name_to_node[current_node_name]
       is_op_hint_stack = node.name.startswith("OpHintStack")
       is_op_hint_unstack = node.name.startswith("OpHintUnstack")
-      if (node.op == "Identity" or is_op_hint_stack
-          or (do_generic_pack_unpack and node.op == "Pack")):
+      if (node.op == "Identity" or is_op_hint_stack or
+          (do_generic_pack_unpack and node.op == "Pack")):
         is_hint_created_stack |= is_op_hint_stack
         next_to_visit += [
             input_node for input_node in name_to_input_name[current_node_name]
             if input_node not in visited
         ]
-      elif (is_op_hint_unstack
-            or (do_generic_pack_unpack and node.op == "Unpack")):
+      elif (is_op_hint_unstack or
+            (do_generic_pack_unpack and node.op == "Unpack")):
         unpack_nodes.add(node.name)
         is_hint_created_stack &= is_op_hint_unstack
       else:
@@ -1124,7 +1119,8 @@ def _remove_one_redundant_stack_unstack(in_graph_def):
       # Unstacked form
       no_external_dependency = True
       for other_n in in_graph_def.node:
-        if other_n.name in visited: continue
+        if other_n.name in visited:
+          continue
         for input_tensor in name_to_input_name[other_n.name]:
           input_op = _tensor_name_base(input_tensor)
           if input_op in visited and input_op != pack_node:
@@ -1141,9 +1137,9 @@ def _remove_one_redundant_stack_unstack(in_graph_def):
           if node_name not in visited:
             new_node = _copy.deepcopy(other_n)
             new_node.input[:] = [
-                (end_input if stripped == pack_node else
-                 non_stripped) for stripped, non_stripped in zip(
-                     name_to_input_name[node_name], new_node.input[:])
+                (end_input if stripped == pack_node else non_stripped)
+                for stripped, non_stripped in zip(name_to_input_name[node_name],
+                                                  new_node.input[:])
             ]
             out.node.extend([new_node])
         return out, True
@@ -1166,8 +1162,6 @@ def _get_correct_mapping(original_index, nodes):
     node_indices = nodes.keys()
     node_indices = sorted(node_indices)
     return node_indices[-1]
-  else:
-    return original_index
   return original_index
 
 
@@ -1179,13 +1173,14 @@ def _convert_op_hints_to_stubs_helper(
     graph_def: A graph def that we should convert.
     write_callback: A function pointer that can be used to write intermediate
       steps of graph transformation (optional).
+
   Returns:
     A new stubbed graph_def.
   """
   hints = _find_all_hints_in_nodes(graph_def.node)
 
   hints_q = []
-  for hint in _six.itervalues(hints):
+  for hint in hints.values():
     hints_q.append((hint.level, hint.uuid))
 
   hints_q.sort(key=lambda tup: tup[0])
@@ -1276,7 +1271,7 @@ def find_all_hinted_output_nodes(session=None, graph_def=None):
     hints = _find_all_hints_in_nodes(session.graph_def.node)
   elif graph_def is not None:
     hints = _find_all_hints_in_nodes(graph_def.node)
-  for hint in _six.itervalues(hints):
+  for hint in hints.values():
     _, output_nodes = hint.flattened_inputs_and_outputs()
     hinted_outputs_nodes.extend(output_nodes)
   return hinted_outputs_nodes
@@ -1295,6 +1290,12 @@ def is_ophint_converted(graph_def):
 
 
 @_tf_export(v1=["lite.experimental.convert_op_hints_to_stubs"])
+@_deprecation.deprecated(
+    None,
+    "Please follow instructions under "
+    "https://www.tensorflow.org/lite/convert/operation_fusion for operation"
+    "fusion in tflite."
+)
 def convert_op_hints_to_stubs(session=None,
                               graph_def=None,
                               write_callback=lambda graph_def, comments: None):
@@ -1308,6 +1309,7 @@ def convert_op_hints_to_stubs(session=None,
     graph_def: A graph def that we should convert.
     write_callback: A function pointer that can be used to write intermediate
       steps of graph transformation (optional).
+
   Returns:
     A new graphdef with all ops contained in OpHints being replaced by
     a single op call with the right parameters.

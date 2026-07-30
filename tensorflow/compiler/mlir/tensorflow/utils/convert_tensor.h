@@ -18,24 +18,27 @@ limitations under the License.
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
-#include "mlir/IR/Attributes.h"  // TF:llvm-project
-#include "mlir/IR/Builders.h"  // TF:llvm-project
+#include "mlir/IR/Attributes.h"  // from @llvm-project
+#include "mlir/IR/Builders.h"  // from @llvm-project
+#include "tensorflow/compiler/mlir/tensorflow/ir/tf_attributes.h"
 #include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/framework/tensor.pb.h"
 #include "tensorflow/core/framework/tensor_shape.pb.h"
-#include "tensorflow/stream_executor/lib/statusor.h"
+#include "tensorflow/core/protobuf/struct.pb.h"
 
 namespace tensorflow {
 
-using stream_executor::port::StatusOr;
+using tsl::StatusOr;
 
 // Converts an TensorFlow tensor proto into an MLIR elements attribute.
-StatusOr<mlir::ElementsAttr> ConvertTensorProto(const TensorProto& input_tensor,
-                                                mlir::Builder* builder);
+absl::StatusOr<mlir::ElementsAttr> ConvertTensorProto(
+    const TensorProto& input_tensor, mlir::Builder* builder,
+    bool convert_to_dense_resource = false);
 
 // Converts an TensorFlow tensor into an MLIR elements attribute.
-StatusOr<mlir::ElementsAttr> ConvertTensor(const Tensor& input_tensor,
-                                           mlir::Builder* builder);
+absl::StatusOr<mlir::ElementsAttr> ConvertTensor(
+    const Tensor& input_tensor, mlir::Builder* builder,
+    bool convert_to_dense_resource = false);
 
 // Converts a shape from MLIR to a TensorFlow tensor shape proto.
 void ConvertToTensorShapeProto(llvm::ArrayRef<int64_t> shape,
@@ -44,17 +47,23 @@ void ConvertToTensorShapeProto(llvm::ArrayRef<int64_t> shape,
 // Converts an MLIR type to a TensorFlow tensor shape.
 PartialTensorShape ConvertTypeToTensorShape(const mlir::Type& type);
 
+// Converts an MLIR shaped type to a TensorFlow shape attribute.
+mlir::TF::ShapeAttr ConvertTypeToTensorShapeAttr(const mlir::Type& type);
+
+// Converts an MLIR shaped type to a Tensorflow tensor spec proto.
+absl::StatusOr<TensorSpecProto> ConvertTypeToTensorSpecProto(
+    const mlir::Type& type);
+
+// Converts a TensorFlow shape attribute to an MLIR shape attribute.
+absl::StatusOr<mlir::Attribute> ConvertTensorShapeProto(
+    const TensorShapeProto& shape, mlir::MLIRContext* context);
+
 // Converts an MLIR elements attribute to a TensorFlow tensor proto.
-Status ConvertToTensorProto(mlir::ElementsAttr attr,
-                            TensorProto* output_tensor);
+absl::Status ConvertToTensorProto(mlir::ElementsAttr attr,
+                                  TensorProto* output_tensor);
 
 // Converts an MLIR elements attribute to a TensorFlow tensor.
-Status ConvertToTensor(mlir::ElementsAttr attr, Tensor* output_tensor);
-
-// Decodes the given opaque elements attribute holding tensor content into a
-// human-readable elements attribute.
-StatusOr<mlir::ElementsAttr> DecodeOpaqueTensor(
-    mlir::OpaqueElementsAttr input_attr, mlir::Builder builder);
+absl::Status ConvertToTensor(mlir::ElementsAttr attr, Tensor* output_tensor);
 
 }  // namespace tensorflow
 

@@ -40,14 +40,14 @@ class PartitionedCallOp : public AsyncOpKernel {
 
   void ComputeAsync(OpKernelContext* ctx, DoneCallback done) override;
 
- private:
-  Status FillOutputDevices(const FunctionLibraryRuntime& lib,
-                           const Device& cpu_device, AttrSlice attrs,
-                           FunctionLibraryRuntime::InstantiateOptions* opts);
+ protected:
+  absl::Status FillOutputDevices(
+      const FunctionLibraryRuntime& lib, const Device& cpu_device,
+      AttrSlice attrs, FunctionLibraryRuntime::InstantiateOptions* opts);
 
-  Status Instantiate(FunctionLibraryRuntime* lib, OpKernelContext* ctx,
-                     std::vector<Tensor>* inputs,
-                     FunctionLibraryRuntime::Handle* handle);
+  absl::Status Instantiate(FunctionLibraryRuntime* lib, OpKernelContext* ctx,
+                           std::vector<Tensor>* inputs,
+                           FunctionLibraryRuntime::Handle* handle);
 
   void RunFunction(FunctionLibraryRuntime::Handle handle,
                    const std::vector<Tensor>& inputs,
@@ -58,6 +58,7 @@ class PartitionedCallOp : public AsyncOpKernel {
   std::unique_ptr<NameAttrList> func_;
   std::unique_ptr<ConfigProto> config_proto_;
   string executor_type_;
+  bool shared_rendezvous_;
   mutex mu_;
   // Cache the handle per FLR because this kernel may be instantiated for
   // a stateful op, different invocations of it may use different FLRs.

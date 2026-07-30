@@ -21,7 +21,8 @@ limitations under the License.
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
-#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
+#include "absl/synchronization/notification.h"
+#include "unsupported/Eigen/CXX11/Tensor"  // from @eigen_archive
 #include "tensorflow/core/util/work_sharder.h"
 
 namespace tensorflow {
@@ -33,12 +34,51 @@ DeviceBase::~DeviceBase() {
   eigen_cpu_devices_.clear();
 }
 
+absl::Status DeviceContext::CopyDeviceTensorToCPUSync(
+    const Tensor* device_tensor, absl::string_view tensor_name, Device* device,
+    Tensor* cpu_tensor) {
+  absl::Notification n;
+  absl::Status status;
+  CopyDeviceTensorToCPU(device_tensor, tensor_name, device, cpu_tensor,
+                        [&](const absl::Status& s) {
+                          status = s;
+                          n.Notify();
+                        });
+  n.WaitForNotification();
+  return status;
+}
+
+absl::Status DeviceContext::CopyCPUTensorToDeviceSync(
+    const Tensor* cpu_tensor, Device* device, Tensor* device_tensor) const {
+  absl::Notification n;
+  absl::Status status;
+  CopyCPUTensorToDevice(cpu_tensor, device, device_tensor,
+                        [&](const absl::Status& s) {
+                          status = s;
+                          n.Notify();
+                        });
+  n.WaitForNotification();
+  return status;
+}
+
 const DeviceAttributes& DeviceBase::attributes() const {
-  LOG(FATAL) << "Device does not implement attributes()";
+  LOG(FATAL) << "DeviceBase does not implement attributes()";  // Crash OK
+  std::abort();
 }
 
 const string& DeviceBase::name() const {
-  LOG(FATAL) << "Device does not implement name()";
+  LOG(FATAL) << "DeviceBase does not implement name()";  // Crash OK
+  std::abort();
+}
+
+const DeviceNameUtils::ParsedName& DeviceBase::parsed_name() const {
+  LOG(FATAL) << "DeviceBase does not implement parsed_name()";  // Crash OK
+  std::abort();
+}
+
+const std::string& DeviceBase::device_type() const {
+  LOG(FATAL) << "DeviceBase does not implement device_type()";  // Crash OK
+  std::abort();
 }
 
 void DeviceBase::set_eigen_cpu_device(Eigen::ThreadPoolDevice* d) {

@@ -15,16 +15,17 @@ limitations under the License.
 #ifndef TENSORFLOW_LITE_TOCO_TENSORFLOW_GRAPH_MATCHING_RESOLVE_SVDF_H_
 #define TENSORFLOW_LITE_TOCO_TENSORFLOW_GRAPH_MATCHING_RESOLVE_SVDF_H_
 
+#include <memory>
 #include <string>
 #include <vector>
 
+#include "tensorflow/core/framework/attr_value.pb.h"
+#include "tensorflow/core/framework/graph.pb.h"
+#include "tensorflow/core/framework/node_def.pb.h"
 #include "tensorflow/lite/toco/model.h"
 #include "tensorflow/lite/toco/tensorflow_graph_matching/cluster.h"
 #include "tensorflow/lite/toco/tensorflow_graph_matching/cluster_utils.h"
 #include "tensorflow/lite/toco/tooling_util.h"
-#include "tensorflow/core/framework/attr_value.pb.h"
-#include "tensorflow/core/framework/graph.pb.h"
-#include "tensorflow/core/framework/node_def.pb.h"
 
 namespace toco {
 
@@ -36,17 +37,17 @@ class SvdfCluster : public Cluster {
 
   // A helper function to set the pattern of Const nodes which CreateNodes()
   // should handle specially.
-  void AddConstNodePattern(const string& const_pattern) {
+  void AddConstNodePattern(const std::string& const_pattern) {
     const_node_patterns_.push_back(const_pattern);
   }
 
-  virtual ~SvdfCluster() {}
+  ~SvdfCluster() override {}
 
  private:
   // The main function which is used to create Const nodes for this cluster.
   // These Const nodes are the inputs to the composite op generated for this
   // cluster.
-  void CreateConstNode(const string& const_pattern);
+  void CreateConstNode(const std::string& const_pattern);
 
   // Receives a vector of Const nodes, merge them (if necessary) and returns
   // only one Const node holding all the arrays contents. It transposes it if
@@ -61,7 +62,7 @@ class SvdfCluster : public Cluster {
   // shape to [num_units, rank, batch] shape. The 2nd shape element is rank.
   int InferFilterRank();
 
-  std::vector<string> const_node_patterns_;
+  std::vector<std::string> const_node_patterns_;
 };
 
 class SvdfClusterFactory : public ClusterFactoryInterface {
@@ -74,7 +75,7 @@ class SvdfClusterFactory : public ClusterFactoryInterface {
   // and it creates an SVDF Op from them.
   std::unique_ptr<Cluster> CreateCluster(
       const tensorflow::NodeDef& node,
-      const tensorflow::GraphDef& graph_def) const;
+      const tensorflow::GraphDef& graph_def) const override;
 };
 
 }  // end namespace toco

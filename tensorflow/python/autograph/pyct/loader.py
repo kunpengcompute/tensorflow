@@ -1,4 +1,3 @@
-# Lint as: python3
 # Copyright 2017 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,11 +17,8 @@
 Adapted from Tangent.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import atexit
+import errno
 import importlib
 import os
 import sys
@@ -30,20 +26,35 @@ import tempfile
 
 from tensorflow.python.autograph.pyct import origin_info
 from tensorflow.python.autograph.pyct import parser
-from tensorflow.python.autograph.utils import compat_util
+
+
+def _remove_file(file_name):
+  """Remove a file, if it exists."""
+  try:
+    os.remove(file_name)
+  except OSError as e:
+    if e.errno == errno.ENOENT:
+      # The file disappeared. Ignore this. Temporary files might get
+      # cleaned up, especially if they reside in /tmp.
+      pass
+    else:
+      raise
 
 
 def load_source(source, delete_on_exit):
   """Loads the given source code as a Python module."""
-  # TODO(mdan): Drop the linter verride once the CI stops running Py2.
-  with tempfile.NamedTemporaryFile(  # pylint:disable=unexpected-keyword-arg
-      mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
+  with tempfile.NamedTemporaryFile(
+      mode='w',
+      suffix='.py',
+      prefix='__autograph_generated_file',
+      delete=False,
+      encoding='utf-8') as f:
     module_name = os.path.basename(f.name[:-3])
     file_name = f.name
     f.write(source)
 
   if delete_on_exit:
-    atexit.register(lambda: os.remove(file_name))
+    atexit.register(lambda: _remove_file(file_name))
 
   spec = importlib.util.spec_from_file_location(module_name, file_name)
   module = importlib.util.module_from_spec(spec)
@@ -89,6 +100,3 @@ def load_ast(nodes,
 
   # TODO(mdan): Return a structured object.
   return module, source, source_map
-
-
-compat_util.deprecated_py2_support(__name__)

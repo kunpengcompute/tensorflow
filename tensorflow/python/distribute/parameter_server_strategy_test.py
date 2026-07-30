@@ -14,10 +14,6 @@
 # ==============================================================================
 """Tests for ParameterServerStrategy."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import copy
 import threading
 
@@ -27,25 +23,29 @@ from tensorflow.python.data.ops import dataset_ops
 from tensorflow.python.distribute import central_storage_strategy
 from tensorflow.python.distribute import combinations
 from tensorflow.python.distribute import device_util
-from tensorflow.python.distribute import distribution_strategy_context as ds_context
+from tensorflow.python.distribute import distribute_lib
+from tensorflow.python.distribute import distribute_utils
 from tensorflow.python.distribute import multi_worker_test_base
 from tensorflow.python.distribute import multi_worker_util
 from tensorflow.python.distribute import parameter_server_strategy
+from tensorflow.python.distribute import ps_values
 from tensorflow.python.distribute import reduce_util
 from tensorflow.python.distribute import strategy_test_lib
-from tensorflow.python.distribute import values
-from tensorflow.python.distribute.cluster_resolver import SimpleClusterResolver
+from tensorflow.python.distribute.cluster_resolver import cluster_resolver as cluster_resolver_lib
+from tensorflow.python.distribute.v1 import input_lib as input_lib_v1
 from tensorflow.python.eager import backprop
 from tensorflow.python.eager import context
-from tensorflow.python.estimator import run_config
 from tensorflow.python.framework import constant_op
+from tensorflow.python.framework import device as tf_device
+from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import errors
 from tensorflow.python.framework import ops
+from tensorflow.python.framework import tensor
 from tensorflow.python.framework import tensor_util
-from tensorflow.python.keras.layers import core
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import gradients
+from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import partitioned_variables
 from tensorflow.python.ops import resource_variable_ops
 from tensorflow.python.ops import variable_scope
@@ -53,14 +53,14 @@ from tensorflow.python.ops import variables
 from tensorflow.python.platform import test
 from tensorflow.python.training import training_util
 
-CHIEF = run_config.TaskType.CHIEF
-WORKER = run_config.TaskType.WORKER
-PS = run_config.TaskType.PS
+CHIEF = 'chief'
+WORKER = 'worker'
+PS = 'ps'
 
 
 def _get_replica_id_integer():
-  replica_id = ds_context.get_replica_context().replica_id_in_sync_group
-  if isinstance(replica_id, ops.Tensor):
+  replica_id = distribute_lib.get_replica_context().replica_id_in_sync_group
+  if isinstance(replica_id, tensor.Tensor):
     replica_id = tensor_util.constant_value(replica_id)
   return replica_id
 
@@ -74,12 +74,12 @@ def create_test_objects(cluster_spec=None,
   if num_gpus is None:
     num_gpus = context.num_gpus()
   if cluster_spec and task_type and task_id is not None:
-    cluster_resolver = SimpleClusterResolver(
+    cluster_resolver = cluster_resolver_lib.SimpleClusterResolver(
         cluster_spec=multi_worker_util.normalize_cluster_spec(cluster_spec),
         task_type=task_type,
         task_id=task_id,
         num_accelerators={'GPU': num_gpus})
-    distribution = parameter_server_strategy.ParameterServerStrategy(
+    distribution = parameter_server_strategy.ParameterServerStrategyV1(
         cluster_resolver)
     target = 'grpc://' + cluster_spec[WORKER][task_id]
   else:
@@ -186,8 +186,8 @@ class ParameterServerStrategyTestBase(
           g = e + 1.0
         self.assertEqual(g.device, worker_device + '/device:CPU:1')
 
-        # Ths ops.colocate_with will be ignored when defining a variable but not
-        # for a normal tensor.
+        # This ops.colocate_with will be ignored when defining a variable
+        # but not for a normal tensor.
         with ops.colocate_with(x):
           u = variable_scope.get_variable('u', initializer=30.0)
           v = variable_scope.get_variable('v', initializer=30.0)
@@ -208,7 +208,7 @@ class ParameterServerStrategyTestBase(
       self.assertNotEqual(f, None)
 
       if context.num_gpus() >= 1 and num_gpus <= 1:
-        variables.global_variables_initializer().run()
+        self.evaluate(variables.global_variables_initializer())
         y_val, z_val, f_val = sess.run([y, z, f])
         self.assertEqual(y_val, 33.0)
         self.assertEqual(z_val, 43.0)
@@ -254,7 +254,7 @@ class ParameterServerStrategyTestBase(
       x = d.extended.call_for_each_replica(model_fn)
 
       if context.num_gpus() >= 1:
-        variables.global_variables_initializer().run()
+        self.evaluate(variables.global_variables_initializer())
         x_val = sess.run(x)
         if num_gpus < 1:
           self.assertEqual(x_val, [13.0, 25.0])
@@ -340,8 +340,8 @@ class ParameterServerStrategyTestBase(
           g = e + 1.0
         self.assertEqual(g.device, device_util.canonicalize('/device:CPU:1'))
 
-        # Ths ops.colocate_with will be ignored when defining a variable but not
-        # for a normal tensor.
+        # This ops.colocate_with will be ignored when defining a variable
+        # but not for a normal tensor.
         with ops.colocate_with(x):
           u = variable_scope.get_variable('u', initializer=30.0)
           h = f + 1.0
@@ -358,7 +358,7 @@ class ParameterServerStrategyTestBase(
       self.assertNotEqual(f, None)
 
       if context.num_gpus() >= 1 and num_gpus <= 1:
-        variables.global_variables_initializer().run()
+        self.evaluate(variables.global_variables_initializer())
         y_val, z_val, f_val = sess.run([y, z, f])
         self.assertEqual(y_val, 33.0)
         self.assertEqual(z_val, 43.0)
@@ -403,7 +403,7 @@ class ParameterServerStrategyTestBase(
       train_op = d.group(train_op)
 
       if task_id == 0:
-        variables.global_variables_initializer().run()
+        self.evaluate(variables.global_variables_initializer())
 
       # Workers waiting for chief worker's initializing variables.
       self._init_condition.acquire()
@@ -445,10 +445,12 @@ class ParameterServerStrategyTestBase(
          self.cached_session(target=master_target,
                              config=sess_config) as sess, \
          d.scope():
-      l = core.Dense(1, use_bias=False)
+      kernel = strategy_test_lib.create_variable_like_keras_layer(
+          'kernel', (1, 1), dtypes.float32,)
 
       def loss_fn(x):
-        y = array_ops.reshape(l(x), []) - constant_op.constant(1.)
+        y = array_ops.reshape(
+            math_ops.matmul(x, kernel), []) - constant_op.constant(1.)
         return y * y
 
       # TODO(yuefengz, apassos): eager.backprop.implicit_grad is not safe for
@@ -491,7 +493,7 @@ class ParameterServerStrategyTestBase(
       if (not task_type or
           multi_worker_util.is_chief(
               d.extended._cluster_spec, task_type, task_id)):
-        variables.global_variables_initializer().run()
+        self.evaluate(variables.global_variables_initializer())
 
       # Workers waiting for chief worker's initializing variables.
       self._init_condition.acquire()
@@ -532,8 +534,8 @@ class ParameterServerStrategyTestBase(
 
       for expected_value in expected_values:
         next_element = iterator.get_next()
-        computed_value = sess.run([values.select_replica(r, next_element)
-                                   for r in range(len(devices))])
+        computed_value = sess.run([distribute_utils.select_replica(
+            r, next_element) for r in range(len(devices))])
         if ignore_order:
           self.assertCountEqual(expected_value, computed_value)
         else:
@@ -541,7 +543,7 @@ class ParameterServerStrategyTestBase(
 
       with self.assertRaises(errors.OutOfRangeError):
         next_element = iterator.get_next()
-        sess.run([values.select_replica(r, next_element)
+        sess.run([distribute_utils.select_replica(r, next_element)
                   for r in range(len(devices))])
 
       # After re-initializing the iterator, should be able to iterate again.
@@ -550,8 +552,8 @@ class ParameterServerStrategyTestBase(
 
         for expected_value in expected_values:
           next_element = iterator.get_next()
-          computed_value = sess.run([values.select_replica(r, next_element)
-                                     for r in range(len(devices))])
+          computed_value = sess.run([distribute_utils.select_replica(
+              r, next_element) for r in range(len(devices))])
           if ignore_order:
             self.assertCountEqual(expected_value, computed_value)
           else:
@@ -732,6 +734,87 @@ class ParameterServerStrategyTest(
         num_gpus=0)
     self.assertTrue(strategy.extended._in_multi_worker_mode())
 
+  @combinations.generate(combinations.combine(mode=['eager']))
+  def testEagerCustomTrainingUnimplementedError(self):
+    cluster_spec = multi_worker_test_base.create_in_process_cluster(
+        num_workers=3, num_ps=2)
+    cluster_resolver = cluster_resolver_lib.SimpleClusterResolver(
+        cluster_spec=multi_worker_util.normalize_cluster_spec(cluster_spec),
+        task_type='worker',
+        task_id=1,
+        num_accelerators={'GPU': 0})
+    strategy = parameter_server_strategy.ParameterServerStrategyV1(
+        cluster_resolver)
+    dataset = dataset_ops.DatasetV2.from_tensor_slices([5., 6., 7., 8.])
+
+    def train_step(data):
+      return math_ops.square(data)
+
+    self.assertRaisesRegex(NotImplementedError, 'ParameterServerStrategy*',
+                           strategy.experimental_distribute_dataset,
+                           dataset.batch(2))
+
+    self.assertRaisesRegex(NotImplementedError, 'ParameterServerStrategy*',
+                           strategy.distribute_datasets_from_function,
+                           lambda _: dataset)
+
+    self.assertRaisesRegex(NotImplementedError, 'ParameterServerStrategy*',
+                           strategy.scope)
+
+    self.assertRaisesRegex(NotImplementedError, 'ParameterServerStrategy*',
+                           strategy.run, train_step)
+
+  @combinations.generate(combinations.combine(
+      mode=['graph'],
+      prefetch_to_device=[None, True]))
+  def test_prefetch_to_device_dataset(self, prefetch_to_device):
+    distribution, _, _ = create_test_objects(
+        cluster_spec=self._cluster_spec,
+        task_type='worker',
+        task_id=0,
+        num_gpus=2)
+    if prefetch_to_device is None:
+      input_options = None
+    else:
+      input_options = distribute_lib.InputOptions(
+          experimental_fetch_to_device=prefetch_to_device)
+    dataset = dataset_ops.Dataset.range(100)
+    dataset = dataset.batch(distribution.num_replicas_in_sync)
+    dataset = distribution.experimental_distribute_dataset(  # pylint: disable=assignment-from-no-return
+        dataset,
+        options=input_options)
+    if isinstance(dataset, input_lib_v1.DistributedDatasetV1):
+      item = dataset.make_initializable_iterator().get_next()
+    else:
+      self.skipTest('unsupported test combination')
+    device_types = {
+        tf_device.DeviceSpec.from_string(tensor.device).device_type for
+        tensor in item.values}
+    self.assertAllEqual(list(device_types), ['GPU'])
+
+  @combinations.generate(combinations.combine(mode=['graph']))
+  def test_prefetch_to_host_dataset(self):
+    distribution, _, _ = create_test_objects(
+        cluster_spec=self._cluster_spec,
+        task_type='worker',
+        task_id=0,
+        num_gpus=2)
+    input_options = distribute_lib.InputOptions(
+        experimental_fetch_to_device=False)
+    dataset = dataset_ops.Dataset.range(100)
+    dataset = dataset.batch(distribution.num_replicas_in_sync)
+    dataset = distribution.experimental_distribute_dataset(  # pylint: disable=assignment-from-no-return
+        dataset,
+        options=input_options)
+    if isinstance(dataset, input_lib_v1.DistributedDatasetV1):
+      item = dataset.make_initializable_iterator().get_next()
+    else:
+      self.skipTest('unsupported test combination')
+    device_types = {
+        tf_device.DeviceSpec.from_string(tensor.device).device_type for
+        tensor in item.values}
+    self.assertAllEqual(list(device_types), ['CPU'])
+
 
 class ParameterServerStrategyWithChiefTest(ParameterServerStrategyTestBase,
                                            parameterized.TestCase):
@@ -764,8 +847,8 @@ class ParameterServerStrategyWithChiefTest(ParameterServerStrategyTestBase,
                        msg=('created_step %s type %s vs. get_step %s type %s' %
                             (id(created_step), created_step.__class__.__name__,
                              id(get_step), get_step.__class__.__name__)))
-      self.assertIs(values.AggregatingVariable, type(created_step))
-      self.assertIs(values.AggregatingVariable, type(get_step))
+      self.assertIs(ps_values.AggregatingVariable, type(created_step))
+      self.assertIs(ps_values.AggregatingVariable, type(get_step))
       self.assertIs(strategy, created_step.distribute_strategy)
 
   @combinations.generate(combinations.combine(mode=['graph']))
@@ -796,7 +879,7 @@ class ParameterServerStrategyWithChiefTest(ParameterServerStrategyTestBase,
           _ = v * v
         v, = tape.watched_variables()
         w = strategy.extended.value_container(v)
-        self.assertIs(values.AggregatingVariable, type(w))
+        self.assertIs(ps_values.AggregatingVariable, type(w))
 
       strategy.extended.call_for_each_replica(f)
 

@@ -1,12 +1,13 @@
+load("//tensorflow:tensorflow.bzl", "tf_cc_test")
 load("//tensorflow/lite:build_def.bzl", "tflite_copts")
 load("//tensorflow/lite:special_rules.bzl", "tflite_portable_test_suite")
-load("//tensorflow:tensorflow.bzl", "tf_cc_test")
 
 package(
+    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     default_visibility = [
         "//visibility:public",
     ],
-    licenses = ["notice"],  # Apache 2.0
+    licenses = ["notice"],
 )
 
 cc_library(
@@ -17,13 +18,32 @@ cc_library(
     deps = [
         ":calibration_logger",
         "//tensorflow/lite:framework",
-        "//tensorflow/lite/c:common",
+        "//tensorflow/lite/core:framework_stable",
         "//tensorflow/lite/core/api",
+        "//tensorflow/lite/core/c:common",
         "//tensorflow/lite/kernels:kernel_util",
         "//tensorflow/lite/kernels:lstm_shared",
         "//tensorflow/lite/kernels:op_macros",
-        "//tensorflow/lite/kernels/internal:kernel_utils",
-        "//tensorflow/lite/kernels/internal:optimized_base",
+        "//tensorflow/lite/kernels/internal:reference",
+        "//tensorflow/lite/kernels/internal:tensor_utils",
+        "@ruy//ruy/profiler:instrumentation",
+    ],
+)
+
+cc_library(
+    name = "custom_logging_op",
+    srcs = ["custom_logging_ops/lstm.cc"],
+    hdrs = ["custom_logging_ops/lstm.h"],
+    copts = tflite_copts(),
+    deps = [
+        ":calibration_logger",
+        "//tensorflow/lite:framework",
+        "//tensorflow/lite/core:framework_stable",
+        "//tensorflow/lite/core/api",
+        "//tensorflow/lite/core/c:common",
+        "//tensorflow/lite/kernels:kernel_util",
+        "//tensorflow/lite/kernels:lstm_shared",
+        "//tensorflow/lite/kernels:op_macros",
         "//tensorflow/lite/kernels/internal:reference",
         "//tensorflow/lite/kernels/internal:tensor_utils",
     ],
@@ -39,18 +59,19 @@ cc_library(
         ":calibration_common",
         ":calibration_logger",
         ":calibration_reader",
+        ":custom_logging_op",
         ":logging_op",
         ":logging_op_resolver",
-        ":node_info_delegate",
+        "//tensorflow/compiler/mlir/lite:allocation",
+        "//tensorflow/compiler/mlir/lite/schema:schema_utils",
         "//tensorflow/lite:framework",
-        "//tensorflow/lite:string_util",
-        "//tensorflow/lite/c:common",
+        "//tensorflow/lite:minimal_logging",
+        "//tensorflow/lite:string",
+        "//tensorflow/lite/core:framework",
         "//tensorflow/lite/core/api",
-        "//tensorflow/lite/kernels:builtin_ops",
-        "//tensorflow/lite/kernels:kernel_util",
+        "//tensorflow/lite/core/c:common",
         "//tensorflow/lite/schema:schema_fbs",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@flatbuffers",
     ],
 )
@@ -62,21 +83,30 @@ tf_cc_test(
         "--test_model_file=$(location //tensorflow/lite:testdata/multi_add.bin)",
     ],
     data = [
+        "//tensorflow/lite:testdata/call_once_mul.bin",
+        "//tensorflow/lite:testdata/custom_lstm.bin",
         "//tensorflow/lite:testdata/lstm.bin",
         "//tensorflow/lite:testdata/multi_add.bin",
+        "//tensorflow/lite:testdata/multi_subgraphs_while.bin",
+        "//tensorflow/lite:testdata/unidirectional_sequence_lstm.bin",
     ],
     tags = [
         "tflite_not_portable_android",
         "tflite_not_portable_ios",
     ],
     deps = [
+        ":calibration_reader",
         ":calibrator_lib",
         "//tensorflow/core:framework_internal",
         "//tensorflow/core:lib",
         "//tensorflow/lite:framework",
-        "//tensorflow/lite/kernels:builtin_ops",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/strings",
+        "//tensorflow/lite:string",
+        "//tensorflow/lite/c:c_api_types",
+        "//tensorflow/lite/c:common",
+        "//tensorflow/lite/core:framework",
+        "//tensorflow/lite/core/kernels:builtin_ops",
+        "//tensorflow/lite/schema:schema_fbs",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -89,8 +119,10 @@ cc_library(
     deps = [
         ":calibration_common",
         "//tensorflow/lite:framework",
+        "//tensorflow/lite:util",
+        "//tensorflow/lite/c:common",
         "//tensorflow/lite/core/api",
-        "@com_google_absl//absl/memory",
+        "//tensorflow/lite/schema:schema_fbs",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -99,10 +131,14 @@ cc_test(
     name = "logging_op_resolver_test",
     srcs = ["logging_op_resolver_test.cc"],
     deps = [
+        ":calibration_common",
         ":logging_op_resolver",
         "//tensorflow/lite:framework",
+        "//tensorflow/lite/c:c_api_types",
+        "//tensorflow/lite/c:common",
         "//tensorflow/lite/kernels:builtin_ops",
-        "@com_google_googletest//:gtest",
+        "//tensorflow/lite/schema:schema_fbs",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -114,8 +150,11 @@ cc_library(
     deps = [
         ":calibration_logger",
         "//tensorflow/lite:framework",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/strings",
+        "//tensorflow/lite/c:common",
+        "//tensorflow/lite/core:framework",
+        "//tensorflow/lite/core/c:c_api_types",
+        "//tensorflow/lite/schema:schema_fbs",
+        "@com_google_absl//absl/container:flat_hash_map",
     ],
 )
 
@@ -127,8 +166,10 @@ cc_library(
     deps = [
         "//tensorflow/lite:framework",
         "//tensorflow/lite:minimal_logging",
-        "//tensorflow/lite/c:common",
+        "//tensorflow/lite/c:c_api_types",
         "//tensorflow/lite/core/api",
+        "//tensorflow/lite/core/c:common",
+        "@com_google_absl//absl/container:flat_hash_map",
     ],
 )
 
@@ -147,42 +188,7 @@ cc_library(
     copts = tflite_copts(),
     deps = [
         ":calibration_logger",
-        "//tensorflow/lite/c:common",
-    ],
-)
-
-cc_library(
-    name = "node_info_delegate",
-    srcs = ["node_info_delegate.cc"],
-    hdrs = ["node_info_delegate.h"],
-    copts = tflite_copts(),
-    deps = [
-        ":calibration_common",
-        "//tensorflow/lite:framework",
-    ],
-)
-
-tf_cc_test(
-    name = "node_info_delegate_test",
-    srcs = ["node_info_delegate_test.cc"],
-    args = [
-        "--test_model_file=$(location //tensorflow/lite/tools/optimize:testdata/single_conv_weights_min_0_max_plus_10.bin)",
-    ],
-    data = [
-        "//tensorflow/lite/tools/optimize:testdata/single_conv_weights_min_0_max_plus_10.bin",
-    ],
-    tags = [
-        "tflite_not_portable_android",
-        "tflite_not_portable_ios",
-    ],
-    deps = [
-        ":node_info_delegate",
-        "//tensorflow/core:framework_internal",
-        "//tensorflow/core:lib",
-        "//tensorflow/lite:framework",
-        "//tensorflow/lite/kernels:builtin_ops",
-        "//tensorflow/lite/tools/optimize:test_util",
-        "@com_google_googletest//:gtest",
+        "//tensorflow/lite/core/c:common",
     ],
 )
 

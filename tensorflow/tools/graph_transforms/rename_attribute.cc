@@ -13,22 +13,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include "tensorflow/tools/graph_transforms/fold_constants_lib.h"
-
 #include "tensorflow/core/common_runtime/constant_folding.h"
-#include "tensorflow/core/graph/graph_constructor.h"
+#include "tensorflow/core/common_runtime/graph_constructor.h"
 #include "tensorflow/core/graph/node_builder.h"
 #include "tensorflow/core/graph/subgraph.h"
 #include "tensorflow/core/platform/init_main.h"
 #include "tensorflow/core/public/session.h"
+#include "tensorflow/tools/graph_transforms/fold_constants_lib.h"
 #include "tensorflow/tools/graph_transforms/transform_utils.h"
 
 namespace tensorflow {
 namespace graph_transforms {
 
-Status RenameAttribute(const GraphDef& input_graph_def,
-                       const TransformFuncContext& context,
-                       GraphDef* output_graph_def) {
+absl::Status RenameAttribute(const GraphDef& input_graph_def,
+                             const TransformFuncContext& context,
+                             GraphDef* output_graph_def) {
   if (!context.params.count("old_attribute_name") ||
       (context.params.at("old_attribute_name").size() != 1) ||
       !context.params.count("new_attribute_name") ||
@@ -60,7 +59,7 @@ Status RenameAttribute(const GraphDef& input_graph_def,
     }
   }
 
-  return Status::OK();
+  return absl::OkStatus();
 }
 
 REGISTER_GRAPH_TRANSFORM("rename_attribute", RenameAttribute);

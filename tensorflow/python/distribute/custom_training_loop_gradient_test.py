@@ -14,10 +14,6 @@
 # ==============================================================================
 """Tests for custom training loops."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 from absl.testing import parameterized
 
 from tensorflow.python import tf2
@@ -111,7 +107,6 @@ class GradientTapeTest(test.TestCase, parameterized.TestCase,
         return grads
       return distribution.experimental_local_results(
           distribution.run(train_step, args=(x,)))
-
     dist_dataset = distribution.experimental_distribute_dataset(dataset)
     results = []
     for x in dist_dataset:

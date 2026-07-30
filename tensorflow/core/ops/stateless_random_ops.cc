@@ -22,7 +22,7 @@ using shape_inference::DimensionHandle;
 using shape_inference::InferenceContext;
 using shape_inference::ShapeHandle;
 
-static Status StatelessShape(InferenceContext* c) {
+static absl::Status StatelessShape(InferenceContext* c) {
   // Check seed shape
   ShapeHandle seed;
   TF_RETURN_IF_ERROR(c->WithRank(c->input(1), 1, &seed));
@@ -33,7 +33,7 @@ static Status StatelessShape(InferenceContext* c) {
   ShapeHandle out;
   TF_RETURN_IF_ERROR(c->MakeShapeFromShapeTensor(0, &out));
   c->set_output(0, out);
-  return Status::OK();
+  return absl::OkStatus();
 }
 
 #define REGISTER_STATELESS_OP(name)                           \
@@ -63,8 +63,18 @@ REGISTER_OP("StatelessRandomUniformInt")
     .Attr("Tseed: {int32, int64} = DT_INT64")
     .SetShapeFn([](InferenceContext* c) {
       ShapeHandle unused;
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(2), 0, &unused));
-      TF_RETURN_IF_ERROR(c->WithRank(c->input(3), 0, &unused));
+      absl::Status s = c->WithRank(c->input(2), 0, &unused);
+      if (!s.ok()) {
+        return errors::InvalidArgument(
+            "minval must be a scalar; got a tensor of shape ",
+            c->DebugString(c->input(2)));
+      }
+      s = c->WithRank(c->input(3), 0, &unused);
+      if (!s.ok()) {
+        return errors::InvalidArgument(
+            "maxval must be a scalar; got a tensor of shape ",
+            c->DebugString(c->input(3)));
+      }
       return StatelessShape(c);
     });
 
@@ -99,7 +109,7 @@ REGISTER_OP("StatelessMultinomial")
       TF_RETURN_IF_ERROR(c->WithRank(c->input(1), 0, &unused));
       TF_RETURN_IF_ERROR(c->MakeDimForScalarInput(1, &num_samples));
       c->set_output(0, c->Matrix(c->Dim(logits_shape, 0), num_samples));
-      return Status::OK();
+      return absl::OkStatus();
     });
 
 REGISTER_OP("StatelessRandomBinomial")
@@ -113,6 +123,41 @@ REGISTER_OP("StatelessRandomBinomial")
     .Attr("T: {half, float, double, int32, int64} = DT_DOUBLE")
     .Attr("dtype: {half, float, double, int32, int64} = DT_INT64")
     .SetShapeFn(StatelessShape);
+
+REGISTER_OP("StatelessParameterizedTruncatedNormal")
+    .Input("shape: S")
+    .Input("seed: Tseed")
+    .Input("means: dtype")
+    .Input("stddevs: dtype")
+    .Input("minvals: dtype")
+    .Input("maxvals: dtype")
+    .Output("output: dtype")
+    .Attr("S: {int32, int64}")
+    .Attr("Tseed: {int32, int64} = DT_INT64")
+    .Attr("dtype: {float16, float32, float64}")
+    .SetShapeFn([](InferenceContext* c) {
+      // Check seed shape
+      ShapeHandle seed;
+      TF_RETURN_IF_ERROR(c->WithRank(c->input(1), 1, &seed));
+      DimensionHandle unused_dim;
+      TF_RETURN_IF_ERROR(c->WithValue(c->Dim(seed, 0), 2, &unused_dim));
+
+      ShapeHandle bcast_means_stddevs;
+      ShapeHandle bcast_except_maxvals;
+      ShapeHandle bcast_all;
+      TF_RETURN_IF_ERROR(BroadcastBinaryOpOutputShapeFnHelper(
+          c, c->input(2), c->input(3), true, &bcast_means_stddevs));
+      TF_RETURN_IF_ERROR(BroadcastBinaryOpOutputShapeFnHelper(
+          c, c->input(4), bcast_means_stddevs, true, &bcast_except_maxvals));
+      TF_RETURN_IF_ERROR(BroadcastBinaryOpOutputShapeFnHelper(
+          c, c->input(5), bcast_except_maxvals, true, &bcast_all));
+
+      // Set output shape
+      ShapeHandle out;
+      TF_RETURN_IF_ERROR(c->MakeShapeFromShapeTensor(0, &out));
+      c->set_output(0, out);
+      return absl::OkStatus();
+    });
 
 REGISTER_OP("StatelessRandomPoisson")
     .Input("shape: T")

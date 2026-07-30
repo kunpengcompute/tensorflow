@@ -12,22 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-# Lint as: python3
 """Tests for cloud tpu client."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
+import datetime
+import json
 import os
 import time
+import urllib
 
-from six.moves.urllib import request
+from absl import flags
 
 from tensorflow.python.platform import test
 from tensorflow.python.tpu.client import client
 
+FLAGS = flags.FLAGS
+
 mock = test.mock
+
+_UTCNOW_STR = '2000-01-01T00:30:00'
+
+
+def mock_utcnow():
+  return datetime.datetime.strptime(_UTCNOW_STR, '%Y-%m-%dT%H:%M:%S')
 
 
 def mock_request_compute_metadata(path):
@@ -40,7 +46,7 @@ def mock_request_compute_metadata(path):
   return ''
 
 
-class MockRequestClass(object):
+class MockRequestClass:
 
   def __init__(self, name, tpu_map):
     self._name = name
@@ -59,7 +65,7 @@ class MockRequestClass(object):
       raise KeyError('Resource %s was not found' % self._name)
 
 
-class MockNodeClass(object):
+class MockNodeClass:
 
   def __init__(self, tpu_map):
     self._tpu_map = tpu_map
@@ -71,12 +77,13 @@ class MockNodeClass(object):
 class CloudTpuClientTest(test.TestCase):
 
   def setUp(self):
-    super(CloudTpuClientTest, self).setUp()
+    super().setUp()
     if 'TPU_API_DISCOVERY_URL' in os.environ:
       del os.environ['TPU_API_DISCOVERY_URL']
     if 'TPU_NAME' in os.environ:
       del os.environ['TPU_NAME']
     self._time_now = 0
+    self.addCleanup(mock.patch.stopall)
 
   def _mock_time(self, *args, **kwargs):
     return self._time_now
@@ -102,6 +109,19 @@ class CloudTpuClientTest(test.TestCase):
     os.environ['TPU_API_DISCOVERY_URL'] = 'https://{api}.internal/{apiVersion}'
     self.assertEqual('https://{api}.internal/{apiVersion}',
                      (client._environment_discovery_url()))
+
+  def testEnvironmentGCEDefault(self):
+    self.assertEqual(
+        'http://metadata.google.internal', client._gce_metadata_endpoint()
+    )
+
+  @mock.patch.dict(os.environ, {'GCE_METADATA_IP': '1.2.3.4'})
+  def testEnvironmentGCEIPOverride(self):
+    self.assertEqual('http://1.2.3.4', client._gce_metadata_endpoint())
+
+  @mock.patch.dict(os.environ, {'GCE_METADATA_HOST': 'foo.bar'})
+  def testEnvironmentGCEHostOverride(self):
+    self.assertEqual('http://foo.bar', client._gce_metadata_endpoint())
 
   def testEnvironmentVarToNetworkEndpointsSingleIp(self):
     self.assertEqual(
@@ -152,10 +172,10 @@ class CloudTpuClientTest(test.TestCase):
   def assertClientContains(self, c):
     self.assertEqual('tpu_name', c._tpu)
     self.assertEqual(True, c._use_api)
-    self.assertEqual(None, c._credentials)
+    self.assertIsNone(c._credentials)
     self.assertEqual('test-project', c._project)
     self.assertEqual('us-central1-c', c._zone)
-    self.assertEqual(None, c._discovery_url)
+    self.assertIsNone(c._discovery_url)
     self.assertEqual([{
         'ipAddress': '10.1.2.3',
         'port': '8470'
@@ -194,6 +214,25 @@ class CloudTpuClientTest(test.TestCase):
 
   @mock.patch.object(client, '_request_compute_metadata',
                      mock_request_compute_metadata)
+  def testInitializeNoArgumentsWithTPUEnvironmentVariableTPUConfig(self):
+    os.environ['TPU_CONFIG'] = json.dumps({
+        'project': 'test-project',
+        'zone': 'us-central1-c',
+        'tpu_node_name': 'tpu_name',
+    })
+    tpu_map = {
+        'projects/test-project/locations/us-central1-c/nodes/tpu_name': {
+            'ipAddress': '10.1.2.3',
+            'port': '8470',
+            'state': 'READY',
+            'health': 'HEALTHY',
+        }
+    }
+    c = client.Client(service=self.mock_service_client(tpu_map=tpu_map))
+    self.assertClientContains(c)
+
+  @mock.patch.object(client, '_request_compute_metadata',
+                     mock_request_compute_metadata)
   def testInitializeTpuName(self):
     tpu_map = {
         'projects/test-project/locations/us-central1-c/nodes/tpu_name': {
@@ -213,11 +252,11 @@ class CloudTpuClientTest(test.TestCase):
     c = client.Client(tpu='grpc://1.2.3.4:8470')
     self.assertEqual('grpc://1.2.3.4:8470', c._tpu)
     self.assertEqual(False, c._use_api)
-    self.assertEqual(None, c._service)
-    self.assertEqual(None, c._credentials)
-    self.assertEqual(None, c._project)
-    self.assertEqual(None, c._zone)
-    self.assertEqual(None, c._discovery_url)
+    self.assertIsNone(c._service)
+    self.assertIsNone(c._credentials)
+    self.assertIsNone(c._project)
+    self.assertIsNone(c._zone)
+    self.assertIsNone(c._discovery_url)
     self.assertEqual([{
         'ipAddress': '1.2.3.4',
         'port': '8470'
@@ -228,11 +267,11 @@ class CloudTpuClientTest(test.TestCase):
         tpu='tpu_name', project='project', zone='zone')
     self.assertEqual('tpu_name', c._tpu)
     self.assertEqual(True, c._use_api)
-    self.assertEqual(None, c._service)
-    self.assertEqual(None, c._credentials)
+    self.assertIsNone(c._service)
+    self.assertIsNone(c._credentials)
     self.assertEqual('project', c._project)
     self.assertEqual('zone', c._zone)
-    self.assertEqual(None, c._discovery_url)
+    self.assertIsNone(c._discovery_url)
 
   def testRecoverableNoApiAccess(self):
     c = client.Client(tpu='grpc://1.2.3.4:8470')
@@ -278,6 +317,372 @@ class CloudTpuClientTest(test.TestCase):
     c = client.Client(
         tpu='tpu_name', service=self.mock_service_client(tpu_map=tpu_map))
     self.assertEqual(False, c.recoverable())
+
+  @mock.patch.object(client, '_request_compute_metadata',
+                     mock_request_compute_metadata)
+  @mock.patch.object(client, '_utcnow', mock_utcnow)
+  def testRecoverableOOM(self):
+    test_cases = [
+        ({
+            'projects/test-project/locations/us-central1-c/nodes/tpu_name': {
+                'state':
+                    'READY',
+            }
+        }, True),
+        ({
+            'projects/test-project/locations/us-central1-c/nodes/tpu_name': {
+                'state':
+                    'READY',
+                'symptoms': [{
+                    'createTime': '2000-01-01T00:29:30.123456Z',
+                    'symptomType': 'OUT_OF_MEMORY',
+                    'details': 'The TPU runtime has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }]
+            }
+        }, False),
+        ({
+            'projects/test-project/locations/us-central1-c/nodes/tpu_name': {
+                'state':
+                    'READY',
+                'symptoms': [{
+                    'createTime': '2000-01-01T00:28:20.123456Z',
+                    'symptomType': 'OUT_OF_MEMORY',
+                    'details': 'The TPU runtime has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }]
+            }
+        }, True),
+        ({
+            'projects/test-project/locations/us-central1-c/nodes/tpu_name': {
+                'state':
+                    'READY',
+                'symptoms': [{
+                    'createTime': '2000-01-01T00:28:40.123456Z',
+                    'symptomType': 'LOW_MEMORY',
+                    'details': 'The TPU runtime has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }, {
+                    'createTime': '2000-01-01T00:29:30.123456Z',
+                    'symptomType': 'OUT_OF_MEMORY',
+                    'details': 'The TPU runtime has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }, {
+                    'createTime': '2000-01-01T00:29:40.123456Z',
+                    'symptomType': 'LOW_MEMORY',
+                    'details': 'The TPU runtime has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }]
+            }
+        }, False),
+        ({
+            'projects/test-project/locations/us-central1-c/nodes/tpu_name': {
+                'state':
+                    'READY',
+                'symptoms': [{
+                    'createTime': '2000-01-01T00:28:20.123456Z',
+                    'symptomType': 'OUT_OF_MEMORY',
+                    'details': 'The TPU runtime has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }, {
+                    'createTime': '2000-01-01T00:29:30.123456Z',
+                    'symptomType': 'LOW_MEMORY',
+                    'details': 'The TPU runtime has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }, {
+                    'createTime': '2000-01-01T00:29:40.123456Z',
+                    'symptomType': 'LOW_MEMORY',
+                    'details': 'The TPU runtime has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }]
+            }
+        }, True),
+        ({
+            'projects/test-project/locations/us-central1-c/nodes/tpu_name': {
+                'state':
+                    'READY',
+                'symptoms': [{
+                    'createTime': '2000-01-01T00:29:00.123456Z',
+                    'symptomType': 'LOW_MEMORY',
+                    'details': 'The TPU runtime has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }, {
+                    'createTime': '2000-01-01T00:29:10.123456Z',
+                    'symptomType': 'LOW_MEMORY',
+                    'details': 'The TPU runtime has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }, {
+                    'createTime': '2000-01-01T00:29:20.123456Z',
+                    'symptomType': 'LOW_MEMORY',
+                    'details': 'The TPU runtime has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }, {
+                    'createTime': '2000-01-01T00:29:30.123456Z',
+                    'symptomType': 'LOW_MEMORY',
+                    'details': 'The TPU runtime has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }, {
+                    'createTime': '2000-01-01T00:29:40.123456Z',
+                    'symptomType': 'LOW_MEMORY',
+                    'details': 'The TPU runtime has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }]
+            }
+        }, True)
+    ]
+
+    for tpu_map, want in test_cases:
+      c = client.Client(tpu='tpu_name',
+                        service=self.mock_service_client(tpu_map=tpu_map))
+      self.assertEqual(want, c.recoverable())
+
+  @mock.patch.object(client, '_request_compute_metadata',
+                     mock_request_compute_metadata)
+  @mock.patch.object(client, '_utcnow', mock_utcnow)
+  def testRecoverableOOMDisabled(self):
+    test_cases = [
+        ({
+            'projects/test-project/locations/us-central1-c/nodes/tpu_name': {
+                'state':
+                    'READY',
+                'symptoms': [{
+                    'createTime': '2000-01-01T00:29:30.123456Z',
+                    'symptomType': 'OUT_OF_MEMORY',
+                    'details': 'The TPU runtime has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }]
+            }
+        }, True),
+    ]
+
+    FLAGS.runtime_oom_exit = False
+    for tpu_map, want in test_cases:
+      c = client.Client(tpu='tpu_name',
+                        service=self.mock_service_client(tpu_map=tpu_map))
+      self.assertEqual(want, c.recoverable())
+    FLAGS.runtime_oom_exit = True
+
+  @mock.patch.object(client, '_request_compute_metadata',
+                     mock_request_compute_metadata)
+  @mock.patch.object(client, '_utcnow', mock_utcnow)
+  def testRecoverableOOMNoAPI(self):
+    test_cases = [
+        ({
+            'projects/test-project/locations/us-central1-c/nodes/tpu_name': {
+                'state':
+                    'READY',
+                'symptoms': [{
+                    'createTime': '2000-01-01T00:29:30.123456Z',
+                    'symptomType': 'OUT_OF_MEMORY',
+                    'details': 'The TPU runtime has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }]
+            }
+        }, True),
+    ]
+
+    for tpu_map, want in test_cases:
+      c = client.Client(tpu='grpc://1.2.3.4:8470',
+                        service=self.mock_service_client(tpu_map=tpu_map))
+      self.assertEqual(want, c.recoverable())
+
+  @mock.patch.object(client, '_request_compute_metadata',
+                     mock_request_compute_metadata)
+  @mock.patch.object(client, '_utcnow', mock_utcnow)
+  def testRecoverableHBMOOM(self):
+    test_cases = [
+        ({
+            'projects/test-project/locations/us-central1-c/nodes/tpu_name': {
+                'state':
+                    'READY',
+            }
+        }, True),
+        ({
+            'projects/test-project/locations/us-central1-c/nodes/tpu_name': {
+                'state':
+                    'READY',
+                'symptoms': [{
+                    'createTime': '2000-01-01T00:29:30.123456Z',
+                    'symptomType': 'HBM_OUT_OF_MEMORY',
+                    'details': 'The TPU HBM has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }]
+            }
+        }, False),
+        ({
+            'projects/test-project/locations/us-central1-c/nodes/tpu_name': {
+                'state':
+                    'READY',
+                'symptoms': [{
+                    'createTime': '2000-01-01T00:28:20.123456Z',
+                    'symptomType': 'HBM_OUT_OF_MEMORY',
+                    'details': 'The TPU HBM has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }]
+            }
+        }, True),
+        ({
+            'projects/test-project/locations/us-central1-c/nodes/tpu_name': {
+                'state':
+                    'READY',
+                'symptoms': [{
+                    'createTime': '2000-01-01T00:28:40.123456Z',
+                    'symptomType': 'LOW_MEMORY',
+                    'details': 'The TPU HBM has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }, {
+                    'createTime': '2000-01-01T00:29:30.123456Z',
+                    'symptomType': 'HBM_OUT_OF_MEMORY',
+                    'details': 'The TPU HBM has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }, {
+                    'createTime': '2000-01-01T00:29:40.123456Z',
+                    'symptomType': 'LOW_MEMORY',
+                    'details': 'The TPU HBM has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }]
+            }
+        }, False),
+        ({
+            'projects/test-project/locations/us-central1-c/nodes/tpu_name': {
+                'state':
+                    'READY',
+                'symptoms': [{
+                    'createTime': '2000-01-01T00:28:20.123456Z',
+                    'symptomType': 'HBM_OUT_OF_MEMORY',
+                    'details': 'The TPU HBM has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }, {
+                    'createTime': '2000-01-01T00:29:30.123456Z',
+                    'symptomType': 'LOW_MEMORY',
+                    'details': 'The TPU HBM has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }, {
+                    'createTime': '2000-01-01T00:29:40.123456Z',
+                    'symptomType': 'LOW_MEMORY',
+                    'details': 'The TPU HBM has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }]
+            }
+        }, True),
+        ({
+            'projects/test-project/locations/us-central1-c/nodes/tpu_name': {
+                'state':
+                    'READY',
+                'symptoms': [{
+                    'createTime': '2000-01-01T00:29:00.123456Z',
+                    'symptomType': 'LOW_MEMORY',
+                    'details': 'The TPU HBM has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }, {
+                    'createTime': '2000-01-01T00:29:10.123456Z',
+                    'symptomType': 'LOW_MEMORY',
+                    'details': 'The TPU HBM has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }, {
+                    'createTime': '2000-01-01T00:29:20.123456Z',
+                    'symptomType': 'LOW_MEMORY',
+                    'details': 'The TPU HBM has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }, {
+                    'createTime': '2000-01-01T00:29:30.123456Z',
+                    'symptomType': 'LOW_MEMORY',
+                    'details': 'The TPU HBM has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }, {
+                    'createTime': '2000-01-01T00:29:40.123456Z',
+                    'symptomType': 'LOW_MEMORY',
+                    'details': 'The TPU HBM has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }]
+            }
+        }, True)
+    ]
+
+    for tpu_map, want in test_cases:
+      c = client.Client(tpu='tpu_name',
+                        service=self.mock_service_client(tpu_map=tpu_map))
+      self.assertEqual(want, c.recoverable())
+
+  @mock.patch.object(client, '_request_compute_metadata',
+                     mock_request_compute_metadata)
+  @mock.patch.object(client, '_utcnow', mock_utcnow)
+  def testRecoverableHBMOOMDisabled(self):
+    test_cases = [
+        ({
+            'projects/test-project/locations/us-central1-c/nodes/tpu_name': {
+                'state':
+                    'READY',
+                'symptoms': [{
+                    'createTime': '2000-01-01T00:29:30.123456Z',
+                    'symptomType': 'HBM_OUT_OF_MEMORY',
+                    'details': 'The TPU HBM has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }]
+            }
+        }, True),
+    ]
+
+    FLAGS.hbm_oom_exit = False
+    for tpu_map, want in test_cases:
+      c = client.Client(tpu='tpu_name',
+                        service=self.mock_service_client(tpu_map=tpu_map))
+      self.assertEqual(want, c.recoverable())
+    FLAGS.hbm_oom_exit = True
+
+  @mock.patch.object(client, '_request_compute_metadata',
+                     mock_request_compute_metadata)
+  @mock.patch.object(client, '_utcnow', mock_utcnow)
+  def testRecoverableHBMOOMNoAPI(self):
+    test_cases = [
+        ({
+            'projects/test-project/locations/us-central1-c/nodes/tpu_name': {
+                'state':
+                    'READY',
+                'symptoms': [{
+                    'createTime': '2000-01-01T00:29:30.123456Z',
+                    'symptomType': 'HBM_OUT_OF_MEMORY',
+                    'details': 'The TPU HBM has run OOM at timestamp '
+                               '2020-05-29T04:51:32.038721+00:00',
+                    'workerId': '0'
+                }]
+            }
+        }, True),
+    ]
+
+    for tpu_map, want in test_cases:
+      c = client.Client(tpu='grpc://1.2.3.4:8470',
+                        service=self.mock_service_client(tpu_map=tpu_map))
+      self.assertEqual(want, c.recoverable())
 
   @mock.patch.object(client, '_request_compute_metadata',
                      mock_request_compute_metadata)
@@ -396,8 +801,7 @@ class CloudTpuClientTest(test.TestCase):
         'Timed out waiting for TPU .* to become healthy'):
       c.wait_for_healthy(timeout_s=80, interval=5)
 
-  @mock.patch.object(request, 'urlopen')
-  def testConfigureTpuVersion(self, urlopen):
+  def baseConfigureTpuVersion(self):
     tpu_map = {
         'projects/test-project/locations/us-central1-c/nodes/tpu_name': {
             'state':
@@ -412,18 +816,46 @@ class CloudTpuClientTest(test.TestCase):
             ]
         }
     }
-    c = client.Client(
+    return client.Client(
         tpu='tpu_name',
         project='test-project',
         zone='us-central1-c',
         service=self.mock_service_client(tpu_map=tpu_map))
+
+  @mock.patch.object(urllib.request, 'urlopen')
+  def testConfigureTpuVersion(self, urlopen):
+    c = self.baseConfigureTpuVersion()
     c.configure_tpu_version('1.15')
-
     paths = [call[0][0].full_url for call in urlopen.call_args_list]
+    self.assertCountEqual([
+        'http://1.2.3.4:8475/requestversion/1.15?restartType=always',
+        'http://5.6.7.8:8475/requestversion/1.15?restartType=always'
+    ], sorted(paths))
 
-    self.assertEqual([
-        'http://1.2.3.4:8475/requestversion/1.15',
-        'http://5.6.7.8:8475/requestversion/1.15'
+  @mock.patch.object(urllib.request, 'urlopen')
+  def testConfigureTpuVersionRestartIfneeded(self, urlopen):
+    c = self.baseConfigureTpuVersion()
+    c.configure_tpu_version('1.15', restart_type='ifNeeded')
+    paths = [call[0][0].full_url for call in urlopen.call_args_list]
+    self.assertCountEqual([
+        'http://1.2.3.4:8475/requestversion/1.15?restartType=ifNeeded',
+        'http://5.6.7.8:8475/requestversion/1.15?restartType=ifNeeded'
+    ], sorted(paths))
+
+  @mock.patch.object(urllib.request, 'urlopen')
+  def testGetTpuVersion(self, urlopen):
+    c = client.Client(
+        tpu='grpc://1.2.3.4:8470')
+    resp = mock.Mock()
+    resp.read.side_effect = ['{}', '{"currentVersion": "someVersion"}']
+    urlopen.return_value = resp
+    self.assertIsNone(c.runtime_version(), 'Missing key should be handled.')
+    self.assertEqual(
+        'someVersion', c.runtime_version(), 'Should return configured version.')
+    paths = [call[0][0].full_url for call in urlopen.call_args_list]
+    self.assertCountEqual([
+        'http://1.2.3.4:8475/requestversion',
+        'http://1.2.3.4:8475/requestversion',
     ], sorted(paths))
 
 

@@ -31,23 +31,28 @@ When compiling for Android:
     --crosstool_top=//external:android/crosstool --cpu=armeabi-v7a
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import argparse
+import contextlib
 import sys
 
-from tensorflow.python.platform import app
-from tensorflow.python.tools import selective_registration_header_lib
+from absl import app
+
+# Import statement prints "Using TensorFlow backend" which gets piped to
+# ops_to_register.h. Avoid this printing import statement to /dev/null
+with open('/dev/null', 'w') as f, contextlib.redirect_stdout(f):
+  # pylint: disable=g-import-not-at-top
+  from tensorflow.python.tools import selective_registration_header_lib
+  # pylint: enable
 
 FLAGS = None
 
 
 def main(unused_argv):
   graphs = FLAGS.graphs.split(',')
-  print(selective_registration_header_lib.get_header(
-      graphs, FLAGS.proto_fileformat, FLAGS.default_ops))
+  print(
+      selective_registration_header_lib.get_header(graphs,
+                                                   FLAGS.proto_fileformat,
+                                                   FLAGS.default_ops))
 
 
 if __name__ == '__main__':
@@ -63,7 +68,9 @@ if __name__ == '__main__':
       '--proto_fileformat',
       type=str,
       default='rawproto',
-      help='Format of proto file, either textproto or rawproto.')
+      help='Format of proto file, either textproto, rawproto or ops_list. The '
+      'ops_list is the file contains the list of ops in JSON format. Ex: '
+      '"[["Add", "BinaryOp<CPUDevice, functor::add<float>>"]]".')
   parser.add_argument(
       '--default_ops',
       type=str,

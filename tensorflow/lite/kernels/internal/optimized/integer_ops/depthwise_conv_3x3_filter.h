@@ -15,9 +15,11 @@ limitations under the License.
 #ifndef TENSORFLOW_LITE_KERNELS_INTERNAL_OPTIMIZED_INTEGER_OPS_DEPTHWISE_CONV_3X3_FILTER_H_
 #define TENSORFLOW_LITE_KERNELS_INTERNAL_OPTIMIZED_INTEGER_OPS_DEPTHWISE_CONV_3X3_FILTER_H_
 
+#include <stddef.h>
+
 #include <memory>
 
-#include "tensorflow/lite/experimental/ruy/profiler/instrumentation.h"
+#include "ruy/profiler/instrumentation.h"  // from @ruy
 #include "tensorflow/lite/kernels/internal/optimized/cpu_check.h"
 #include "tensorflow/lite/kernels/internal/optimized/depthwiseconv_3x3_filter_common.h"
 #include "tensorflow/lite/kernels/internal/types.h"
@@ -32,7 +34,6 @@ namespace depthwise_conv {
 // Enable for arm64 except for the Nvidia Linux 4 Tegra (L4T) running on
 // Jetson TX-2. This compiler does not support the offsetof() macro.
 #if defined(__aarch64__) && !defined(GOOGLE_L4T)
-#include <stddef.h>
 
 // Represents the number of bytes offset from the start of the
 // DepthwiseConvParams struct. This is used in the asm to load parameters.
@@ -179,10 +180,10 @@ struct DepthwiseConvWindowPerChannel<DepthwiseConvOutputRounding::kUpward, 8, 1,
         // the first 4 values of the output_multiplier_ptr (we have 8 in total);
         // v30 (which held duplicated output right shift previously) will hold
         // the first 4 values of the output_shift_ptr (we have 8 in total);
-        // lastly, v28 will hold the last 4 values of output_mulitplier and v31
+        // lastly, v28 will hold the last 4 values of output_multiplier and v31
         // (previously occupied by activations) will hold the last 4 values of
         // output_shift. Then v25 will be used for output activation min while
-        // output activation max will just reuse oother registers, like v24.
+        // output activation max will just reuse other registers, like v24.
         //
         // Set "constant" registers. These registers may be replaced with temp
         // values from time to time when there are not enough NEON registers.
@@ -1024,7 +1025,7 @@ struct DepthwiseConvWindowPerChannel<DepthwiseConvOutputRounding::kUpward, 8, 2,
         // part.
         // The register planning here is really tricky:
         // v0-v29 are all used at least once for either filter/input/output,
-        // some of them are used for output shift and output mulitplier, or
+        // some of them are used for output shift and output multiplier, or
         // input/output offset.
         // Only v30 & v31 are only used for output activation min/max.
         // For per-channel case, we need 4 registers to hold output shift &

@@ -16,26 +16,27 @@ limitations under the License.
 #ifndef TENSORFLOW_CORE_PROFILER_UTILS_TRACE_UTILS_H_
 #define TENSORFLOW_CORE_PROFILER_UTILS_TRACE_UTILS_H_
 
+#include "xla/tsl/profiler/utils/trace_utils.h"
+
 namespace tensorflow {
 namespace profiler {
 
-// The thread id used for step information in GPU trace viewer.
-// First derived stream/thread id.
-constexpr int kThreadIdDerivedMin = 0xdeadbeef;
-constexpr int kThreadIdStepInfo = kThreadIdDerivedMin;
-constexpr int kThreadIdKernelLaunch = kThreadIdDerivedMin + 1;
-constexpr int kThreadIdTfNameScope = kThreadIdDerivedMin + 2;
-constexpr int kThreadIdTfOp = kThreadIdDerivedMin + 3;
-constexpr int kThreadIdHloModule = kThreadIdDerivedMin + 4;
-constexpr int kThreadIdHloOp = kThreadIdDerivedMin + 5;
-constexpr int kThreadIdOverhead = kThreadIdDerivedMin + 6;
-
-// Last derived stream/thread id.
-constexpr int kThreadIdDerivedMax = kThreadIdOverhead;
-
-static inline bool IsDerivedThreadId(int thread_id) {
-  return thread_id >= kThreadIdDerivedMin && thread_id <= kThreadIdDerivedMax;
-}
+using tsl::profiler::IsDerivedThreadId;            // NOLINT
+using tsl::profiler::kFirstDeviceId;               // NOLINT
+using tsl::profiler::kHostThreadsDeviceId;         // NOLINT
+using tsl::profiler::kLastDeviceId;                // NOLINT
+using tsl::profiler::kThreadIdDerivedMax;          // NOLINT
+using tsl::profiler::kThreadIdDerivedMin;          // NOLINT
+using tsl::profiler::kThreadIdHloModule;           // NOLINT
+using tsl::profiler::kThreadIdHloOp;               // NOLINT
+using tsl::profiler::kThreadIdHostOffloadOpEnd;    // NOLINT
+using tsl::profiler::kThreadIdHostOffloadOpStart;  // NOLINT
+using tsl::profiler::kThreadIdKernelLaunch;        // NOLINT
+using tsl::profiler::kThreadIdOverhead;            // NOLINT
+using tsl::profiler::kThreadIdSource;              // NOLINT
+using tsl::profiler::kThreadIdStepInfo;            // NOLINT
+using tsl::profiler::kThreadIdTfNameScope;         // NOLINT
+using tsl::profiler::kThreadIdTfOp;                // NOLINT
 
 }  // namespace profiler
 }  // namespace tensorflow

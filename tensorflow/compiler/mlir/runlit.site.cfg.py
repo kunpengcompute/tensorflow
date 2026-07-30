@@ -13,16 +13,12 @@
 # limitations under the License.
 """Lit runner site configuration."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import os
 import platform
 import lit.llvm
 
 # Handle the test srcdir for platforms. On windows, things are weird with bazel.
-if platform.system == 'Windows':
+if platform.system() == 'Windows':
   srcdir = os.environ['TEST_SRCDIR']
   real_test_srcdir = srcdir[:srcdir.find('tensorflow/compiler/mlir')]
   external_srcdir = os.path.join(real_test_srcdir, 'external')
@@ -41,10 +37,21 @@ config.mlir_tools_dir = os.path.join(external_srcdir, 'llvm-project', 'mlir')
 config.suffixes = ['.td', '.mlir', '.pbtxt']
 
 mlir_tf_tools_dirs = [
+    'tensorflow/compiler/aot',
     'tensorflow/compiler/mlir',
     'tensorflow/compiler/mlir/lite',
+    'tensorflow/compiler/mlir/lite/experimental/tac',
+    'tensorflow/compiler/mlir/lite/stablehlo',
+    'tensorflow/compiler/mlir/lite/stablehlo/odml_converter',
+    'tensorflow/compiler/mlir/quantization/tensorflow',
     'tensorflow/compiler/mlir/tensorflow',
-    'tensorflow/compiler/mlir/xla',
+    'tensorflow/compiler/mlir/tfrt',
+    'tensorflow/compiler/mlir/tools/kernel_gen',
+    os.path.join(external_srcdir, 'local_xla/xla/mlir_hlo'),
+    'tensorflow/core/ir/importexport/',
+    'tensorflow/core/ir/tests/',
+    'tensorflow/core/transforms/',
+    'tensorflow/dtensor/mlir/tests',
 ]
 config.mlir_tf_tools_dirs = [
     os.path.join(real_test_srcdir, os.environ['TEST_WORKSPACE'], s)
@@ -55,7 +62,7 @@ test_dir = test_dir.strip('/').rsplit(':', 1)[0]
 config.mlir_test_dir = os.path.join(real_test_srcdir,
                                     os.environ['TEST_WORKSPACE'], test_dir)
 
-if platform.system == 'Windows':
+if platform.system() == 'Windows':
   # Configure this to work with msys2, TF's preferred windows bash.
   config.lit_tools_dir = '/usr/bin'
 

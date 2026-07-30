@@ -14,10 +14,6 @@
 # =============================================================================
 """Cloud TPU Client package."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 from cloud_tpu_client.version import __version__
 from setuptools import find_packages
 from setuptools import setup
@@ -50,5 +46,5 @@ setup(
     ],
     license='Apache 2.0',
     keywords='tensorflow tpu',
-    install_requires=['google-api-python-client', 'oauth2client']
+    install_requires=['google-api-python-client==1.8.0', 'oauth2client']
 )

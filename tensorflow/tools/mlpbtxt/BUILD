@@ -5,14 +5,12 @@
 load("//tensorflow:tensorflow.bzl", "tf_cc_binary")
 
 package(
+    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     default_visibility = ["//visibility:private"],
-    licenses = ["notice"],  # Apache 2.0
+    licenses = ["notice"],
 )
 
-exports_files([
-    "LICENSE",
-    "placeholder.txt",
-])
+exports_files(["placeholder.txt"])
 
 tf_cc_binary(
     name = "tomlpbtxt",
@@ -21,6 +19,7 @@ tf_cc_binary(
         "//tensorflow/core:framework_internal",
         "//tensorflow/core:lib",
         "//tensorflow/core:op_gen_lib",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -31,5 +30,6 @@ tf_cc_binary(
         "//tensorflow/core:framework_internal",
         "//tensorflow/core:lib",
         "//tensorflow/core:op_gen_lib",
+        "@com_google_absl//absl/status",
     ],
 )

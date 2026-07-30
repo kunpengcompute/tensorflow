@@ -15,17 +15,18 @@ limitations under the License.
 #ifndef TENSORFLOW_LITE_TOCO_TENSORFLOW_GRAPH_MATCHING_CLUSTER_H_
 #define TENSORFLOW_LITE_TOCO_TENSORFLOW_GRAPH_MATCHING_CLUSTER_H_
 
+#include <memory>
 #include <string>
 #include <vector>
 
-#include "tensorflow/lite/toco/model.h"
-#include "tensorflow/lite/toco/tensorflow_graph_matching/cluster_utils.h"
-#include "tensorflow/lite/toco/tooling_util.h"
 #include "tensorflow/core/framework/attr_value.pb.h"
 #include "tensorflow/core/framework/graph.pb.h"
 #include "tensorflow/core/framework/node_def.pb.h"
 #include "tensorflow/core/framework/tensor.pb.h"
 #include "tensorflow/core/framework/tensor_shape.pb.h"
+#include "tensorflow/lite/toco/model.h"
+#include "tensorflow/lite/toco/tensorflow_graph_matching/cluster_utils.h"
+#include "tensorflow/lite/toco/tooling_util.h"
 
 namespace toco {
 
@@ -47,7 +48,7 @@ class Cluster {
   // 2- All the nodes in GraphDef which belong to this cluster.
   void SetGraphDefInfo(const tensorflow::GraphDef* graph_def);
 
-  const string& GetName() const { return name_; }
+  const std::string& GetName() const { return name_; }
 
   const std::vector<std::unique_ptr<tensorflow::NodeDef>>& GetNewNodes() const {
     return new_nodes_;
@@ -55,18 +56,18 @@ class Cluster {
 
   const std::vector<const tensorflow::NodeDef*>& GetNodes() { return nodes_; }
 
-  void SetName(const string& name) { name_ = name; }
+  void SetName(const std::string& name) { name_ = name; }
 
-  void SetDevice(const string& device) { device_ = device; }
+  void SetDevice(const std::string& device) { device_ = device; }
 
   // Find the input(s) and output(s) of this Cluster.
   bool FindClusterInputsAndOutputs();
 
  protected:
-  string name_;
-  string device_;
-  std::vector<string> inputs_;
-  std::vector<string> outputs_;
+  std::string name_;
+  std::string device_;
+  std::vector<std::string> inputs_;
+  std::vector<std::string> outputs_;
 
   // Used to hold the pointers to nodes which are in this cluster. These nodes
   // are pointing to the nodes in graph_def_.

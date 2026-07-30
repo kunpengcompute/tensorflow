@@ -14,64 +14,75 @@ limitations under the License.
 ==============================================================================*/
 
 #include <cstdint>
-#include <initializer_list>
+#include <memory>
 
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/iterator_range.h"
-#include "llvm/Support/Debug.h"
-#include "mlir/IR/Block.h"  // TF:llvm-project
-#include "mlir/IR/Builders.h"  // TF:llvm-project
-#include "mlir/IR/Location.h"  // TF:llvm-project
-#include "mlir/IR/Operation.h"  // TF:llvm-project
-#include "mlir/IR/StandardTypes.h"  // TF:llvm-project
-#include "mlir/Pass/Pass.h"  // TF:llvm-project
-#include "mlir/Pass/PassRegistry.h"  // TF:llvm-project
-#include "mlir/Support/LLVM.h"  // TF:llvm-project
-#include "mlir/Support/LogicalResult.h"  // TF:llvm-project
-#include "tensorflow/compiler/mlir/tensorflow/ir/tf_executor.h"
-#include "tensorflow/compiler/mlir/tensorflow/ir/tf_ops.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "mlir/IR/BuiltinOps.h"  // from @llvm-project
+#include "mlir/Pass/Pass.h"  // from @llvm-project
+#include "mlir/Support/LLVM.h"  // from @llvm-project
+#include "mlir/Support/LogicalResult.h"  // from @llvm-project
 #include "tensorflow/compiler/mlir/tensorflow/transforms/passes.h"
 #include "tensorflow/compiler/mlir/tensorflow/transforms/shape_inference.h"
-#include "tensorflow/compiler/mlir/tensorflow/translate/export_tf_dialect_op.h"
-#include "tensorflow/compiler/mlir/tensorflow/utils/translate_utils.h"
-#include "tensorflow/core/framework/op.h"
-#include "tensorflow/core/framework/shape_inference.h"
-
-#define DEBUG_TYPE "tf-shape-inference"
 
 namespace mlir {
 namespace TF {
 
 namespace {
 
+#define GEN_PASS_DEF_TENSORFLOWSHAPEINFERENCEPASS
+#include "tensorflow/compiler/mlir/tensorflow/transforms/tf_passes.h.inc"
+
 // This transformation pass propagate shapes on the TensorFlow graph.
 // It is a ModulePass in order to be able to change function types.
-struct ShapeInference : public ModulePass<ShapeInference> {
-  void runOnModule() override {
-    auto module = getModule();
-    auto producer_or = tensorflow::GetTfGraphProducerVersion(module);
-    if (!producer_or.ok()) {
-      LLVM_DEBUG(llvm::dbgs() << producer_or.status().ToString(););
-      return;
+class ShapeInference
+    : public impl::TensorFlowShapeInferencePassBase<ShapeInference> {
+ public:
+  ShapeInference() = default;
+  explicit ShapeInference(ArrayRef<ArrayRef<int64_t>> input_shapes,
+                          bool enable_stablehlo_propagation)
+      : input_shapes_(input_shapes) {
+    enable_stablehlo_propagation_ = enable_stablehlo_propagation;
+  }
+  void runOnOperation() override {
+    // Parse `input_arg_shapes_` if provided (test only)
+    SmallVector<ArrayRef<int64_t>> input_shapes_vec;
+    absl::StatusOr<SmallVector<SmallVector<int64_t>>> parsed_shapes;
+    if (!input_arg_shapes_.empty()) {
+      parsed_shapes = ParseArgumentShapes(input_arg_shapes_);
+      if (!parsed_shapes.ok()) {
+        getOperation().emitError() << parsed_shapes.status().message();
+        return signalPassFailure();
+      }
+      input_shapes_vec = SmallVector<ArrayRef<int64_t>>{parsed_shapes->begin(),
+                                                        parsed_shapes->end()};
+      input_shapes_ = input_shapes_vec;
     }
-    int64_t producer = producer_or.ValueOrDie();
-    for (auto func : module.getOps<FuncOp>()) {
-      InferShapeUntilFixPoint(&func.getBody(), producer);
-      // TODO(yuanzx): Verify that it is always fine to refine a function's
-      // return type, as long as we do not change the argument shapes.
-      InferShapeForFunctionType(func);
+
+    auto failure_or_converged =
+        InferModuleShape(getOperation(), max_iterations_, /*ops_to_skip=*/{},
+                         input_shapes_, enable_stablehlo_propagation_);
+    if (failed(failure_or_converged)) return signalPassFailure();
+    if (!failure_or_converged.value()) {
+      getOperation().emitError()
+          << "shape inference pass did not reach convergence after "
+          << max_iterations_;
+      return signalPassFailure();
     }
   }
+
+ private:
+  ArrayRef<ArrayRef<int64_t>> input_shapes_;
 };
-
-PassRegistration<ShapeInference> pass(
-    "tf-shape-inference", "Simple Shape Inference on TensorFlow Dialect");
-
 }  // namespace
 
-std::unique_ptr<OpPassBase<ModuleOp>> CreateTFShapeInferencePass() {
-  return std::make_unique<ShapeInference>();
+// TODO: b/393025760 - Consider enabling stablehlo propagation by default.
+std::unique_ptr<OperationPass<ModuleOp>> CreateTFShapeInferencePass(
+    ArrayRef<ArrayRef<int64_t>> input_shapes,
+    bool enable_stablehlo_propagation) {
+  return std::make_unique<ShapeInference>(input_shapes,
+                                          enable_stablehlo_propagation);
 }
 
 }  // namespace TF

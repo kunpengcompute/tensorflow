@@ -22,12 +22,12 @@ limitations under the License.
 #include "tensorflow/cc/ops/function_ops.h"
 #include "tensorflow/cc/ops/functional_ops.h"
 #include "tensorflow/cc/ops/standard_ops.h"
-#include "tensorflow/compiler/xla/status_macros.h"
+#include "xla/status_macros.h"
+#include "tensorflow/core/common_runtime/graph_constructor.h"
 #include "tensorflow/core/common_runtime/process_function_library_runtime.h"
 #include "tensorflow/core/framework/function_testlib.h"
 #include "tensorflow/core/framework/graph_to_functiondef.h"
 #include "tensorflow/core/graph/algorithm.h"
-#include "tensorflow/core/graph/graph_constructor.h"
 #include "tensorflow/core/graph/graph_def_builder.h"
 #include "tensorflow/core/graph/testlib.h"
 #include "tensorflow/core/lib/core/status_test_util.h"
@@ -48,9 +48,9 @@ TEST(CreateCycleDetectionGraph, ConnectivityThroughEnterExitRegion) {
 
   FixupSourceAndSinkEdges(root.graph());
 
-  GraphCycles cycles;
+  xla::GraphCycles cycles;
   TF_ASSERT_OK(CreateCycleDetectionGraph(root.graph(), &cycles).status());
-  EXPECT_FALSE(cycles.ContractEdge(a.node()->id(), b.node()->id()));
+  EXPECT_FALSE(cycles.CanContractEdge(a.node()->id(), b.node()->id()));
 }
 
 TEST(CreateCycleDetectionGraph, ConnectivityThroughMultipleEnterExitRegions) {
@@ -67,9 +67,9 @@ TEST(CreateCycleDetectionGraph, ConnectivityThroughMultipleEnterExitRegions) {
 
   FixupSourceAndSinkEdges(root.graph());
 
-  GraphCycles cycles;
+  xla::GraphCycles cycles;
   TF_ASSERT_OK(CreateCycleDetectionGraph(root.graph(), &cycles).status());
-  EXPECT_FALSE(cycles.ContractEdge(a.node()->id(), b.node()->id()));
+  EXPECT_FALSE(cycles.CanContractEdge(a.node()->id(), b.node()->id()));
 }
 
 TEST(CreateCycleDetectionGraph, ReachingEnterExit) {
@@ -89,7 +89,7 @@ TEST(CreateCycleDetectionGraph, ReachingEnterExit) {
 
   FixupSourceAndSinkEdges(root.graph());
 
-  GraphCycles cycles;
+  xla::GraphCycles cycles;
   TF_ASSERT_OK_AND_ASSIGN(bool ok,
                           CreateCycleDetectionGraph(root.graph(), &cycles));
   EXPECT_FALSE(ok);
@@ -135,7 +135,7 @@ TEST(IsSingleGpuGraph, ReturnsFalseForMultiGpuGraph) {
   EXPECT_FALSE(IsSingleGpuGraph(*root.graph()));
 }
 
-xla::StatusOr<std::vector<string>> GetNodesRelatedToRefVarsSorted(
+absl::StatusOr<std::vector<string>> GetNodesRelatedToRefVarsSorted(
     const Scope& scope, FunctionLibraryDefinition* flib_def = nullptr) {
   FunctionDefLibrary flib;
   FunctionLibraryDefinition flib_def_local(OpRegistry::Global(), flib);
@@ -255,7 +255,7 @@ TEST(NodesRelatedToRefVariables, Basic) {
   EXPECT_EQ(names, expected);
 }
 
-Status MakeLoop(Scope s, Output init_value, absl::string_view loop_name) {
+absl::Status MakeLoop(Scope s, Output init_value, absl::string_view loop_name) {
   s = s.NewSubScope(std::string(loop_name));
   ops::internal::Enter enter(s.WithOpName("init_value"), init_value, loop_name);
   ops::Merge merge(s.WithOpName("merge"), {init_value, init_value});

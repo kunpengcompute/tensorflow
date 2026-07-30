@@ -41,16 +41,15 @@ limitations under the License.
 namespace tensorflow {
 namespace {
 
-using test::internal::ExpectEqual;
-
 TEST(GraphRunnerTest, SingleConst) {
   Scope root = Scope::NewRootScope();
   auto c = ops::Const(root, 42.0f);
   GraphRunner graph_runner(Env::Default());
   std::vector<Tensor> outputs;
-  Status s = graph_runner.Run(root.graph(), nullptr, {}, {c.name()}, &outputs);
+  absl::Status s =
+      graph_runner.Run(root.graph(), nullptr, {}, {c.name()}, &outputs);
   TF_ASSERT_OK(s);
-  ExpectEqual(42.0f, outputs[0].scalar<float>()());
+  test::ExpectEqual(test::AsScalar(42.0f), outputs[0]);
 }
 
 // If not using DeepCopy, and the allocator is deleted with the cpu-device,
@@ -73,11 +72,11 @@ TEST(GraphRunnerTest, DeepCopy) {
   std::vector<Tensor> outputs;
   {
     GraphRunner graph_runner(Env::Default());
-    Status s =
+    absl::Status s =
         graph_runner.Run(root.graph(), nullptr, inputs, {"add:0"}, &outputs);
     TF_ASSERT_OK(s);
   }
-  ExpectEqual(3.0f, outputs[0].scalar<float>()());
+  test::ExpectEqual(test::AsScalar(3.0f), outputs[0]);
 }
 
 TEST(GraphRunnerTest, MultiFetchConst) {
@@ -86,11 +85,11 @@ TEST(GraphRunnerTest, MultiFetchConst) {
   auto pi = ops::Const(root, 3.14f);
   GraphRunner graph_runner(Env::Default());
   std::vector<Tensor> outputs;
-  Status s = graph_runner.Run(root.graph(), nullptr, {}, {c.name(), pi.name()},
-                              &outputs);
+  absl::Status s = graph_runner.Run(root.graph(), nullptr, {},
+                                    {c.name(), pi.name()}, &outputs);
   TF_ASSERT_OK(s);
-  ExpectEqual(42.0f, outputs[0].scalar<float>()());
-  ExpectEqual(3.14f, outputs[1].scalar<float>()());
+  test::ExpectEqual(test::AsScalar(42.0f), outputs[0]);
+  test::ExpectEqual(test::AsScalar(3.14f), outputs[1]);
 }
 
 TEST(GraphRunnerTest, FeedAndFetch) {
@@ -108,10 +107,10 @@ TEST(GraphRunnerTest, FeedAndFetch) {
 
   GraphRunner graph_runner(Env::Default());
   std::vector<Tensor> outputs;
-  Status s =
+  absl::Status s =
       graph_runner.Run(root.graph(), nullptr, inputs, {"add:0"}, &outputs);
   TF_ASSERT_OK(s);
-  ExpectEqual(3.0f, outputs[0].scalar<float>()());
+  test::ExpectEqual(test::AsScalar(3.0f), outputs[0]);
 }
 
 }  // namespace
