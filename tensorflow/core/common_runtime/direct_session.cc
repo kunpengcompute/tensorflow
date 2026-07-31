@@ -327,12 +327,6 @@ DirectSession::DirectSession(const SessionOptions& options,
       factory_(factory),
       cancellation_manager_(new CancellationManager()),
       operation_timeout_in_ms_(options_.config.operation_timeout_in_ms()) {
-
-  if (options_.config.use_batch_op_scheduling()) {
-    use_batch_scheduling_executor_ = true;
-    LOG(INFO) << "enable batch scheduling executor";
-  }
-
   const int thread_pool_size =
       options_.config.session_inter_op_thread_pool_size();
   if (thread_pool_size > 0) {
@@ -685,11 +679,7 @@ Status DirectSession::RunInternal(
   args.run_all_kernels_inline = pool == nullptr;
   args.start_time_usecs = start_time_usecs;
   args.deadline = deadline;
-  if (use_batch_scheduling_executor_) {
-    args.executor_policy = ExecutorPolicy::USE_BATCH_SCHEDULING_EXECUTOR;
-  } else {
-    args.executor_policy = ExecutorPolicy::USE_NORMAL_EXECUTOR;
-  }
+
   const bool do_trace = (run_options.trace_level() > RunOptions::NO_TRACE);
 
   bool update_cost_model = false;

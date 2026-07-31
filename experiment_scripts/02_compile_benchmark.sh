@@ -15,21 +15,17 @@ echo "=========================================="
 
 # Bazel 配置（可通过环境变量覆盖）
 BAZEL_BIN="${BAZEL_BIN:-bazel}"
-BAZEL_DISTDIR="${BAZEL_DISTDIR:-}"
+BAZEL_DISTDIR="${BAZEL_DISTDIR:-${TF_ROOT}/distdir}"
 HTTP_PROXY="${HTTP_PROXY:-}"
 HTTPS_PROXY="${HTTPS_PROXY:-}"
 
-DISTDIR_ARGS=()
-if [[ -n "${BAZEL_DISTDIR}" ]]; then
-    DISTDIR_ARGS+=(--distdir="${BAZEL_DISTDIR}")
-fi
-
 export http_proxy="${HTTP_PROXY}"
 export https_proxy="${HTTPS_PROXY}"
+mkdir -p "${BAZEL_OUTPUT_BASE}" "${BAZEL_DISTDIR}"
 
-"${BAZEL_BIN}" --batch --output_user_root="${BAZEL_OUTPUT_ROOT}" build \
+"${BAZEL_BIN}" --batch --output_base="${BAZEL_OUTPUT_BASE}" build \
     --experimental_repo_remote_exec \
-    "${DISTDIR_ARGS[@]}" \
+    --distdir="${BAZEL_DISTDIR}" \
     "$TARGET"
 
 echo ""

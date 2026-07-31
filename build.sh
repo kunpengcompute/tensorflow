@@ -90,12 +90,13 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 TENSORFLOW_ROOT=$(pwd)
-DIST_DIR=$TENSORFLOW_ROOT/download
+DIST_DIR=$TENSORFLOW_ROOT/distdir
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
 
 export PATH=$BAZEL_PATH:$PATH
 DIST_DIR="${DISTDIR:-$DIST_DIR}"
 BAZEL_COMPILE_CACHE="${BUILD_CACHE_DIR:-$TENSORFLOW_ROOT/output}"
+mkdir -p "$DIST_DIR" "$BAZEL_COMPILE_CACHE" "$TENSORFLOW_ROOT/output-release"
 
 if ! command -v bazel &> /dev/null; then
     echo "Error: Bazel is not installed. Please install Bazel and try again."
@@ -122,7 +123,7 @@ gcc --version
 cd $TENSORFLOW_ROOT && \
 PATH=$PATH \
 LD_LIBRARY_PATH=$LD_LIBRARY_PATH \
-bazel --output_user_root=$BAZEL_COMPILE_CACHE build --distdir=$DIST_DIR \
+bazel --output_base=$BAZEL_COMPILE_CACHE build --distdir=$DIST_DIR \
 --host_copt=-march=armv8.3-a --copt=-march=armv8.3-a --define with_default_optimizations=true \
 --copt=-Wno-sign-compare --config=v2 --config=noaws \
 $KDNN_OPTIONS \

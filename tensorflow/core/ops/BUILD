@@ -18,14 +18,6 @@ load(
     "//third_party/mkl:build_defs.bzl",
     "if_mkl",
 )
-load(
-    "//third_party/ktfop:build_defs.bzl",
-    "if_ktfop",
-)
-load(
-    "//third_party/fused_embedding:build_defs.bzl",
-    "if_fused_embedding",
-)
 # A lot of packages try to minimize binary size by depending on individual ops,\
 # so they need access here.
 package(
@@ -68,8 +60,6 @@ tf_gen_op_libs(
         "functional_ops",
         "image_ops",
         "io_ops",
-        "ktfop_ops",
-        "fused_embedding_ops",
         "linalg_ops",
         "list_ops",
         "map_ops",
@@ -354,10 +344,6 @@ cc_library(
     }) + if_mkl([
         ":mkl_array_ops_op_lib",
         ":mkl_nn_ops_op_lib",
-    ]) + if_ktfop([
-        ":ktfop_ops_op_lib",
-    ]) + if_fused_embedding([
-        ":fused_embedding_ops_op_lib",
     ]) + select({
         "@platforms//cpu:aarch64": [
             ":embedding_fused_ops_op_lib"

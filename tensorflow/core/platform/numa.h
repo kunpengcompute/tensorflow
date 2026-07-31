@@ -30,7 +30,6 @@ using tsl::port::NUMAGetThreadNodeAffinity;
 using tsl::port::NUMAMalloc;
 using tsl::port::NUMANumNodes;
 using tsl::port::NUMASetThreadNodeAffinity;
-using tsl::port::ThreadAffinity;
 }  // namespace port
 }  // namespace tensorflow
 #endif  // TENSORFLOW_CORE_PLATFORM_NUMA_H_

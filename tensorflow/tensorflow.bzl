@@ -62,8 +62,8 @@ load(
     "if_enable_acl",
 )
 load(
-    "//third_party/KDNN:build_defs.bzl",
-    "if_enable_kdnn",
+    "//tensorflow:feature_copts.bzl",
+    "boostsra_feature_copt",
 )
 load(
     "//third_party/llvm_openmp:openmp.bzl",
@@ -469,7 +469,7 @@ def tf_copts(
         if_mkldnn_aarch64_acl(["-DDNNL_AARCH64_USE_ACL=1"]) +
         if_mkldnn_aarch64_acl_openmp(["-DENABLE_ONEDNN_OPENMP"]) +
         if_zendnn(["-DAMD_ZENDNN"]) +
-        if_enable_kdnn(["-DENABLE_KDNN"]) +
+        boostsra_feature_copt() +
         if_enable_acl(["-DXLA_CPU_USE_ACL=1", "-fexceptions"]) +
         if_android_arm(["-mfpu=neon", "-fomit-frame-pointer"]) +
         if_linux_x86_64(["-msse3"]) +

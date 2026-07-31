@@ -4,7 +4,6 @@
 #include <utility>
 #include <vector>
 
-#include "tensorflow/core/framework/fake_input.h"
 #include "tensorflow/core/framework/node_def_builder.h"
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/resource_handle.h"
@@ -80,8 +79,8 @@ class InitializeEmbeddingIndexToValueTableFromTextFileOpTest
     TF_ASSERT_OK(
         NodeDefBuilder("init_embedding_table",
                        "InitializeEmbeddingIndexToValueTableFromTextFile")
-            .Input(FakeInput(DT_RESOURCE))
-            .Input(FakeInput(DT_STRING))
+            .Input("resource", 0, DT_RESOURCE)
+            .Input("filename", 0, DT_STRING)
             .Finalize(node_def()));
     TF_ASSERT_OK(InitOp());
   }
@@ -121,8 +120,8 @@ class EmbeddingTableLookupOpTest : public OpsTestBase {
 
   void MakeOp(bool force_ref_impl = false) {
     TF_ASSERT_OK(NodeDefBuilder("embedding_lookup", "EmbeddingTableLookup")
-                     .Input(FakeInput(DT_RESOURCE))
-                     .Input(FakeInput(DT_INT64))
+                     .Input("resource", 0, DT_RESOURCE)
+                     .Input("keys", 0, DT_INT64)
                      .Attr("emb_dim", 4)
                      .Attr("max_parallelism", 1)
                      .Attr("force_ref_impl", force_ref_impl)
