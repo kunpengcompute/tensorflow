@@ -48,8 +48,8 @@ Legacy补丁只允许独立应用到官方基线，不依赖公共构建集成�
 ```bash
 tensorflow
 ├── patches
-│   ├── dist                                            # 公共构建集成（common）、KDNN算子优化、ANNC静态图融合和KEmbedding自定义算子
-│   ├── frozen                                          # 独立Legacy补丁
+│   ├── feature                                         # 公共构建集成（common）、KDNN算子优化、ANNC静态图融合和KEmbedding自定义算子
+│   ├── frozen_feature                                  # 独立Legacy补丁
 │   ├── manifest.json                                   # 补丁分组和Profile定义
 │   ├── prepare_source.py                               # 完整源码创建工具
 │   ├── patch_manager.py                                # 补丁维护与验证工具

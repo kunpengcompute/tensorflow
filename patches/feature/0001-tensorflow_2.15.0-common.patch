@@ -1,5 +1,5 @@
 diff --git a/.gitignore b/.gitignore
-index cebef4f590d47e451013aa59665a2f43789e1473..b6ccee0199b790cc418535ee699c89e19604c8a3 100644
+index cebef4f590d47e451013aa59665a2f43789e1473..d793a0e04e447cb5a620da93bd99f591cc0a18cb 100644
 --- a/.gitignore
 +++ b/.gitignore
 @@ -19,6 +19,11 @@ tensorflow/contrib/cmake/_build/
@@ -10,7 +10,7 @@ index cebef4f590d47e451013aa59665a2f43789e1473..b6ccee0199b790cc418535ee699c89e1
 +/output-release/
 +/distdir/
 +/test_output
-+/patches/dist/
++/patches/feature/
  /tensorflow/core/util/version_info.cc
  /tensorflow/python/framework/fast_tensor_util.cpp
  /tensorflow/lite/gen/**

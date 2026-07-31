@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from patch_manager import (
+    DEFAULT_PATCH_DIR,
     SCRIPT_DIR,
     PatchError,
     load_manifest,
@@ -34,7 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--patch-dir",
         type=Path,
-        default=SCRIPT_DIR / "dist",
+        default=DEFAULT_PATCH_DIR,
         help=argparse.SUPPRESS,
     )
     parser.add_argument(

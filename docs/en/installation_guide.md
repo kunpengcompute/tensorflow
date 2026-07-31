@@ -31,10 +31,10 @@ TensorFlow and TensorFlow Serving use Bazel 6.5.0. For installation instructions
 
 | Feature Set | Contents | Patches (Application Order) | When to Use |
 | --- | --- | --- | --- |
-| `common-only` | Shared build and compatibility changes | `patches/dist/0001-tensorflow_2.15.0-common.patch` | Inspect shared changes without acceleration features |
-| `kdnn-core` | common + KDNN | `patches/dist/0001-tensorflow_2.15.0-common.patch`<br>`patches/dist/0002-tensorflow_2.15.0-kdnn.patch` | Use KDNN kernel optimizations |
-| `kdnn-annc` | common + KDNN + ANNC | `patches/dist/0001-tensorflow_2.15.0-common.patch`<br>`patches/dist/0002-tensorflow_2.15.0-kdnn.patch`<br>`patches/dist/0003-tensorflow_2.15.0-annc.patch` | Use KDNN and ANNC static graph fusion |
-| `full-default` | common + KDNN + ANNC + KEmbedding | `patches/dist/0001-tensorflow_2.15.0-common.patch`<br>`patches/dist/0002-tensorflow_2.15.0-kdnn.patch`<br>`patches/dist/0003-tensorflow_2.15.0-annc.patch`<br>`patches/dist/0004-tensorflow_2.15.0-kembedding.patch` | Use all currently maintained features |
+| `common-only` | Shared build and compatibility changes | `patches/feature/0001-tensorflow_2.15.0-common.patch` | Inspect shared changes without acceleration features |
+| `kdnn-core` | common + KDNN | `patches/feature/0001-tensorflow_2.15.0-common.patch`<br>`patches/feature/0002-tensorflow_2.15.0-kdnn.patch` | Use KDNN kernel optimizations |
+| `kdnn-annc` | common + KDNN + ANNC | `patches/feature/0001-tensorflow_2.15.0-common.patch`<br>`patches/feature/0002-tensorflow_2.15.0-kdnn.patch`<br>`patches/feature/0003-tensorflow_2.15.0-annc.patch` | Use KDNN and ANNC static graph fusion |
+| `full-default` | common + KDNN + ANNC + KEmbedding | `patches/feature/0001-tensorflow_2.15.0-common.patch`<br>`patches/feature/0002-tensorflow_2.15.0-kdnn.patch`<br>`patches/feature/0003-tensorflow_2.15.0-annc.patch`<br>`patches/feature/0004-tensorflow_2.15.0-kembedding.patch` | Use all currently maintained features |
 
 ### Generating the Complete Source
 
@@ -212,9 +212,9 @@ The Legacy patch contains historical runtime scheduling, the old fused embedding
 git clone -b v2.15.0 https://github.com/tensorflow/tensorflow.git tensorflow-legacy
 cd tensorflow-legacy
 git apply --check \
-  /path/to/sra-tensorflow/patches/frozen/0005-tensorflow_2.15.0-legacy.patch
+  /path/to/sra-tensorflow/patches/frozen_feature/tensorflow_2.15.0-legacy.patch
 git apply \
-  /path/to/sra-tensorflow/patches/frozen/0005-tensorflow_2.15.0-legacy.patch
+  /path/to/sra-tensorflow/patches/frozen_feature/tensorflow_2.15.0-legacy.patch
 
 mkdir -p output distdir output-release
 bazel --output_base="$PWD/output" build \

@@ -49,8 +49,8 @@ The Legacy patch applies independently to the official baseline. It does not dep
 ```bash
 tensorflow
 ├── patches
-│   ├── dist                                            # common, KDNN, ANNC, and KEmbedding patches
-│   ├── frozen                                          # Standalone Legacy patch
+│   ├── feature                                         # common, KDNN, ANNC, and KEmbedding patches
+│   ├── frozen_feature                                  # Standalone Legacy patch
 │   ├── manifest.json                                   # Groups and profiles
 │   ├── prepare_source.py                               # Complete source creation tool
 │   ├── patch_manager.py                                # Patch maintenance and verification tool

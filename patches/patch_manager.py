@@ -24,6 +24,7 @@ from typing import Iterable, Sequence
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 DEFAULT_MANIFEST = SCRIPT_DIR / "manifest.json"
+DEFAULT_PATCH_DIR = SCRIPT_DIR / "feature"
 
 
 class PatchError(RuntimeError):
@@ -551,14 +552,14 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("audit", help="check that every changed path has one owner")
     generate_parser = subparsers.add_parser("generate", help="generate the patch series")
-    generate_parser.add_argument("--output-dir", type=Path, default=SCRIPT_DIR / "dist")
+    generate_parser.add_argument("--output-dir", type=Path, default=DEFAULT_PATCH_DIR)
     verify_parser = subparsers.add_parser("verify", help="apply and compare generated patches")
-    verify_parser.add_argument("--patch-dir", type=Path, default=SCRIPT_DIR / "dist")
+    verify_parser.add_argument("--patch-dir", type=Path, default=DEFAULT_PATCH_DIR)
     materialize_parser = subparsers.add_parser(
         "materialize",
         help="create a profile checkout and write its generated files",
     )
-    materialize_parser.add_argument("--patch-dir", type=Path, default=SCRIPT_DIR / "dist")
+    materialize_parser.add_argument("--patch-dir", type=Path, default=DEFAULT_PATCH_DIR)
     materialize_parser.add_argument(
         "--feature-set",
         "--profile",
