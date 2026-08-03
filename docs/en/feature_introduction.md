@@ -1,235 +1,5 @@
 # Feature Introduction
 
-## TensorFlow ANNC for Graph Compilation Optimization
-
-### Introduction
-
-This section describes the basic concepts and implementation principles of the TensorFlow Accelerated Neural Network Compiler (ANNC) for graph compilation optimization.
-
-Kunpeng BoostKit provides this TensorFlow ANNC feature to enhance TensorFlow Serving (TF Serving) inference performance. ANNC is a compiler dedicated to accelerating neural network computing. It focuses on technologies including computational graph optimization, generation and integration of high-performance fused operators, and efficient code generation and optimization. These capabilities significantly improve inference performance in recommendation scenarios. As an extension kit based on open-source Open Accelerated Linear Algebra (OpenXLA), ANNC is released in the ANNC open-source repository of the openEuler community. It features Kunpeng-affinity optimization capabilities, and is integrated into the TensorFlow inference framework and Accelerated Linear Algebra (XLA) through compilation options and code patches. Based on TensorFlow Serving and TensorFlow 2.15, this feature introduces TensorFlow graph fusion, XLA graph fusion, operator optimization, and constant folding optimization.
-
-- TensorFlow graph fusion: fusion and rewriting of graphs at the TensorFlow model level.
-- XLA graph fusion: XLA graph fusion enhanced by ANNC.
-- Operator optimization: ANNC-driven operator optimization.
-- Constant folding optimization: ANNC constant folding optimization.
-
->![icon note](public_sys-resources/icon-note.gif) **NOTE:**
->OpenXLA is an open ecosystem consisting of high-performance, portable, and scalable machine learning infrastructure components.
->XLA is an open-source compiler for machine learning. It optimizes models from the TensorFlow framework, to enable efficient execution across various hardware platforms including GPUs, CPUs, and machine learning accelerators.
-
-### Software Architecture
-
-[**Figure 1** TF Serving software architecture](#tf-serving-software-architecture) shows the TF Serving software architecture. [**Table 1** TF Serving software component functions](#tf-serving-software-component-functions) describes the functions of each component.
-
-**Figure 1** TF Serving software architecture<a name="fig2460131971612"></a><a id="tf-serving-software-architecture"></a>
-
-![tf-serving-software-architecture](figures/tf-serving-software-architecture.png "TF-Serving software architecture")
-
-**Table 1** TF Serving software component functions<a id="tf-serving-software-component-functions"></a>
-
-<a name="table17527817415"></a>
-<table><thead align="left"><tr id="row13527611645"><th class="cellrowborder" valign="top" width="20%" id="mcps1.2.3.1.1"><p id="p1452751848"><a name="p1452751848"></a><a name="p1452751848"></a>Component</p>
-</th>
-<th class="cellrowborder" valign="top" width="80%" id="mcps1.2.3.1.2"><p id="p3527312418"><a name="p3527312418"></a><a name="p3527312418"></a>Description</p>
-</th>
-</tr>
-</thead>
-<tbody><tr id="row9527411342"><td class="cellrowborder" valign="top" width="20%" headers="mcps1.2.3.1.1 "><p id="p652710118414"><a name="p652710118414"></a><a name="p652710118414"></a>TF Serving</p>
-</td>
-<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.2 "><p id="p12527316419"><a name="p12527316419"></a><a name="p12527316419"></a>Dedicated, high-performance inference server optimized for TensorFlow model deployment</p>
-</td>
-</tr>
-<tr id="row890710021716"><td class="cellrowborder" valign="top" width="20%" headers="mcps1.2.3.1.1 "><p id="p175272111416"><a name="p175272111416"></a><a name="p175272111416"></a>SavedModel</p>
-</td>
-<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.2 "><p id="p185271018417"><a name="p185271018417"></a><a name="p185271018417"></a>TensorFlow's standardized model format enabling seamless model import, inference, and retraining across diverse TensorFlow implementations</p>
-</td>
-</tr>
-<tr id="row552715117416"><td class="cellrowborder" valign="top" width="20%" headers="mcps1.2.3.1.1 "><p id="p060405316012"><a name="p060405316012"></a><a name="p060405316012"></a>Graph Fusion</p>
-</td>
-<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.2 "><p id="p1860416535018"><a name="p1860416535018"></a><a name="p1860416535018"></a>ANNC graph fusion component</p>
-</td>
-</tr>
-<tr id="row1552751643"><td class="cellrowborder" valign="top" width="20%" headers="mcps1.2.3.1.1 "><p id="p652710113419"><a name="p652710113419"></a><a name="p652710113419"></a>TensorFlow</p>
-</td>
-<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.2 "><p id="p3527201147"><a name="p3527201147"></a><a name="p3527201147"></a>Open-source machine learning framework specializing in deep learning model training and inference</p>
-</td>
-</tr>
-<tr id="row1145126151312"><td class="cellrowborder" valign="top" width="20%" headers="mcps1.2.3.1.1 "><p id="p134819201318"><a name="p134819201318"></a><a name="p134819201318"></a>ANNC</p>
-</td>
-<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.2 "><p id="p183481199139"><a name="p183481199139"></a><a name="p183481199139"></a>AI compiler optimized for machine learning models, which can compile models into high-performance executable code</p>
-</td>
-</tr>
-<tr id="row53481395136"><td class="cellrowborder" valign="top" width="20%" headers="mcps1.2.3.1.1 "><p id="p117197117117"><a name="p117197117117"></a><a name="p117197117117"></a>XLA Extension</p>
-</td>
-<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.2 "><p id="p3719131119116"><a name="p3719131119116"></a><a name="p3719131119116"></a>ANNC XLA extension</p>
-</td>
-</tr>
-<tr id="row512919311905"><td class="cellrowborder" valign="top" width="20%" headers="mcps1.2.3.1.1 "><p id="p134526191311"><a name="p134526191311"></a><a name="p134526191311"></a>XLA</p>
-</td>
-<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.2 "><p id="p204518611318"><a name="p204518611318"></a><a name="p204518611318"></a><span>Open-source compiler for machine learning</span></p>
-</td>
-</tr>
-<tr id="row116041953806"><td class="cellrowborder" valign="top" width="20%" headers="mcps1.2.3.1.1 "><p id="p161299311305"><a name="p161299311305"></a><a name="p161299311305"></a>Kernels</p>
-</td>
-<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.2 "><p id="p2129143115012"><a name="p2129143115012"></a><a name="p2129143115012"></a>TensorFlow operator implementation</p>
-</td>
-</tr>
-</tbody>
-</table>
-
-### Application Scenarios
-
-The TensorFlow Serving ANNC feature is mainly used in recommendation systems and advertising delivery. It can greatly improve inference performance for coarse-ranking models in high-concurrency scenarios, boosting throughput while significantly reducing latency.
-
-### Principles
-
-This section describes the TensorFlow/XLA optimization features.
-
-**TensorFlow Graph Fusion**
-
-Some subgraphs in TensorFlow models contain redundant computations. By identifying specific graph patterns, you can fuse multiple operators in the subgraphs into one fused operator. This avoids extra work, optimizes memory access, and improves model inference performance. For details, see [**Figure 1** TensorFlow graph fusion](#tensorflow-graph-fusion). This function enables graph fusion and rewriting at the TensorFlow model level on the frontend, and supports manual creation of custom fused operators on the backend.
-
-**Figure 1** TensorFlow graph fusion<a name="fig836316691915"></a><a id="tensorflow-graph-fusion"></a>
-
-![tensorflow-graph-fusion](figures/tensorflow-graph-fusion.png "TensorFlow graph fusion diagram")
-
-**XLA Graph Fusion**
-
-XLA provides multiple hardware-agnostic graph fusion optimization policies. However, the resulting cluster (including the fused parts) may still contain redundant computations. For example, sub-expressions are repeated or can be merged across different fusion operations. For details, see [**Figure 2** XLA graph fusion](#xla-graph-fusion). This function aims to identify redundant computations after fusion, such as the F1 operations. Redundant computations can be eliminated using pre-fusion policies, such as the fusion of F4, F5, and F6 operations, to further improve the model inference efficiency.
-
-**Figure 2** XLA graph fusion<a name="fig5154159193015"></a><a id="xla-graph-fusion"></a>
-
-![xla-graph-fusion](figures/xla-graph-fusion.png "XLA graph fusion diagram")
-
-**Operator Optimization**
-
-This feature performs operator optimization across stages, including offloading the Matrix Multiplication (MatMul) operator to XLA, calling the General Matrix Multiplication (GEMM) operation interface provided by Open Basic Linear Algebra Subprograms (OpenBLAS), and replacing the Softmax function with a more efficient implementation. In addition, it identifies specific operation patterns to eliminate redundant computations and further improve the model inference performance. For example, in scenarios where multiple slices are concatenated, redundant slicing operations are removed.
-
-**Constant Folding Optimization**
-
-This function focuses on optimizing the packing overhead of constant operands in matrix multiplication operators. It applies to OpenBLAS call scenarios involving a matrix multiplication operator `C = A × B`, where at least one operand (such as weight `B` in an inference model) is a constant. The value and shape of such operands are known at compile time and remain unchanged at runtime. When this optimization is disabled, the ANNC compiler must pack and rearrange constant operands to meet hardware memory access alignment and cache locality requirements, as shown in [**Figure 3** Data packing](#data-packing). Since the valid layout of constant operands can be uniquely determined by the compiler, the packing operation in this scenario can be shifted forward to the compile phase. Once this optimization is enabled, an offline packing tool used during compilation and a dedicated rearrangement-free backend (kpgemm) can completely eliminate redundant runtime overhead, as shown in [**Figure 4** Constant folding workflow](#constant-folding-workflow).
-
-**Figure 3** Data packing<a name="fig836316691916"></a><a id="data-packing"></a>
-
-![data packing](figures/data-packing.png "data-packing")
-
-**Figure 4** Constant folding workflow<a name="fig836316691917"></a><a id="constant-folding-workflow"></a>
-
-![constant folding workflow](figures/constant-folding-workflow.png)
-
-For details about function configuration, see <a href="./quick_start.md">Quick Start</a>.
-
-## TensorFlow Serving Thread Scheduling
-
-### Introduction
-
-This section describes the basic concepts and implementation principles of the thread scheduling optimization feature for TensorFlow Serving.
-
-Kunpeng BoostKit developed a thread scheduling optimization solution to enhance TF Serving inference performance. TensorFlow employs inter-operator thread pools to parallelize independent operators, this approach can lead to task contention in high-concurrency scenarios when multiple sessions share the same thread pool, substantially degrading computational efficiency for entire graphs. Kunpeng BoostKit's solution addresses this limitation through refined operator scheduling algorithms and advanced thread management optimizations, delivering significant throughput improvements for concurrent model inference.
-
-Implemented as patches integrated into openEuler's `sra_tensorflow_adapter` repository, these optimizations introduce two new configuration parameters for TF Serving/TensorFlow 2.15:
-
-- Batch operator scheduling (`--batch_op_scheduling`): Enables the operator scheduling optimization and XLA thread pool management optimization features. When single-core inference latency meets requirements, this option can be used to enhance concurrent processing capability and overall throughput.
-- Thread affinity isolation (`--task_affinity_isolation`): Provides the following isolation methods: When the TensorFlow scheduling mode is used, sequential core binding is recommended. When this option is enabled together with the `--batch_op_scheduling` option, and hyper-threading is enabled, interleaved core binding is recommended.
-
-  - Sequential core binding allocates TensorFlow computing threads to the first K cores and TF Serving communication threads to remaining cores.
-  - Interleaved core binding (applicable when hyper-threading is enabled) assigns TensorFlow threads to physical cores and TF Serving communication threads to virtual cores.
-
->![icon note](public_sys-resources/icon-note.gif) **NOTE:**
->XLA serves as TensorFlow's optimizing compiler, specifically designed to enhance the execution speed of linear algebra operations. By transforming TensorFlow computational graphs into highly efficient, hardware-specific instructions, XLA delivers significant performance improvements.
-
-### Software Architecture
-
-[**Figure 1** TF Serving software architecture](#tf-serving-software-architecture-1) shows the TF Serving software architecture. [**Table 1** TF Serving component functions](#tf-serving-component-functions) describes the functions of each component.
-
-**Figure 1** TF Serving software architecture<a name="fig9660112419318"></a><a id="tf-serving-software-architecture-1"></a>
-
-![tf serving software architecture 0](figures/tf-serving-software-architecture-0.png "TF-Serving software architecture-0")
-
-**Table 1** TF Serving component functions<a id="tf-serving-component-functions"></a>
-
-<a name="table17527817415"></a>
-<table><thead align="left"><tr id="row13527611645"><th class="cellrowborder" valign="top" width="23.02%" id="mcps1.2.3.1.1"><p id="p1452751848"><a name="p1452751848"></a><a name="p1452751848"></a>Component</p>
-</th>
-<th class="cellrowborder" valign="top" width="76.98%" id="mcps1.2.3.1.2"><p id="p3527312418"><a name="p3527312418"></a><a name="p3527312418"></a>Description</p>
-</th>
-</tr>
-</thead>
-<tbody><tr id="row9527411342"><td class="cellrowborder" valign="top" width="23.02%" headers="mcps1.2.3.1.1 "><p id="p652710118414"><a name="p652710118414"></a><a name="p652710118414"></a>TF Serving</p>
-</td>
-<td class="cellrowborder" valign="top" width="76.98%" headers="mcps1.2.3.1.2 "><p id="p12527316419"><a name="p12527316419"></a><a name="p12527316419"></a>Dedicated, high-performance inference server optimized for TensorFlow model deployment</p>
-</td>
-</tr>
-<tr id="row552715117416"><td class="cellrowborder" valign="top" width="23.02%" headers="mcps1.2.3.1.1 "><p id="p652710113419"><a name="p652710113419"></a><a name="p652710113419"></a>TensorFlow</p>
-</td>
-<td class="cellrowborder" valign="top" width="76.98%" headers="mcps1.2.3.1.2 "><p id="p3527201147"><a name="p3527201147"></a><a name="p3527201147"></a>Open-source machine learning framework specializing in deep learning model training and inference</p>
-</td>
-</tr>
-<tr id="row1552751643"><td class="cellrowborder" valign="top" width="23.02%" headers="mcps1.2.3.1.1 "><p id="p175272111416"><a name="p175272111416"></a><a name="p175272111416"></a>SavedModel</p>
-</td>
-<td class="cellrowborder" valign="top" width="76.98%" headers="mcps1.2.3.1.2 "><p id="p185271018417"><a name="p185271018417"></a><a name="p185271018417"></a>TensorFlow's standardized model format enabling seamless model import, inference, and retraining across diverse TensorFlow implementations</p>
-</td>
-</tr>
-</tbody>
-</table>
-
-### Application Scenarios
-
-The TF Serving thread scheduling optimization feature delivers adaptable solutions for diverse inference workloads:
-
-- Dramatically improves performance in high-concurrency coarse ranking model scenarios, boosting throughput while significantly reducing latency
-- Effectively optimizes latency-sensitive, low-concurrency scenarios through proper thread management parameter configuration.
-
-### Principles
-
-This section details TF Serving's thread pool architecture for inference, clarifying the principles of the feature to guide optimal configuration decisions.
-
-**Figure 1** TF Serving thread pool overview<a name="fig158087456394"></a><a id="tf-serving-thread-pool-overview"></a>
-
-![tf-serving-thread-pool-overview](figures/tf-serving-thread-pool-overview.png "TF Serving thread pool overview")
-
-The inference threads in TF Serving fall into two functional categories: communication threads and computing threads.
-
-Communication threads:
-
-- `grpcpp_sync_ser` threads manage client inference requests (including parsing, inference triggering, and response delivery).
-
-Computing threads:
-
-- `tf_Compute` threads coordinate parallel tasks across operators.
-- `tf_numa_-1_Eige` threads execute intra-operator parallel tasks.
-
-XLA-enabled deployments create threads for XLA computation.
-
-- `host_executor` threads coordinate parallel tasks across XLA operators.
-- `tf_XLAEigen` threads execute intra-XLA-operator parallel tasks.
-
-[**Figure 2** Inference request handling process](#inference-request-handling-process) shows the overall inference request handling process.
-
-**Figure 2** Inference request handling process<a name="fig1746025495015"></a><a id="inference-request-handling-process"></a>
-
-![inference-request-handling-process](figures/inference-request-handling-process.png "inference-request-handling-process")
-
-Client inference requests are parsed by `grpcpp_sync_ser` threads before triggering session-based inference execution. Parallel operator processing occurs through `tf_Compute or host_executor` threads, with `tf_numa_-1_Eige` or `tf_XLAEigen` threads handling intra-operator parallel computing.
-
-Kunpeng BoostKit improves the operator scheduling algorithm and uses batch operator scheduling. [**Figure 3** Inference process after optimization](#inference-process-after-optimization) shows the overall inference process.
-
-**Figure 3** Inference process after optimization<a name="fig1321324116542"></a><a id="inference-process-after-optimization"></a>
-
-![inference-process-after-optimization](figures/inference-process-after-optimization.png "inference-process-after-optimization")
-
-Client inference requests are parsed by `grpcpp_sync_ser` threads before triggering session-based inference, with operators running sequentially in `tf_Compute` threads (disabling intra-operator parallelism).
-
-This optimization reduces cross-session interference, enabling lower per-session inference latency, improved TF Serving concurrency, and additional gains from thread affinity isolation between communication and computing threads.
-
-The thread scheduling feature enables:
-
-- Batch operator scheduling (via `--batch_op_scheduling`) for enhanced throughput in high-concurrency scenarios
-- Optimized XLA thread pool management, enabled alongside batch operator scheduling, to schedule XLA operators onto the current thread, thereby reducing context switching overhead.
-- Configurable thread affinity isolation (via `--task_affinity_isolation`) for binding communication and computing threads to different CPU cores
-
-For details about function configuration, see <a href="./quick_start.md">Quick Start</a>.
-
 ## TensorFlow KDNN Thread Passthrough
 
 ### Introduction
@@ -285,6 +55,15 @@ This section describes the operators that support the KDNN thread passthrough fe
 <td class="cellrowborder" valign="top" headers="mcps1.2.9.1.3 "><p id="p1833785511316"><a name="p1833785511316"></a><a name="p1833785511316"></a><span>2D-5D</span></p>
 </td>
 <td class="cellrowborder" valign="top" headers="mcps1.2.9.1.4 "><p id="p26461358164910"><a name="p26461358164910"></a><a name="p26461358164910"></a>None</p>
+</td>
+</tr>
+<tr id="row1663113411277"><td class="cellrowborder" colspan="2" valign="top" headers="mcps1.2.9.1.1 "><p id="p1663113411277"><a name="p1663113411277"></a><a name="p1663113411277"></a>SparseMatmul</p>
+</td>
+<td class="cellrowborder" colspan="4" valign="top" headers="mcps1.2.9.1.2 "><p id="p563113411727"><a name="p563113411727"></a><a name="p563113411727"></a>fp32</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.3 "><p id="p126311341327"><a name="p126311341327"></a><a name="p126311341327"></a>2D</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.4 "><p id="p963193412714"><a name="p963193412714"></a><a name="p963193412714"></a>The output matrix must have at least 32 columns.</p>
 </td>
 </tr>
 <tr id="row171941117162015"><td class="cellrowborder" colspan="2" valign="top" headers="mcps1.2.9.1.1 "><p id="p5431181116145"><a name="p5431181116145"></a><a name="p5431181116145"></a>Einsum</p>
@@ -355,7 +134,7 @@ When thread passthrough is enabled, the framework thread pool is reused. KDNN su
 
 This section describes the basic concepts and implementation principles of the TensorFlow ANNC static graph fusion feature, and provides guidance for installing and using the feature in the openEuler 24.03 LTS SP3 based on the Kunpeng 950 processor.
 
-To enhance TensorFlow inference performance, Kunpeng BoostKit proposes the TensorFlow ANNC static graph fusion solution. Kunpeng BoostKit provides multiple custom operators. During graph compilation, the remapper mechanism replaces subgraphs that meet specific patterns with custom operators. Static graph fusion reduces intermediate memory overhead and optimizes memory access, delivering end-to-end performance improvements. Currently, the following operators are supported:
+To enhance TensorFlow inference performance, Kunpeng BoostKit proposes the TensorFlow ANNC static graph fusion solution. Kunpeng BoostKit provides multiple custom operators. During graph optimization, the remapper mechanism replaces subgraphs that meet specific patterns with custom operators. Static graph fusion reduces intermediate memory overhead and optimizes memory access, delivering end-to-end performance improvements. Currently, the following operators are supported:
 
 - KPFusedEmbeddingActionIdGather
 - KPFusedGather
@@ -369,7 +148,7 @@ To enhance TensorFlow inference performance, Kunpeng BoostKit proposes the Tenso
 
 The ANNC static graph fusion feature is integrated into TensorFlow 2.15 through a code patch.
 
-When the ANNC static graph fusion feature is enabled, if a subgraph in the computational graph matches specific structures and its inputs and outputs meet the constraints, the subgraph will be replaced with the corresponding custom operator during graph compilation.
+When the ANNC static graph fusion feature is enabled, if a subgraph in the computational graph matches specific structures and its inputs and outputs meet the constraints, the subgraph will be replaced with the corresponding custom operator during graph optimization.
 
 ### Software Architecture
 
@@ -568,7 +347,7 @@ This section describes the supported custom operators and their usage restrictio
 | Output 3| float |
 
 >![icon note](public_sys-resources/icon-note.gif) **NOTE:**
->When the embedding operator fusion is enabled, if a subgraph meets the required conditions, it will be replaced with the corresponding custom operator during graph compilation. Otherwise, the native TensorFlow APIs are used.
+>When the embedding operator fusion is enabled, if a subgraph meets the required conditions, it will be replaced with the corresponding custom operator during graph optimization. Otherwise, the native TensorFlow APIs are used.
 
 ### Application Scenarios
 
@@ -578,11 +357,251 @@ The TensorFlow ANNC static graph fusion feature is mainly applied in high-concur
 
 This section explains the ANNC static graph fusion optimization feature to help users make better use of it.
 
-When ANNC static graph fusion is enabled, eligible subgraphs are replaced with the corresponding custom operators during graph compilation. This reduces intermediate memory overhead and optimizes memory access, resulting in end-to-end performance improvements.
+When ANNC static graph fusion is enabled, eligible subgraphs are replaced with the corresponding custom operators during graph optimization. This reduces intermediate memory overhead and optimizes memory access, resulting in end-to-end performance improvements.
 
 **Figure 11** Operator fusion principle<a name="fig4919356474"></a>
 
 ![operator fusion principle](figures/operator-fusion-principle.png "operator-fusion-principle")
+
+## TensorFlow ANNC for Graph Compilation Optimization (Legacy)
+
+>![icon note](public_sys-resources/icon-note.gif) **NOTE:**
+>This feature is frozen in the standalone Legacy patch. It applies directly to
+>the official TensorFlow `v2.15.0` baseline, is not part of the maintained
+>default profiles, and is not guaranteed to work with other feature patches.
+
+### Introduction
+
+This section describes the basic concepts and implementation principles of the TensorFlow Accelerated Neural Network Compiler (ANNC) for graph compilation optimization.
+
+Kunpeng BoostKit provides this TensorFlow ANNC feature to enhance TensorFlow Serving (TF Serving) inference performance. ANNC is a compiler dedicated to accelerating neural network computing. It focuses on technologies including computational graph optimization, generation and integration of high-performance fused operators, and efficient code generation and optimization. These capabilities significantly improve inference performance in recommendation scenarios. As an extension kit based on open-source Open Accelerated Linear Algebra (OpenXLA), ANNC is released in the ANNC open-source repository of the openEuler community. It features Kunpeng-affinity optimization capabilities, and is integrated into the TensorFlow inference framework and Accelerated Linear Algebra (XLA) through compilation options and code patches. Based on TensorFlow Serving and TensorFlow 2.15, this feature introduces TensorFlow graph fusion, XLA graph fusion, operator optimization, and constant folding optimization.
+
+- TensorFlow graph fusion: fusion and rewriting of graphs at the TensorFlow model level.
+- XLA graph fusion: XLA graph fusion enhanced by ANNC.
+- Operator optimization: ANNC-driven operator optimization.
+- Constant folding optimization: ANNC constant folding optimization.
+
+>![icon note](public_sys-resources/icon-note.gif) **NOTE:**
+>OpenXLA is an open ecosystem consisting of high-performance, portable, and scalable machine learning infrastructure components.
+>XLA is an open-source compiler for machine learning. It optimizes models from the TensorFlow framework, to enable efficient execution across various hardware platforms including GPUs, CPUs, and machine learning accelerators.
+
+### Software Architecture
+
+[**Figure 1** TF Serving software architecture](#tf-serving-software-architecture) shows the TF Serving software architecture. [**Table 1** TF Serving software component functions](#tf-serving-software-component-functions) describes the functions of each component.
+
+**Figure 1** TF Serving software architecture<a name="fig2460131971612"></a><a id="tf-serving-software-architecture"></a>
+
+![tf-serving-software-architecture](figures/tf-serving-software-architecture.png "TF-Serving software architecture")
+
+**Table 1** TF Serving software component functions<a id="tf-serving-software-component-functions"></a>
+
+<a name="table17527817415"></a>
+<table><thead align="left"><tr id="row13527611645"><th class="cellrowborder" valign="top" width="20%" id="mcps1.2.3.1.1"><p id="p1452751848"><a name="p1452751848"></a><a name="p1452751848"></a>Component</p>
+</th>
+<th class="cellrowborder" valign="top" width="80%" id="mcps1.2.3.1.2"><p id="p3527312418"><a name="p3527312418"></a><a name="p3527312418"></a>Description</p>
+</th>
+</tr>
+</thead>
+<tbody><tr id="row9527411342"><td class="cellrowborder" valign="top" width="20%" headers="mcps1.2.3.1.1 "><p id="p652710118414"><a name="p652710118414"></a><a name="p652710118414"></a>TF Serving</p>
+</td>
+<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.2 "><p id="p12527316419"><a name="p12527316419"></a><a name="p12527316419"></a>Dedicated, high-performance inference server optimized for TensorFlow model deployment</p>
+</td>
+</tr>
+<tr id="row890710021716"><td class="cellrowborder" valign="top" width="20%" headers="mcps1.2.3.1.1 "><p id="p175272111416"><a name="p175272111416"></a><a name="p175272111416"></a>SavedModel</p>
+</td>
+<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.2 "><p id="p185271018417"><a name="p185271018417"></a><a name="p185271018417"></a>TensorFlow's standardized model format enabling seamless model import, inference, and retraining across diverse TensorFlow implementations</p>
+</td>
+</tr>
+<tr id="row552715117416"><td class="cellrowborder" valign="top" width="20%" headers="mcps1.2.3.1.1 "><p id="p060405316012"><a name="p060405316012"></a><a name="p060405316012"></a>Graph Fusion</p>
+</td>
+<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.2 "><p id="p1860416535018"><a name="p1860416535018"></a><a name="p1860416535018"></a>ANNC graph fusion component</p>
+</td>
+</tr>
+<tr id="row1552751643"><td class="cellrowborder" valign="top" width="20%" headers="mcps1.2.3.1.1 "><p id="p652710113419"><a name="p652710113419"></a><a name="p652710113419"></a>TensorFlow</p>
+</td>
+<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.2 "><p id="p3527201147"><a name="p3527201147"></a><a name="p3527201147"></a>Open-source machine learning framework specializing in deep learning model training and inference</p>
+</td>
+</tr>
+<tr id="row1145126151312"><td class="cellrowborder" valign="top" width="20%" headers="mcps1.2.3.1.1 "><p id="p134819201318"><a name="p134819201318"></a><a name="p134819201318"></a>ANNC</p>
+</td>
+<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.2 "><p id="p183481199139"><a name="p183481199139"></a><a name="p183481199139"></a>AI compiler optimized for machine learning models, which can compile models into high-performance executable code</p>
+</td>
+</tr>
+<tr id="row53481395136"><td class="cellrowborder" valign="top" width="20%" headers="mcps1.2.3.1.1 "><p id="p117197117117"><a name="p117197117117"></a><a name="p117197117117"></a>XLA Extension</p>
+</td>
+<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.2 "><p id="p3719131119116"><a name="p3719131119116"></a><a name="p3719131119116"></a>ANNC XLA extension</p>
+</td>
+</tr>
+<tr id="row512919311905"><td class="cellrowborder" valign="top" width="20%" headers="mcps1.2.3.1.1 "><p id="p134526191311"><a name="p134526191311"></a><a name="p134526191311"></a>XLA</p>
+</td>
+<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.2 "><p id="p204518611318"><a name="p204518611318"></a><a name="p204518611318"></a><span>Open-source compiler for machine learning</span></p>
+</td>
+</tr>
+<tr id="row116041953806"><td class="cellrowborder" valign="top" width="20%" headers="mcps1.2.3.1.1 "><p id="p161299311305"><a name="p161299311305"></a><a name="p161299311305"></a>Kernels</p>
+</td>
+<td class="cellrowborder" valign="top" width="80%" headers="mcps1.2.3.1.2 "><p id="p2129143115012"><a name="p2129143115012"></a><a name="p2129143115012"></a>TensorFlow operator implementation</p>
+</td>
+</tr>
+</tbody>
+</table>
+
+### Application Scenarios
+
+The TensorFlow Serving ANNC feature is mainly used in recommendation systems and advertising delivery. It can greatly improve inference performance for coarse-ranking models in high-concurrency scenarios, boosting throughput while significantly reducing latency.
+
+### Principles
+
+This section describes the TensorFlow/XLA optimization features.
+
+**TensorFlow Graph Fusion**
+
+Some subgraphs in TensorFlow models contain redundant computations. By identifying specific graph patterns, you can fuse multiple operators in the subgraphs into one fused operator. This avoids extra work, optimizes memory access, and improves model inference performance. For details, see [**Figure 1** TensorFlow graph fusion](#tensorflow-graph-fusion). This function enables graph fusion and rewriting at the TensorFlow model level on the frontend, and supports manual creation of custom fused operators on the backend.
+
+**Figure 1** TensorFlow graph fusion<a name="fig836316691915"></a><a id="tensorflow-graph-fusion"></a>
+
+![tensorflow-graph-fusion](figures/tensorflow-graph-fusion.png "TensorFlow graph fusion diagram")
+
+**XLA Graph Fusion**
+
+XLA provides multiple hardware-agnostic graph fusion optimization policies. However, the resulting cluster (including the fused parts) may still contain redundant computations. For example, sub-expressions are repeated or can be merged across different fusion operations. For details, see [**Figure 2** XLA graph fusion](#xla-graph-fusion). This function aims to identify redundant computations after fusion, such as the F1 operations. Redundant computations can be eliminated using pre-fusion policies, such as the fusion of F4, F5, and F6 operations, to further improve the model inference efficiency.
+
+**Figure 2** XLA graph fusion<a name="fig5154159193015"></a><a id="xla-graph-fusion"></a>
+
+![xla-graph-fusion](figures/xla-graph-fusion.png "XLA graph fusion diagram")
+
+**Operator Optimization**
+
+This feature performs operator optimization across stages, including offloading the Matrix Multiplication (MatMul) operator to XLA, calling the General Matrix Multiplication (GEMM) operation interface provided by Open Basic Linear Algebra Subprograms (OpenBLAS), and replacing the Softmax function with a more efficient implementation. In addition, it identifies specific operation patterns to eliminate redundant computations and further improve the model inference performance. For example, in scenarios where multiple slices are concatenated, redundant slicing operations are removed.
+
+**Constant Folding Optimization**
+
+This function focuses on optimizing the packing overhead of constant operands in matrix multiplication operators. It applies to OpenBLAS call scenarios involving a matrix multiplication operator `C = A × B`, where at least one operand (such as weight `B` in an inference model) is a constant. The value and shape of such operands are known at compile time and remain unchanged at runtime. When this optimization is disabled, the ANNC compiler must pack and rearrange constant operands to meet hardware memory access alignment and cache locality requirements, as shown in [**Figure 3** Data packing](#data-packing). Since the valid layout of constant operands can be uniquely determined by the compiler, the packing operation in this scenario can be shifted forward to the compile phase. Once this optimization is enabled, an offline packing tool used during compilation and a dedicated rearrangement-free backend (kpgemm) can completely eliminate redundant runtime overhead, as shown in [**Figure 4** Constant folding workflow](#constant-folding-workflow).
+
+**Figure 3** Data packing<a name="fig836316691916"></a><a id="data-packing"></a>
+
+![data packing](figures/data-packing.png "data-packing")
+
+**Figure 4** Constant folding workflow<a name="fig836316691917"></a><a id="constant-folding-workflow"></a>
+
+![constant folding workflow](figures/constant-folding-workflow.png)
+
+For details about function configuration, see <a href="./quick_start.md">Quick Start</a>.
+
+## TensorFlow Serving Thread Scheduling (Legacy)
+
+>![icon note](public_sys-resources/icon-note.gif) **NOTE:**
+>This feature is frozen in the standalone Legacy patch. It applies directly to
+>the official TensorFlow `v2.15.0` baseline, is not part of the maintained
+>default profiles, and is not guaranteed to work with other feature patches.
+
+### Introduction
+
+This section describes the basic concepts and implementation principles of the thread scheduling optimization feature for TensorFlow Serving.
+
+Kunpeng BoostKit developed a thread scheduling optimization solution to enhance TF Serving inference performance. TensorFlow employs inter-operator thread pools to parallelize independent operators, this approach can lead to task contention in high-concurrency scenarios when multiple sessions share the same thread pool, substantially degrading computational efficiency for entire graphs. Kunpeng BoostKit's solution addresses this limitation through refined operator scheduling algorithms and advanced thread management optimizations, delivering significant throughput improvements for concurrent model inference.
+
+Implemented as patches integrated into openEuler's `sra_tensorflow_adapter` repository, these optimizations introduce two new configuration parameters for TF Serving/TensorFlow 2.15:
+
+- Batch operator scheduling (`--batch_op_scheduling`): Enables the operator scheduling optimization and XLA thread pool management optimization features. When single-core inference latency meets requirements, this option can be used to enhance concurrent processing capability and overall throughput.
+- Thread affinity isolation (`--task_affinity_isolation`): Provides the following isolation methods: When the TensorFlow scheduling mode is used, sequential core binding is recommended. When this option is enabled together with the `--batch_op_scheduling` option, and hyper-threading is enabled, interleaved core binding is recommended.
+
+  - Sequential core binding allocates TensorFlow computing threads to the first K cores and TF Serving communication threads to remaining cores.
+  - Interleaved core binding (applicable when hyper-threading is enabled) assigns TensorFlow threads to physical cores and TF Serving communication threads to virtual cores.
+
+>![icon note](public_sys-resources/icon-note.gif) **NOTE:**
+>XLA serves as TensorFlow's optimizing compiler, specifically designed to enhance the execution speed of linear algebra operations. By transforming TensorFlow computational graphs into highly efficient, hardware-specific instructions, XLA delivers significant performance improvements.
+
+### Software Architecture
+
+[**Figure 1** TF Serving software architecture](#tf-serving-software-architecture-1) shows the TF Serving software architecture. [**Table 1** TF Serving component functions](#tf-serving-component-functions) describes the functions of each component.
+
+**Figure 1** TF Serving software architecture<a name="fig9660112419318"></a><a id="tf-serving-software-architecture-1"></a>
+
+![tf serving software architecture 0](figures/tf-serving-software-architecture-0.png "TF-Serving software architecture-0")
+
+**Table 1** TF Serving component functions<a id="tf-serving-component-functions"></a>
+
+<a name="table17527817415"></a>
+<table><thead align="left"><tr id="row13527611645"><th class="cellrowborder" valign="top" width="23.02%" id="mcps1.2.3.1.1"><p id="p1452751848"><a name="p1452751848"></a><a name="p1452751848"></a>Component</p>
+</th>
+<th class="cellrowborder" valign="top" width="76.98%" id="mcps1.2.3.1.2"><p id="p3527312418"><a name="p3527312418"></a><a name="p3527312418"></a>Description</p>
+</th>
+</tr>
+</thead>
+<tbody><tr id="row9527411342"><td class="cellrowborder" valign="top" width="23.02%" headers="mcps1.2.3.1.1 "><p id="p652710118414"><a name="p652710118414"></a><a name="p652710118414"></a>TF Serving</p>
+</td>
+<td class="cellrowborder" valign="top" width="76.98%" headers="mcps1.2.3.1.2 "><p id="p12527316419"><a name="p12527316419"></a><a name="p12527316419"></a>Dedicated, high-performance inference server optimized for TensorFlow model deployment</p>
+</td>
+</tr>
+<tr id="row552715117416"><td class="cellrowborder" valign="top" width="23.02%" headers="mcps1.2.3.1.1 "><p id="p652710113419"><a name="p652710113419"></a><a name="p652710113419"></a>TensorFlow</p>
+</td>
+<td class="cellrowborder" valign="top" width="76.98%" headers="mcps1.2.3.1.2 "><p id="p3527201147"><a name="p3527201147"></a><a name="p3527201147"></a>Open-source machine learning framework specializing in deep learning model training and inference</p>
+</td>
+</tr>
+<tr id="row1552751643"><td class="cellrowborder" valign="top" width="23.02%" headers="mcps1.2.3.1.1 "><p id="p175272111416"><a name="p175272111416"></a><a name="p175272111416"></a>SavedModel</p>
+</td>
+<td class="cellrowborder" valign="top" width="76.98%" headers="mcps1.2.3.1.2 "><p id="p185271018417"><a name="p185271018417"></a><a name="p185271018417"></a>TensorFlow's standardized model format enabling seamless model import, inference, and retraining across diverse TensorFlow implementations</p>
+</td>
+</tr>
+</tbody>
+</table>
+
+### Application Scenarios
+
+The TF Serving thread scheduling optimization feature delivers adaptable solutions for diverse inference workloads:
+
+- Dramatically improves performance in high-concurrency coarse ranking model scenarios, boosting throughput while significantly reducing latency
+- Effectively optimizes latency-sensitive, low-concurrency scenarios through proper thread management parameter configuration.
+
+### Principles
+
+This section details TF Serving's thread pool architecture for inference, clarifying the principles of the feature to guide optimal configuration decisions.
+
+**Figure 1** TF Serving thread pool overview<a name="fig158087456394"></a><a id="tf-serving-thread-pool-overview"></a>
+
+![tf-serving-thread-pool-overview](figures/tf-serving-thread-pool-overview.png "TF Serving thread pool overview")
+
+The inference threads in TF Serving fall into two functional categories: communication threads and computing threads.
+
+Communication threads:
+
+- `grpcpp_sync_ser` threads manage client inference requests (including parsing, inference triggering, and response delivery).
+
+Computing threads:
+
+- `tf_Compute` threads coordinate parallel tasks across operators.
+- `tf_numa_-1_Eige` threads execute intra-operator parallel tasks.
+
+XLA-enabled deployments create threads for XLA computation.
+
+- `host_executor` threads coordinate parallel tasks across XLA operators.
+- `tf_XLAEigen` threads execute intra-XLA-operator parallel tasks.
+
+[**Figure 2** Inference request handling process](#inference-request-handling-process) shows the overall inference request handling process.
+
+**Figure 2** Inference request handling process<a name="fig1746025495015"></a><a id="inference-request-handling-process"></a>
+
+![inference-request-handling-process](figures/inference-request-handling-process.png "inference-request-handling-process")
+
+Client inference requests are parsed by `grpcpp_sync_ser` threads before triggering session-based inference execution. Parallel operator processing occurs through `tf_Compute or host_executor` threads, with `tf_numa_-1_Eige` or `tf_XLAEigen` threads handling intra-operator parallel computing.
+
+Kunpeng BoostKit improves the operator scheduling algorithm and uses batch operator scheduling. [**Figure 3** Inference process after optimization](#inference-process-after-optimization) shows the overall inference process.
+
+**Figure 3** Inference process after optimization<a name="fig1321324116542"></a><a id="inference-process-after-optimization"></a>
+
+![inference-process-after-optimization](figures/inference-process-after-optimization.png "inference-process-after-optimization")
+
+Client inference requests are parsed by `grpcpp_sync_ser` threads before triggering session-based inference, with operators running sequentially in `tf_Compute` threads (disabling intra-operator parallelism).
+
+This optimization reduces cross-session interference, enabling lower per-session inference latency, improved TF Serving concurrency, and additional gains from thread affinity isolation between communication and computing threads.
+
+The thread scheduling feature enables:
+
+- Batch operator scheduling (via `--batch_op_scheduling`) for enhanced throughput in high-concurrency scenarios
+- Optimized XLA thread pool management, enabled alongside batch operator scheduling, to schedule XLA operators onto the current thread, thereby reducing context switching overhead.
+- Configurable thread affinity isolation (via `--task_affinity_isolation`) for binding communication and computing threads to different CPU cores
+
+For details about function configuration, see <a href="./quick_start.md">Quick Start</a>.
 
 ## Description
 
