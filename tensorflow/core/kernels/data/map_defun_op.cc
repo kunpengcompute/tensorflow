@@ -14,12 +14,12 @@ limitations under the License.
 ==============================================================================*/
 #include "tensorflow/core/kernels/data/map_defun_op.h"
 
+#include "tensorflow/core/data/dataset_utils.h"
 #include "tensorflow/core/framework/function.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/framework/tensor_shape.h"
 #include "tensorflow/core/framework/tensor_util.h"
-#include "tensorflow/core/kernels/data/dataset_utils.h"
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/lib/core/threadpool.h"
 #include "tensorflow/core/platform/mutex.h"
@@ -47,7 +47,7 @@ struct MapDefunOp::ComputeOptions {
   OpInputList args;
   const std::vector<TensorShape> arg_shapes;
   OpInputList captured_inputs;
-  const int64 batch_size;
+  const int64_t batch_size;
   std::function<void(std::function<void()>)> runner;
 
   // Output of a compute call
@@ -59,7 +59,7 @@ struct MapDefunOp::ComputeOptions {
   // different output shape.
   ComputeOptions(OpKernelContext* ctx, OpInputList args,
                  OpInputList captured_inputs,
-                 std::vector<TensorShape> arg_shapes, int64 batch_size,
+                 std::vector<TensorShape> arg_shapes, int64_t batch_size,
                  const std::vector<PartialTensorShape>& output_shapes_attr,
                  int max_parallelism)
       : args(args),
@@ -77,17 +77,22 @@ class MapDefunOp::MapFunctionCallFrame : public CallFrameInterface {
  public:
   MapFunctionCallFrame(ComputeOptions* compute_opts, OpKernel* kernel,
                        size_t iter)
-      : compute_opts_(compute_opts), kernel_(kernel), iter_(iter) {}
+      : compute_opts_(compute_opts),
+        kernel_(kernel),
+        iter_(iter),
+        sliced_args_(compute_opts_->args.size()) {}
 
   ~MapFunctionCallFrame() override = default;
 
-  size_t num_args() const override { return compute_opts_->args.size(); }
+  size_t num_args() const override {
+    return compute_opts_->args.size() + compute_opts_->captured_inputs.size();
+  }
 
   size_t num_retvals() const override {
     return static_cast<size_t>(kernel_->num_outputs());
   }
 
-  Status GetArg(int index, Tensor* val) const override {
+  absl::Status GetArg(int index, const Tensor** val) override {
     if (index < 0 || index >= compute_opts_->args.size() +
                                   compute_opts_->captured_inputs.size()) {
       return errors::InvalidArgument("Mismatch in number of function inputs.");
@@ -95,23 +100,28 @@ class MapDefunOp::MapFunctionCallFrame : public CallFrameInterface {
 
     if (index >= compute_opts_->args.size()) {
       // The function is calling for a captured input
-      *val = compute_opts_->captured_inputs[index - compute_opts_->args.size()];
-      return Status::OK();
+      *val =
+          &compute_opts_->captured_inputs[index - compute_opts_->args.size()];
+      return absl::OkStatus();
     }
 
-    bool result =
-        val->CopyFrom(compute_opts_->args[index].Slice(iter_, iter_ + 1),
-                      compute_opts_->arg_shapes.at(index));
+    // NOTE: If contention on mu_ becomes problematic, we could create a vector
+    // of mutexes, each guarding a different element of sliced_args_.
+    mutex_lock l(mu_);
+    bool result = sliced_args_[index].CopyFrom(
+        compute_opts_->args[index].Slice(iter_, iter_ + 1),
+        compute_opts_->arg_shapes.at(index));
     if (!result) {
       return errors::Internal("GetArg failed.");
-    } else if (!val->IsAligned()) {
+    } else if (!sliced_args_[index].IsAligned()) {
       // Ensure alignment
-      *val = tensor::DeepCopy(*val);
+      sliced_args_[index] = tensor::DeepCopy(sliced_args_[index]);
     }
-    return Status::OK();
+    *val = &sliced_args_[index];
+    return absl::OkStatus();
   }
 
-  Status SetRetval(int index, const Tensor& val) override {
+  absl::Status SetRetval(int index, const Tensor& val) override {
     if (index < 0 || index >= kernel_->num_outputs()) {
       return errors::InvalidArgument("Mismatch in number of function outputs.");
     }
@@ -152,6 +162,8 @@ class MapDefunOp::MapFunctionCallFrame : public CallFrameInterface {
   ComputeOptions* const compute_opts_;  // Not owned
   const OpKernel* kernel_;
   const size_t iter_;
+  mutex mu_;
+  std::vector<Tensor> sliced_args_ TF_GUARDED_BY(mu_);
 };
 
 MapDefunOp::MapDefunOp(OpKernelConstruction* ctx) : AsyncOpKernel(ctx) {
@@ -181,7 +193,7 @@ void MapDefunOp::ComputeAsync(OpKernelContext* ctx, DoneCallback done) {
 
   OP_REQUIRES_OK_ASYNC(ctx, SetupArgs(ctx, &compute_opts), done);
 
-  Status s = SetupOutputs(ctx, compute_opts);
+  absl::Status s = SetupOutputs(ctx, compute_opts);
   if (!s.ok()) delete compute_opts;
   OP_REQUIRES_OK_ASYNC(ctx, s, done);
 
@@ -191,7 +203,7 @@ void MapDefunOp::ComputeAsync(OpKernelContext* ctx, DoneCallback done) {
   // Run loop
   StatusCallback callback = std::bind(
       [](OpKernelContext* ctx, ComputeOptions* compute_opts, DoneCallback& done,
-         const Status& status) {
+         const absl::Status& status) {
         delete compute_opts;
         ctx->SetStatus(status);
         done();
@@ -214,7 +226,7 @@ void MapDefunOp::ComputeAsync(OpKernelContext* ctx, DoneCallback done) {
     refcounted->Ref();
     ctx->function_library()->Run(
         opts, func_handle_, call_frame,
-        [call_frame, refcounted, c_mgr](const Status& func_status) {
+        [call_frame, refcounted, c_mgr](const absl::Status& func_status) {
           delete c_mgr;
           delete call_frame;
           refcounted->UpdateStatus(func_status);
@@ -239,16 +251,17 @@ void MapDefunOp::SetRunOptions(OpKernelContext* ctx,
   } else {
     opts->runner = ctx->runner();
   }
+  opts->run_all_kernels_inline = ctx->run_all_kernels_inline();
 }
 
-Status MapDefunOp::SetupArgs(OpKernelContext* ctx,
-                             ComputeOptions** compute_opts) {
+absl::Status MapDefunOp::SetupArgs(OpKernelContext* ctx,
+                                   ComputeOptions** compute_opts) {
   OpInputList arguments;
   TF_RETURN_IF_ERROR(ctx->input_list(kArguments, &arguments));
   OpInputList captured_inputs;
   TF_RETURN_IF_ERROR(ctx->input_list(kCapturedInputs, &captured_inputs));
 
-  int64 batch_size = arguments[0].dims() > 0 ? arguments[0].dim_size(0) : -1;
+  int64_t batch_size = arguments[0].dims() > 0 ? arguments[0].dim_size(0) : -1;
 
   for (size_t i = 0; i < arguments.size(); ++i) {
     if (arguments[i].dims() == 0) {
@@ -274,10 +287,11 @@ Status MapDefunOp::SetupArgs(OpKernelContext* ctx,
   *compute_opts =
       new ComputeOptions(ctx, arguments, captured_inputs, std::move(arg_shapes),
                          batch_size, output_shapes_, max_intra_op_parallelism_);
-  return Status::OK();
+  return absl::OkStatus();
 }
 
-Status MapDefunOp::SetupOutputs(OpKernelContext* ctx, ComputeOptions* opts) {
+absl::Status MapDefunOp::SetupOutputs(OpKernelContext* ctx,
+                                      ComputeOptions* opts) {
   mutex_lock l(opts->mu);
   TF_RETURN_IF_ERROR(ctx->output_list(kOutput, &opts->output));
 
@@ -290,7 +304,7 @@ Status MapDefunOp::SetupOutputs(OpKernelContext* ctx, ComputeOptions* opts) {
       TF_RETURN_IF_ERROR(opts->output.allocate(i, output_shape, &out));
     }
   }
-  return Status::OK();
+  return absl::OkStatus();
 }
 
 namespace {

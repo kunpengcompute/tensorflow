@@ -17,14 +17,16 @@ limitations under the License.
 
 #define EIGEN_USE_THREADS
 
+#include <limits>
+
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/type_traits.h"
 #include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/kernels/meta_support.h"
 #include "tensorflow/core/kernels/quantization_utils.h"
-#include "tensorflow/core/lib/bfloat16/bfloat16.h"
 #include "tensorflow/core/lib/core/errors.h"
+#include "tensorflow/core/platform/bfloat16.h"
 
 namespace {
 enum {
@@ -61,7 +63,9 @@ class DequantizeOp : public OpKernel {
                                 " is '" +
                                 DataTypeString(ctx->output_type(0)) + "'"));
 
+    need_cast_ = true;
     if (ctx->output_type(0) == DT_FLOAT) {
+      need_cast_ = false;
       OP_REQUIRES(ctx,
                   (mode_string == "MIN_COMBINED" ||
                    mode_string == "MIN_FIRST" || mode_string == "SCALED"),
@@ -92,14 +96,32 @@ class DequantizeOp : public OpKernel {
     const Tensor& input_min_tensor = ctx->input(1);
     const Tensor& input_max_tensor = ctx->input(2);
 
+    OP_REQUIRES(
+        ctx, axis_ < input.dims(),
+        errors::InvalidArgument("Axis must be less than input dimension(",
+                                input.dims(), "), got ", axis_));
+
     int num_slices = 1;
     if (axis_ > -1) {
       num_slices = input.dim_size(axis_);
     }
+    OP_REQUIRES(ctx, input_min_tensor.NumElements() == num_slices,
+                errors::InvalidArgument(
+                    "input_min_tensor must have as many elements as input on "
+                    "the dequantization axis (",
+                    axis_, "), got ", input_min_tensor.NumElements(),
+                    ", expected ", num_slices));
+    OP_REQUIRES(ctx, input_max_tensor.NumElements() == num_slices,
+                errors::InvalidArgument(
+                    "input_max_tensor must have as many elements as input on "
+                    "the dequantization axis (",
+                    axis_, "), got ", input_max_tensor.NumElements(),
+                    ", expected ", num_slices));
 
     Tensor* output = nullptr;
-    Tensor float_output = tensorflow::Tensor(DT_FLOAT, input.shape());
     OP_REQUIRES_OK(ctx, ctx->allocate_output(0, input.shape(), &output));
+    Tensor float_output =
+        need_cast_ ? tensorflow::Tensor(DT_FLOAT, input.shape()) : *output;
     if (num_slices == 1) {
       const float min_range = input_min_tensor.flat<float>()(0);
       const float max_range = input_max_tensor.flat<float>()(0);
@@ -109,7 +131,7 @@ class DequantizeOp : public OpKernel {
                   errors::Unimplemented("MIN_FIRST mode is not implemented for "
                                         "Dequantize with axis != -1."));
 
-      int64 pre_dim = 1, post_dim = 1;
+      int64_t pre_dim = 1, post_dim = 1;
       for (int i = 0; i < axis_; ++i) {
         pre_dim *= float_output.dim_size(i);
       }
@@ -128,10 +150,12 @@ class DequantizeOp : public OpKernel {
                         max_ranges(i), output_tensor.template chip<1>(i));
       }
     }
-    S* out_ptr = output->flat<S>().data();
-    float* in_ptr = float_output.flat<float>().data();
-    for (int64 i = 0; i < float_output.NumElements(); ++i) {
-      out_ptr[i] = static_cast<S>(in_ptr[i]);
+    if (need_cast_) {
+      S* out_ptr = output->flat<S>().data();
+      float* in_ptr = float_output.flat<float>().data();
+      for (int64_t i = 0; i < float_output.NumElements(); ++i) {
+        out_ptr[i] = static_cast<S>(in_ptr[i]);
+      }
     }
   }
 
@@ -139,7 +163,7 @@ class DequantizeOp : public OpKernel {
                         const float min_range, const float max_range,
                         Tensor* output) {
     const float half_range =
-        !std::is_signed<T>::value
+        !std::numeric_limits<T>::is_signed
             ? 0.0f
             : (static_cast<float>(std::numeric_limits<T>::max()) -
                std::numeric_limits<T>::min() + 1) /
@@ -188,7 +212,7 @@ class DequantizeOp : public OpKernel {
     // TODO(pauldonnelly): Factor out the similar calculations in quantize,
     //   dequantize and quantize_and_dequantize ops.
     const float half_range =
-        !std::is_signed<T>::value
+        !std::numeric_limits<T>::is_signed
             ? 0.0f
             : (static_cast<float>(std::numeric_limits<T>::max()) -
                std::numeric_limits<T>::min() + 1) /
@@ -219,6 +243,7 @@ class DequantizeOp : public OpKernel {
   int mode_;
   int axis_;
   bool narrow_range_;
+  bool need_cast_;
 };
 
 REGISTER_KERNEL_BUILDER(Name("Dequantize")

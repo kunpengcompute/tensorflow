@@ -1,8 +1,12 @@
+load("//tensorflow:tensorflow.default.bzl", "get_compatible_with_portable")
+load("//tensorflow/lite:special_rules.bzl", "if_nnapi")
+
 package(
+    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     default_visibility = [
         "//visibility:public",
     ],
-    licenses = ["notice"],  # Apache 2.0
+    licenses = ["notice"],
 )
 
 cc_library(
@@ -11,64 +15,55 @@ cc_library(
         "NeuralNetworksShim.h",
         "NeuralNetworksTypes.h",
     ],
-    linkopts = select({
-        "//tensorflow:emscripten": [],
-        "//tensorflow:ios": [],
-        "//tensorflow:macos": [],
-        "//tensorflow:windows": [],
-        "//conditions:default": ["-ldl"],
-    }),
+    compatible_with = get_compatible_with_portable(),
+    linkopts = if_nnapi(["-ldl"]),
 )
 
 cc_library(
-    name = "nnapi_implementation",
-    srcs = select({
-        "//tensorflow:emscripten": [
-            "nnapi_implementation_disabled.cc",
-        ],
-        "//tensorflow:ios": [
-            "nnapi_implementation_disabled.cc",
-        ],
-        "//tensorflow:macos": [
-            "nnapi_implementation_disabled.cc",
-        ],
-        "//tensorflow:windows": [
-            "nnapi_implementation_disabled.cc",
-        ],
-        "//conditions:default": [
-            "nnapi_implementation.cc",
-        ],
-    }),
-    hdrs = [
-        "nnapi_implementation.h",
-    ],
-    linkopts = select({
-        "//tensorflow:emscripten": [],
-        "//tensorflow:ios": [],
-        "//tensorflow:macos": [],
-        "//tensorflow:windows": [],
-        "//conditions:default": ["-ldl"],
-    }) + select({
-        "//tensorflow:android": [],
-        "//tensorflow:emscripten": [],
-        "//tensorflow:ios": [],
-        "//tensorflow:macos": [],
-        "//tensorflow:windows": [],
-        "//conditions:default": ["-lrt"],
-    }),
+    name = "nnapi_implementation_headers",
+    hdrs = ["nnapi_implementation.h"],
+    compatible_with = get_compatible_with_portable(),
     deps = [
         ":nnapi_lib",
     ],
 )
 
 cc_library(
+    name = "nnapi_implementation",
+    srcs = if_nnapi(
+        not_supported = ["nnapi_implementation_disabled.cc"],
+        supported = ["nnapi_implementation.cc"],
+    ),
+    hdrs = ["nnapi_implementation.h"],
+    compatible_with = get_compatible_with_portable(),
+    linkopts = if_nnapi(["-ldl"]) + if_nnapi(
+        supported = ["-lrt"],
+        supported_android = [],
+    ),
+    deps = [
+        ":nnapi_lib",
+    ] + if_nnapi(["//tensorflow/lite/nnapi/sl:nnapi_support_library_headers"]),
+)
+
+# This target exists only to verify that nnapi_implementation_disabled.cc compiles.
+cc_library(
+    name = "nnapi_implementation_disabled",
+    testonly = 1,
+    srcs = ["nnapi_implementation_disabled.cc"],
+    hdrs = ["nnapi_implementation.h"],
+    compatible_with = get_compatible_with_portable(),
+    deps = [":nnapi_lib"],
+)
+
+cc_library(
     name = "nnapi_util",
     srcs = ["nnapi_util.cc"],
     hdrs = ["nnapi_util.h"],
+    compatible_with = get_compatible_with_portable(),
     deps = [
-        ":nnapi_implementation",
+        ":nnapi_implementation_headers",
         "//tensorflow/lite:util",
-        "//tensorflow/lite/c:common",
+        "//tensorflow/lite/core/c:common",
     ],
 )
 
@@ -84,21 +79,14 @@ cc_test(
 # Cannot inject NNAPI instance on ios and windows
 cc_library(
     name = "nnapi_handler",
-    srcs = select({
-        "//tensorflow:ios": [],
-        "//tensorflow:windows": [],
-        "//conditions:default": ["nnapi_handler.cc"],
-    }),
-    hdrs = select({
-        "//tensorflow:ios": [],
-        "//tensorflow:windows": [],
-        "//conditions:default": ["nnapi_handler.h"],
-    }),
+    srcs = if_nnapi(["nnapi_handler.cc"]),
+    hdrs = if_nnapi(["nnapi_handler.h"]),
     deps = [
         ":nnapi_implementation",
         ":nnapi_lib",
         "//tensorflow/core/platform:logging",
         "//tensorflow/lite:framework",
+        "@com_google_absl//absl/log:check",
     ],
 )
 

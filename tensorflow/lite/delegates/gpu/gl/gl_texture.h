@@ -16,6 +16,10 @@ limitations under the License.
 #ifndef TENSORFLOW_LITE_DELEGATES_GPU_GL_GL_TEXTURE_H_
 #define TENSORFLOW_LITE_DELEGATES_GPU_GL_GL_TEXTURE_H_
 
+#include <cstddef>
+#include <cstdint>
+#include <utility>
+
 #include "absl/types/span.h"
 #include "tensorflow/lite/delegates/gpu/common/data_type.h"
 #include "tensorflow/lite/delegates/gpu/common/status.h"
@@ -57,16 +61,16 @@ class GlTexture {
   ~GlTexture();
 
   // Binds a texture as an image to the given index.
-  Status BindAsReadonlyImage(uint32_t index) const;
+  absl::Status BindAsReadonlyImage(uint32_t index) const;
 
   // Bind texture as an image for write access at given index.
-  Status BindAsWriteonlyImage(uint32_t index) const;
+  absl::Status BindAsWriteonlyImage(uint32_t index) const;
 
   // Bind texture as an image for read-write access at given index.
-  Status BindAsReadWriteImage(uint32_t index) const;
+  absl::Status BindAsReadWriteImage(uint32_t index) const;
 
   // Binds a texture as a sampler to the given index.
-  Status BindAsSampler2D(uint32_t index) const;
+  absl::Status BindAsSampler2D(uint32_t index) const;
 
   GLenum target() const { return target_; }
 
@@ -87,7 +91,7 @@ class GlTexture {
  private:
   void Invalidate();
 
-  Status BindImage(uint32_t index, GLenum access) const;
+  absl::Status BindImage(uint32_t index, GLenum access) const;
 
   GLuint id_;
   GLenum target_;
@@ -101,59 +105,55 @@ class GlTexture {
 // will be used for reading.
 //
 // @param size defines 2D image texture size where each pixel is RGBA.
-Status CreateReadOnlyImageTexture(const uint2& size,
-                                  absl::Span<const float> data,
-                                  GlTexture* gl_texture);
+absl::Status CreateReadOnlyImageTexture(const uint2& size,
+                                        absl::Span<const float> data,
+                                        GlTexture* gl_texture);
 
 // Creates new 2D image texture that will be filled with float16 data once which
 // will be used for reading.
 //
 // @param size defines 2D image texture size where each pixel is RGBA.
-Status CreateReadOnlyImageTextureF16(const uint2& size,
-                                     absl::Span<const uint16_t> data,
-                                     GlTexture* gl_texture);
+absl::Status CreateReadOnlyImageTextureF16(const uint2& size,
+                                           absl::Span<const uint16_t> data,
+                                           GlTexture* gl_texture);
 
 // Creates new 2D image texture that will be filled with uint8 data once which
 // will be used for reading.
 //
 // @param size defines 2D image texture size where each pixel is RGBA.
-Status CreateReadOnlyImageTextureU8(const uint2& size,
-                                    absl::Span<const uint8_t> data,
-                                    GlTexture* gl_texture);
+absl::Status CreateReadOnlyImageTextureU8(const uint2& size,
+                                          absl::Span<const uint8_t> data,
+                                          GlTexture* gl_texture);
 
 // Creates new 3D RGBA image texture that will be filled with float32 data once
 // which will be used for reading.
 //
 // @param size defines 3D image texture size where each pixel is RGBA.
-Status CreateReadOnlyImageTexture(const uint3& size,
-                                  absl::Span<const float> data,
-                                  GlTexture* gl_texture);
+absl::Status CreateReadOnlyImageTexture(const uint3& size,
+                                        absl::Span<const float> data,
+                                        GlTexture* gl_texture);
 
 // Creates new 3D RGBA image texture that will be filled with float16 data once
 // which will be used for reading.
 //
 // @param size defines 3D image texture size where each pixel is RGBA.
-Status CreateReadOnlyImageTextureF16(const uint3& size,
-                                     absl::Span<const uint16_t> data,
-                                     GlTexture* gl_texture);
+absl::Status CreateReadOnlyImageTextureF16(const uint3& size,
+                                           absl::Span<const uint16_t> data,
+                                           GlTexture* gl_texture);
 
 // Creates new RGBA 2D image texture
 //
 // @param size defines 2D image texture size where each pixel is RGBA.
-Status CreateReadWriteRgbaImageTexture(DataType data_type, const uint2& size,
-                                       GlTexture* gl_texture);
+absl::Status CreateReadWriteRgbaImageTexture(DataType data_type,
+                                             const uint2& size,
+                                             GlTexture* gl_texture);
 
 // Creates new RGBA 3D image texture
 //
 // @param size defines 3D image texture size where each pixel is RGBA.
-Status CreateReadWriteRgbaImageTexture(DataType data_type, const uint3& size,
-                                       GlTexture* gl_texture);
-
-GLenum ToTextureFormat(DataType type);
-
-GLenum ToTextureInternalFormat(DataType type);
-
-GLenum ToTextureDataType(DataType type);
+absl::Status CreateReadWriteRgbaImageTexture(DataType data_type,
+                                             const uint3& size,
+                                             GlTexture* gl_texture);
 
 namespace gl_texture_internal {
 

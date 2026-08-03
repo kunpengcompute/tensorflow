@@ -21,14 +21,13 @@ limitations under the License.
 #include "tensorflow/cc/ops/control_flow_ops_internal.h"
 #include "tensorflow/cc/ops/function_ops.h"
 #include "tensorflow/cc/ops/standard_ops.h"
+#include "tensorflow/core/common_runtime/graph_constructor.h"
 #include "tensorflow/core/common_runtime/graph_runner.h"
 #include "tensorflow/core/framework/function_testlib.h"
 #include "tensorflow/core/framework/node_def_util.h"
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/tensor_testutil.h"
-#include "tensorflow/core/graph/graph_constructor.h"
 #include "tensorflow/core/graph/graph_def_builder.h"
-#include "tensorflow/core/graph/graph_def_builder_util.h"
 #include "tensorflow/core/lib/core/status_test_util.h"
 #include "tensorflow/core/lib/strings/str_util.h"
 #include "tensorflow/core/platform/test.h"
@@ -41,7 +40,7 @@ typedef FunctionDefHelper FDH;
 constexpr const char* const kLowerUsingSwitchMergeAttr =
     LowerFunctionalOpsPass::kLowerUsingSwitchMergeAttr;
 
-static void AssertHasSubstr(StringPiece s, StringPiece expected) {
+static void AssertHasSubstr(absl::string_view s, absl::string_view expected) {
   ASSERT_TRUE(absl::StrContains(s, expected))
       << "'" << s << "' does not contain '" << expected << "'";
 }
@@ -54,7 +53,7 @@ SessionOptions SessionOptionsWithInlining() {
   return session_options;
 }
 
-Status Rewrite(std::unique_ptr<Graph>* graph) {
+absl::Status Rewrite(std::unique_ptr<Graph>* graph) {
   FunctionLibraryDefinition flib_def((*graph)->flib_def());
   GraphOptimizationPassOptions opt_options;
   SessionOptions session_options = SessionOptionsWithInlining();
@@ -66,7 +65,7 @@ Status Rewrite(std::unique_ptr<Graph>* graph) {
 }
 
 // (counter:int32, pred:bool, x:int32) -> counter < N
-FunctionDef WhileWithIfCond(int32 N) {
+FunctionDef WhileWithIfCond(int32_t N) {
   const Tensor kN = test::AsScalar<int32>(N);
   return FDH::Define(
       // Name

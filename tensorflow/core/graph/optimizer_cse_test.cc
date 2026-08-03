@@ -17,10 +17,11 @@ limitations under the License.
 
 #include <utility>
 #include <vector>
+
+#include "tensorflow/core/common_runtime/graph_constructor.h"
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/graph/graph.h"
-#include "tensorflow/core/graph/graph_constructor.h"
 #include "tensorflow/core/graph/testlib.h"
 #include "tensorflow/core/kernels/ops_util.h"
 #include "tensorflow/core/lib/random/simple_philox.h"
@@ -30,6 +31,7 @@ limitations under the License.
 #include "tensorflow/core/platform/protobuf.h"
 #include "tensorflow/core/platform/test.h"
 #include "tensorflow/core/platform/test_benchmark.h"
+#include "tsl/platform/protobuf.h"
 
 namespace tensorflow {
 namespace {
@@ -332,7 +334,7 @@ TEST_F(OptimizerCSETest, Constant_Dedup) {
   }
   GraphDef gdef;
   test::graph::ToGraphDef(&g, &gdef);
-  InitGraph(gdef.DebugString());
+  InitGraph(tsl::LegacyUnredactedDebugString(gdef));
 
   EXPECT_EQ(OriginalGraph(),
             "n/_0(Const);n/_1(Const);n/_2(Const);n/_3(Const);"
@@ -346,8 +348,8 @@ TEST_F(OptimizerCSETest, Constant_Dedup) {
   EXPECT_EQ(node_set.count("n/_3(Const)") + node_set.count("n/_4(Const)"), 1);
 }
 
-static void BM_CSE(int iters, int op_nodes) {
-  testing::StopTiming();
+void BM_CSE(::testing::benchmark::State& state) {
+  const int op_nodes = state.range(0);
   string s;
   for (int in = 0; in < 10; in++) {
     s += strings::Printf("node { name: 'in%04d' op: 'Input'}", in);
@@ -362,22 +364,22 @@ static void BM_CSE(int iters, int op_nodes) {
   }
 
   bool first = true;
-  while (iters > 0) {
+  for (auto i : state) {
+    state.PauseTiming();
     Graph* graph = new Graph(OpRegistry::Global());
     InitGraph(s, graph);
     int N = graph->num_node_ids();
     if (first) {
-      testing::SetLabel(strings::StrCat("Per graph node.  Nodes: ", N));
+      state.SetLabel(strings::StrCat("Per graph node.  Nodes: ", N));
       first = false;
     }
     {
-      testing::StartTiming();
+      state.ResumeTiming();
       OptimizeCSE(graph, nullptr);
-      testing::StopTiming();
+      state.PauseTiming();
     }
-    iters -= N;  // Our benchmark units are individual graph nodes,
-                 // not whole graphs
     delete graph;
+    state.ResumeTiming();
   }
 }
 BENCHMARK(BM_CSE)->Arg(1000)->Arg(10000);

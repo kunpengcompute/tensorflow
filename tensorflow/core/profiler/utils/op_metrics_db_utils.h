@@ -16,61 +16,6 @@ limitations under the License.
 #ifndef TENSORFLOW_CORE_PROFILER_UTILS_OP_METRICS_DB_UTILS_H_
 #define TENSORFLOW_CORE_PROFILER_UTILS_OP_METRICS_DB_UTILS_H_
 
-#include <string>
-
-#include "absl/container/flat_hash_map.h"
-#include "absl/strings/string_view.h"
-#include "tensorflow/core/platform/types.h"
-#include "tensorflow/core/profiler/protobuf/op_metrics.pb.h"
-
-namespace tensorflow {
-namespace profiler {
-// Helps build an op metrics database (borrowed).
-// Enables fast lookup of existing ops and prevents the creation of duplicate
-// ops. It is the user's responsibility to ensure an op metrics database
-// outlives its builder, and that no ops are added to the database outside of
-// the builder.
-class OpMetricsDbBuilder {
- public:
-  // Create with a borrowed op database.
-  // REQUIRED: The op database must be empty.
-  explicit OpMetricsDbBuilder(OpMetricsDb* db);
-
- protected:
-  // Looks up the given OP name. If it is already in the database,
-  // return its OpMetrics; otherwise, insert a new one.
-  OpMetrics* LookupOrInsertNewOpMetrics(uint64 hlo_module_id,
-                                        absl::string_view name);
-
-  OpMetricsDb* db() { return db_; }
-
- private:
-  // Map op (hlo_module_id, name) to the corresponding metrics in the op
-  // database.
-  absl::flat_hash_map<uint64 /*hlo_module_id*/,
-                      absl::flat_hash_map<std::string /*name*/, OpMetrics*>>
-      op_metrics_map_;
-
-  // The op database.
-  OpMetricsDb* db_;
-};
-
-// Returns the ratio of time that is idle (no op execution) over total time.
-double IdleTimeRatio(const OpMetricsDb& metrics_db);
-
-// Returns the idle time in picoseconds.
-uint64 IdleTimePs(const OpMetricsDb& metrics_db);
-
-// Adds an op representing idle time, i.e., the amount of time spent without any
-// op execution.
-// REQUIRED: All ops must have been added to the database and the total time
-// must have been set.
-void AddIdleOp(OpMetricsDb* db);
-
-// Converts from Hlo-op metrics to Tf-op metrics.
-OpMetricsDb CreateTfMetricsDbFromHloMetricsDb(const OpMetricsDb& hlo_metrics_db,
-                                              bool with_idle = true);
-}  // namespace profiler
-}  // namespace tensorflow
+#include "xprof/utils/op_metrics_db_utils.h"  // from @org_xprof  // IWYU pragma: export
 
 #endif  // TENSORFLOW_CORE_PROFILER_UTILS_OP_METRICS_DB_UTILS_H_

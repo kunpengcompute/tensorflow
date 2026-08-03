@@ -13,14 +13,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include "tensorflow/tools/graph_transforms/fold_constants_lib.h"
-
 #include "tensorflow/core/common_runtime/constant_folding.h"
-#include "tensorflow/core/graph/graph_constructor.h"
+#include "tensorflow/core/common_runtime/graph_constructor.h"
 #include "tensorflow/core/graph/node_builder.h"
 #include "tensorflow/core/graph/subgraph.h"
 #include "tensorflow/core/platform/init_main.h"
 #include "tensorflow/core/public/session.h"
+#include "tensorflow/tools/graph_transforms/fold_constants_lib.h"
 #include "tensorflow/tools/graph_transforms/transform_utils.h"
 
 namespace tensorflow {
@@ -28,8 +27,8 @@ namespace graph_transforms {
 
 namespace {
 
-Status TypeForPlaceholder(const TransformFuncContext& context,
-                          const string& node_name, DataType* result) {
+absl::Status TypeForPlaceholder(const TransformFuncContext& context,
+                                const string& node_name, DataType* result) {
   // If we don't find anything else, return float.
   *result = DT_FLOAT;
 
@@ -70,11 +69,11 @@ Status TypeForPlaceholder(const TransformFuncContext& context,
     }
   }
 
-  return Status::OK();
+  return absl::OkStatus();
 }
 
-Status ShapeForPlaceholder(const TransformFuncContext& context,
-                           const string& node_name, TensorShape* result) {
+absl::Status ShapeForPlaceholder(const TransformFuncContext& context,
+                                 const string& node_name, TensorShape* result) {
   // If we don't find anything else, return scalar.
   *result = {};
 
@@ -109,14 +108,14 @@ Status ShapeForPlaceholder(const TransformFuncContext& context,
     }
   }
 
-  return Status::OK();
+  return absl::OkStatus();
 }
 }  // namespace
 
 // Delete any nodes that don't contribute to the inference result.
-Status StripUnusedNodes(const GraphDef& input_graph_def,
-                        const TransformFuncContext& context,
-                        GraphDef* output_graph_def) {
+absl::Status StripUnusedNodes(const GraphDef& input_graph_def,
+                              const TransformFuncContext& context,
+                              GraphDef* output_graph_def) {
   std::set<string> required_nodes;
   std::set<string> input_nodes;
   for (const string& input : context.input_names) {
@@ -131,6 +130,7 @@ Status StripUnusedNodes(const GraphDef& input_graph_def,
   MapNamesToNodes(input_graph_def, &node_lookup);
 
   std::vector<string> current_inputs;
+  current_inputs.reserve(context.output_names.size());
   for (const string& output_name : context.output_names) {
     current_inputs.push_back(NodeNameFromInput(output_name));
   }
@@ -186,7 +186,7 @@ Status StripUnusedNodes(const GraphDef& input_graph_def,
       *(output_graph_def->mutable_node()->Add()) = node;
     }
   }
-  return Status::OK();
+  return absl::OkStatus();
 }
 
 REGISTER_GRAPH_TRANSFORM("strip_unused_nodes", StripUnusedNodes);

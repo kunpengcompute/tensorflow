@@ -21,7 +21,7 @@ limitations under the License.
 #include <functional>
 #include <type_traits>
 
-#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
+#include "unsupported/Eigen/CXX11/Tensor"  // from @eigen_archive
 #include "tensorflow/core/framework/bounds_check.h"
 #include "tensorflow/core/framework/numeric_types.h"
 #include "tensorflow/core/framework/tensor_types.h"
@@ -124,7 +124,6 @@ generic_dawsn_interval_3(const Scalar& x) {
 
 template <typename Scalar>
 struct dawsn_op {
-  EIGEN_EMPTY_STRUCT_CTOR(dawsn_op)
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar
   operator()(const Scalar& x) const {
     const Scalar half = Scalar(0.5);
@@ -376,7 +375,6 @@ generic_expint_interval_7(const Scalar& x) {
 
 template <typename Scalar>
 struct expint_op {
-  EIGEN_EMPTY_STRUCT_CTOR(expint_op)
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar
   operator()(const Scalar& x) const {
     const Scalar zero = Scalar(0.0);
@@ -533,7 +531,6 @@ generic_fresnel_asymp(const Scalar& x, bool use_sin) {
 
 template <typename Scalar>
 struct fresnel_cos_op {
-  EIGEN_EMPTY_STRUCT_CTOR(fresnel_cos_op)
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar
   operator()(const Scalar& x) const {
     const Scalar zero = Scalar(0.);
@@ -567,7 +564,6 @@ struct fresnel_cos_op {
 
 template <typename Scalar>
 struct fresnel_sin_op {
-  EIGEN_EMPTY_STRUCT_CTOR(fresnel_sin_op)
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar
   operator()(const Scalar& x) const {
     const Scalar zero = Scalar(0.);
@@ -602,7 +598,6 @@ struct fresnel_sin_op {
 // Implementation of Spence's Integral based on Cephes.
 template <typename Scalar>
 struct spence_op {
-  EIGEN_EMPTY_STRUCT_CTOR(spence_op)
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar
   operator()(const Scalar& x) const {
     const Scalar A[] = {
@@ -684,6 +679,44 @@ struct fresnel_sin : base<T, Eigen::internal::fresnel_sin_op<T>> {};
 
 template <typename T>
 struct spence : base<T, Eigen::internal::spence_op<T>> {};
+
+// Bessel Functions
+
+template <typename T>
+struct bessel_i0 : base<T, Eigen::internal::scalar_bessel_i0_op<T>> {};
+
+template <typename T>
+struct bessel_i0e : base<T, Eigen::internal::scalar_bessel_i0e_op<T>> {};
+
+template <typename T>
+struct bessel_i1 : base<T, Eigen::internal::scalar_bessel_i1_op<T>> {};
+
+template <typename T>
+struct bessel_i1e : base<T, Eigen::internal::scalar_bessel_i1e_op<T>> {};
+
+template <typename T>
+struct bessel_k0 : base<T, Eigen::internal::scalar_bessel_k0_op<T>> {};
+
+template <typename T>
+struct bessel_k0e : base<T, Eigen::internal::scalar_bessel_k0e_op<T>> {};
+
+template <typename T>
+struct bessel_k1 : base<T, Eigen::internal::scalar_bessel_k1_op<T>> {};
+
+template <typename T>
+struct bessel_k1e : base<T, Eigen::internal::scalar_bessel_k1e_op<T>> {};
+
+template <typename T>
+struct bessel_j0 : base<T, Eigen::internal::scalar_bessel_j0_op<T>> {};
+
+template <typename T>
+struct bessel_j1 : base<T, Eigen::internal::scalar_bessel_j1_op<T>> {};
+
+template <typename T>
+struct bessel_y0 : base<T, Eigen::internal::scalar_bessel_y0_op<T>> {};
+
+template <typename T>
+struct bessel_y1 : base<T, Eigen::internal::scalar_bessel_y1_op<T>> {};
 
 }  // end namespace functor
 }  // end namespace tensorflow

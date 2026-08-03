@@ -24,13 +24,21 @@ namespace tensorflow {
 
 // Reads text (.pbtext) or binary (.pb) format of a proto message from the given
 // buffer. Returns error status of the file is not found or malformed proto.
-Status LoadProtoFromBuffer(absl::string_view input,
-                           tensorflow::protobuf::MessageLite* proto);
+// Note that text protos can only be parsed when full protobuf::Message protos
+// are used, and will fail for protobuf::MessageLite protos.
+absl::Status LoadProtoFromBuffer(absl::string_view input,
+                                 protobuf::Message* proto);
+absl::Status LoadProtoFromBuffer(absl::string_view input,
+                                 protobuf::MessageLite* proto);
 
 // Reads text (.pbtext) or binary (.pb) format of a proto message from the given
 // file path. Returns error status of the file is not found or malformed proto.
-Status LoadProtoFromFile(absl::string_view input_filename,
-                         tensorflow::protobuf::MessageLite* proto);
+// Note that text protos can only be parsed when full protobuf::Message protos
+// are used, and will fail for protobuf::MessageLite protos.
+absl::Status LoadProtoFromFile(absl::string_view input_filename,
+                               protobuf::Message* proto);
+absl::Status LoadProtoFromFile(absl::string_view input_filename,
+                               protobuf::MessageLite* proto);
 
 }  // namespace tensorflow
 

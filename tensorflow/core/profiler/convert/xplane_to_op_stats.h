@@ -16,16 +16,6 @@ limitations under the License.
 #ifndef TENSORFLOW_CORE_PROFILER_CONVERT_XPLANE_TO_OP_STATS_H_
 #define TENSORFLOW_CORE_PROFILER_CONVERT_XPLANE_TO_OP_STATS_H_
 
-#include "tensorflow/core/profiler/protobuf/op_stats.pb.h"
-#include "tensorflow/core/profiler/protobuf/xplane.pb.h"
-
-namespace tensorflow {
-namespace profiler {
-
-// NOTE: call GroupTfEvents before if OpStats.step_db needs to be generated.
-OpStats ConvertXSpaceToOpStats(const XSpace& space);
-
-}  // namespace profiler
-}  // namespace tensorflow
+#include "xprof/convert/xplane_to_op_stats.h"  // from @org_xprof  // IWYU pragma: export
 
 #endif  // TENSORFLOW_CORE_PROFILER_CONVERT_XPLANE_TO_OP_STATS_H_

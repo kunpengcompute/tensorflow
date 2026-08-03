@@ -12,22 +12,27 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
+#include <algorithm>
+#include <cstddef>
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
+#include "absl/log/check.h"
+#include "absl/status/status.h"
+#include "tensorflow/core/platform/errors.h"
+#include "tensorflow/core/platform/logging.h"
+#include "tensorflow/core/platform/status.h"
 #include "tensorflow/lite/toco/graph_transformations/graph_transformations.h"
 #include "tensorflow/lite/toco/model.h"
 #include "tensorflow/lite/toco/tooling_util.h"
-#include "tensorflow/core/platform/logging.h"
 
 namespace toco {
 
 namespace {
 
 TransposeOperator* FindTransposeOpWithInput(const Model& model,
-                                            const string& array_name) {
+                                            const std::string& array_name) {
   for (auto it = model.operators.begin(); it != model.operators.end(); ++it) {
     Operator* op = it->get();
     if (op->type != OperatorType::kTranspose) {
@@ -55,13 +60,12 @@ TransposeOperator* FindTransposeOpWithInput(const Model& model,
 
 }  // namespace
 
-::tensorflow::Status ResolveTensorFlowMatMul::Run(Model* model,
-                                                  std::size_t op_index,
-                                                  bool* modified) {
+absl::Status ResolveTensorFlowMatMul::Run(Model* model, std::size_t op_index,
+                                          bool* modified) {
   *modified = false;
   auto matmul_it = model->operators.begin() + op_index;
   if (matmul_it->get()->type != OperatorType::kMatMul) {
-    return ::tensorflow::Status::OK();
+    return absl::OkStatus();
   }
   const auto* matmul_op =
       static_cast<const TensorFlowMatMulOperator*>(matmul_it->get());
@@ -74,8 +78,8 @@ TransposeOperator* FindTransposeOpWithInput(const Model& model,
     DCHECK_EQ(matmul_it->get(), matmul_op);
   };
 
-  string input_lhs = matmul_op->inputs[0];
-  string input_rhs = matmul_op->inputs[1];
+  std::string input_lhs = matmul_op->inputs[0];
+  std::string input_rhs = matmul_op->inputs[1];
 
   // Handle `transpose_a` with best effort: If the dimension of lhs is known,
   // insert a `Transpose` op.
@@ -86,7 +90,7 @@ TransposeOperator* FindTransposeOpWithInput(const Model& model,
           "Not replacing %s by a FullyConnected operator, because it has "
           "the transpose_a attribute and LHS has no shape",
           LogName(*matmul_op));
-      return ::tensorflow::Status::OK();
+      return absl::OkStatus();
     }
 
     int dimensions_count = lhs_array.shape().dimensions_count();
@@ -227,7 +231,7 @@ TransposeOperator* FindTransposeOpWithInput(const Model& model,
   // erase the MatMul operator
   model->operators.erase(matmul_it);
   *modified = true;
-  return ::tensorflow::Status::OK();
+  return absl::OkStatus();
 }
 
 }  // namespace toco

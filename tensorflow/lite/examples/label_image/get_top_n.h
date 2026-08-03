@@ -16,7 +16,12 @@ limitations under the License.
 #ifndef TENSORFLOW_LITE_EXAMPLES_LABEL_IMAGE_GET_TOP_N_H_
 #define TENSORFLOW_LITE_EXAMPLES_LABEL_IMAGE_GET_TOP_N_H_
 
-#include "tensorflow/lite/examples/label_image/get_top_n_impl.h"
+#include <cstddef>
+#include <utility>
+#include <vector>
+
+#include "tensorflow/lite/c/c_api_types.h"
+#include "tensorflow/lite/examples/label_image/get_top_n_impl.h"  // IWYU pragma: export
 
 namespace tflite {
 namespace label_image {
@@ -24,13 +29,17 @@ namespace label_image {
 template <class T>
 void get_top_n(T* prediction, int prediction_size, size_t num_results,
                float threshold, std::vector<std::pair<float, int>>* top_results,
-               bool input_floating);
+               TfLiteType input_type);
 
 // explicit instantiation so that we can use them otherwhere
-template void get_top_n<uint8_t>(uint8_t*, int, size_t, float,
-                                 std::vector<std::pair<float, int>>*, bool);
 template void get_top_n<float>(float*, int, size_t, float,
-                               std::vector<std::pair<float, int>>*, bool);
+                               std::vector<std::pair<float, int>>*, TfLiteType);
+template void get_top_n<int8_t>(int8_t*, int, size_t, float,
+                                std::vector<std::pair<float, int>>*,
+                                TfLiteType);
+template void get_top_n<uint8_t>(uint8_t*, int, size_t, float,
+                                 std::vector<std::pair<float, int>>*,
+                                 TfLiteType);
 
 }  // namespace label_image
 }  // namespace tflite

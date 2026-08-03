@@ -13,10 +13,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include <utility>
-
 #include "tensorflow/core/util/example_proto_fast_parsing.h"
 
+#include <unordered_set>
+#include <utility>
+#include <vector>
+
+#include "absl/strings/str_cat.h"
 #include "tensorflow/core/example/example.pb.h"
 #include "tensorflow/core/example/feature.pb.h"
 #include "tensorflow/core/lib/random/philox_random.h"
@@ -42,7 +45,7 @@ string SerializedToReadable(string serialized) {
   string result;
   result += '"';
   for (char c : serialized)
-    result += strings::StrCat("\\x", strings::Hex(c, strings::kZeroPad2));
+    absl::StrAppend(&result, "\\x", absl::Hex(c, absl::kZeroPad2));
   result += '"';
   return result;
 }
@@ -168,6 +171,10 @@ TEST(FastParse, NonPacked) {
 TEST(FastParse, Packed) {
   TestCorrectness(
       "\x0a\x0d\x0a\x0b\x0a\x03\x61\x67\x65\x12\x04\x1a\x02\x08\x0d");
+}
+
+TEST(FastParse, ValueBeforeKeyInMap) {
+  TestCorrectness("\x0a\x12\x0a\x10\x12\x09\x0a\x07\x0a\x05value\x0a\x03key");
 }
 
 TEST(FastParse, EmptyFeatures) {
@@ -417,9 +424,9 @@ TEST(TestFastParseExample, Empty) {
   Result result;
   FastParseExampleConfig config;
   config.sparse.push_back({"test", DT_STRING});
-  Status status =
-      FastParseExample(config, gtl::ArraySlice<tstring>(),
-                       gtl::ArraySlice<tstring>(), nullptr, &result);
+  absl::Status status =
+      FastParseExample(config, absl::Span<const tstring>(),
+                       absl::Span<const tstring>(), nullptr, &result);
   EXPECT_TRUE(status.ok()) << status;
 }
 

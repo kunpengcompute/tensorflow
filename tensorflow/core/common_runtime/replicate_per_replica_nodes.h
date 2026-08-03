@@ -34,8 +34,9 @@ namespace tensorflow {
 // 3) Clusters assigned to different composite devices should have no data
 // dependency.
 // TODO(b/145922293): Register it as a POST_REWRITE_FOR_EXEC pass.
-Status ReplicatePerReplicaNodesInFunctionGraph(
-    const absl::flat_hash_map<string, std::vector<string>>& composite_devices,
+absl::Status ReplicatePerReplicaNodesInFunctionGraph(
+    const absl::flat_hash_map<string, const std::vector<string>*>&
+        composite_devices,
     Graph* graph);
 
 }  // namespace tensorflow

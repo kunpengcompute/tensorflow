@@ -13,15 +13,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include "tensorflow/compiler/tf2xla/kernels/cwise_ops.h"
 #include "tensorflow/compiler/tf2xla/xla_helpers.h"
+#include "tensorflow/compiler/tf2xla/xla_op_kernel.h"
 #include "tensorflow/compiler/tf2xla/xla_op_registry.h"
-#include "tensorflow/compiler/xla/client/lib/constants.h"
-#include "tensorflow/compiler/xla/client/lib/math.h"
-#include "tensorflow/compiler/xla/client/xla_builder.h"
-#include "tensorflow/compiler/xla/literal.h"
-#include "tensorflow/core/framework/kernel_def_builder.h"
-#include "tensorflow/core/framework/types.h"
+#include "xla/hlo/builder/lib/constants.h"
+#include "xla/hlo/builder/lib/math.h"
+#include "xla/hlo/builder/xla_builder.h"
+#include "tensorflow/core/framework/op_kernel.h"
+#include "tensorflow/core/framework/op_requires.h"
+#include "tensorflow/core/framework/tensor_shape.h"
+#include "tensorflow/core/framework/types.pb.h"
+#include "tensorflow/core/platform/errors.h"
 
 namespace tensorflow {
 namespace {
@@ -62,11 +64,11 @@ xla::XlaOp ProximalGradientDescentUpdate(xla::XlaOp var, xla::XlaOp lr,
   xla::XlaOp one = xla::ScalarLike(lr, 1.0);
   xla::XlaOp zero = xla::ScalarLike(lr, 0.0);
   xla::XlaOp prox_var = var - grad * lr;
-  xla::XlaOp l1_gt_zero = xla::Sign(prox_var) *
-                          xla::Max(xla::Abs(prox_var) - lr * l1, zero) /
-                          (one + lr * l2);
-  xla::XlaOp l1_le_zero = prox_var / (one + lr * l2);
-  return xla::Select(xla::Gt(l1, zero), l1_gt_zero, l1_le_zero);
+  xla::XlaOp l1_gt_zero =
+      xla::Sign(prox_var) * xla::Max(xla::Abs(prox_var) - lr * l1, zero);
+  xla::XlaOp l1_le_zero = prox_var;
+  return xla::Select(xla::Gt(l1, zero), l1_gt_zero, l1_le_zero) /
+         (one + lr * l2);
 }
 
 class ResourceApplyProximalGradientDescent : public XlaOpKernel {
@@ -747,8 +749,8 @@ REGISTER_XLA_OP(Name("ResourceApplyCenteredRMSProp")
                     .TypeConstraint("T", kFloatAndComplexTypes),
                 ResourceApplyCenteredRMSProp);
 
-void CompileFtrl(XlaOpKernelContext* ctx, DataType dtype,
-                 bool has_l2_shrinkage) {
+void CompileFtrl(XlaOpKernelContext* ctx, DataType dtype, bool has_l2_shrinkage,
+                 bool multiply_linear_by_lr) {
   xla::XlaBuilder* b = ctx->builder();
 
   TensorShape var_shape, accum_shape, linear_shape;
@@ -840,9 +842,19 @@ void CompileFtrl(XlaOpKernelContext* ctx, DataType dtype,
   xla::XlaOp new_accum = accum + xla::Square(grad);
   xla::XlaOp new_accum_lr_pow = xla::Pow(new_accum, -lr_power);
   xla::XlaOp accum_lr_pow = xla::Pow(accum, -lr_power);
-  linear = linear + grad_to_use - (new_accum_lr_pow - accum_lr_pow) / lr * var;
-  xla::XlaOp linear_clipped = xla::Clamp(-l1, linear, l1);
-  xla::XlaOp quadratic = new_accum_lr_pow / lr + two * l2;
+  if (multiply_linear_by_lr) {
+    linear =
+        linear + grad_to_use * lr - (new_accum_lr_pow - accum_lr_pow) * var;
+  } else {
+    linear =
+        linear + grad_to_use - (new_accum_lr_pow - accum_lr_pow) / lr * var;
+  }
+  xla::XlaOp linear_clipped =
+      (multiply_linear_by_lr ? xla::Clamp(-l1 * lr, linear, l1 * lr)
+                             : xla::Clamp(-l1, linear, l1));
+  xla::XlaOp quadratic =
+      (multiply_linear_by_lr ? new_accum_lr_pow + two * l2 * lr
+                             : new_accum_lr_pow / lr + two * l2);
   var = (linear_clipped - linear) / quadratic;
   accum = new_accum;
 
@@ -855,14 +867,20 @@ class ResourceApplyFtrl : public XlaOpKernel {
  public:
   explicit ResourceApplyFtrl(OpKernelConstruction* ctx) : XlaOpKernel(ctx) {
     OP_REQUIRES_OK(ctx, ctx->GetAttr("T", &dtype_));
+    OP_REQUIRES_OK(
+        ctx, ctx->GetAttr("multiply_linear_by_lr", &multiply_linear_by_lr_));
   }
 
   void Compile(XlaOpKernelContext* ctx) override {
-    CompileFtrl(ctx, dtype_, /*has_l2_shrinkage=*/false);
+    CompileFtrl(ctx, dtype_, /*has_l2_shrinkage=*/false,
+                /*multiply_linear_by_lr=*/multiply_linear_by_lr_);
   }
 
  private:
   DataType dtype_;
+
+  // Whether to keep the "linear" slot variable multiplied by the learning rate.
+  bool multiply_linear_by_lr_;
 };
 REGISTER_XLA_OP(Name("ResourceApplyFtrl").TypeConstraint("T", kFloatTypes),
                 ResourceApplyFtrl);
@@ -871,14 +889,20 @@ class ResourceApplyFtrlV2 : public XlaOpKernel {
  public:
   explicit ResourceApplyFtrlV2(OpKernelConstruction* ctx) : XlaOpKernel(ctx) {
     OP_REQUIRES_OK(ctx, ctx->GetAttr("T", &dtype_));
+    OP_REQUIRES_OK(
+        ctx, ctx->GetAttr("multiply_linear_by_lr", &multiply_linear_by_lr_));
   }
 
   void Compile(XlaOpKernelContext* ctx) override {
-    CompileFtrl(ctx, dtype_, /*has_l2_shrinkage=*/true);
+    CompileFtrl(ctx, dtype_, /*has_l2_shrinkage=*/true,
+                /*multiply_linear_by_lr=*/multiply_linear_by_lr_);
   }
 
  private:
   DataType dtype_;
+
+  // Whether to keep the "linear" slot variable multiplied by the learning rate.
+  bool multiply_linear_by_lr_;
 };
 REGISTER_XLA_OP(Name("ResourceApplyFtrlV2").TypeConstraint("T", kFloatTypes),
                 ResourceApplyFtrlV2);

@@ -12,6 +12,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
+#include "tensorflow/c/experimental/filesystem/plugins/posix/posix_filesystem.h"
+
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -26,6 +28,7 @@ limitations under the License.
 
 #include "tensorflow/c/experimental/filesystem/filesystem_interface.h"
 #include "tensorflow/c/experimental/filesystem/plugins/posix/posix_filesystem_helper.h"
+#include "tensorflow/c/tf_file_statistics.h"
 #include "tensorflow/c/tf_status.h"
 
 // Implementation of a filesystem for POSIX environments.

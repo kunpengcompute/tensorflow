@@ -29,27 +29,21 @@ notable exception:
    raise (i.e. a function call in the middle of a block does not return or jump
    to any except or finally block)
 TODO(mdan): Consider adding the edges above. They'd only add ~O(n) edges.
+TODO(mdan): Alternatively, consider adding an edge from try to all its excepts.
 """
 
 # TODO(mdan): The notion of 'statements' below is inaccurate.
 # They should rather be called 'block statements', because they include
 # statements that may have a body, e.g. if and while.
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import collections
+import enum
 import weakref
-from enum import Enum
 
-# pylint:disable=g-bad-import-order
-
+import astunparse
 import gast
-# pylint:enable=g-bad-import-order
 
 from tensorflow.python.autograph.pyct import anno
-from tensorflow.python.autograph.pyct import parser
 
 
 class Node(object):
@@ -63,8 +57,8 @@ class Node(object):
   holds for all nodes: "child in node.next" iff "node in child.prev".
 
   Attributes:
-    next: FrozenSet[Node, ...], the nodes that follow this node, in control
-      flow order
+    next: FrozenSet[Node, ...], the nodes that follow this node, in control flow
+      order
     prev: FrozenSet[Node, ...], the nodes that precede this node, in reverse
       control flow order
     ast_node: ast.AST, the AST node corresponding to this CFG node
@@ -88,9 +82,9 @@ class Node(object):
     elif isinstance(self.ast_node, gast.ClassDef):
       return 'class %s' % self.ast_node.name
     elif isinstance(self.ast_node, gast.withitem):
-      return parser.unparse(
-          self.ast_node.context_expr, include_encoding_marker=False).strip()
-    return parser.unparse(self.ast_node, include_encoding_marker=False).strip()
+      # TODO(xjun): remove use of astunparse
+      return astunparse.unparse(self.ast_node.context_expr).strip()
+    return astunparse.unparse(self.ast_node).strip()
 
 
 class Graph(
@@ -119,13 +113,12 @@ class Graph(
     entry: Node, the entry node
     exit: FrozenSet[Node, ...], the exit nodes
     error: FrozenSet[Node, ...], nodes that exit due to an explicitly raised
-        error (errors propagated from function calls are not accounted)
-    index: Dict[ast.Node, Node], mapping AST nodes to the respective CFG
-        node
-    stmt_prev: Dict[ast.Node, FrozenSet[Node, ...]], mapping statement AST
-        nodes to their predecessor CFG nodes
-    stmt_next: Dict[ast.Node, FrozenSet[Node, ...]], mapping statement AST
-        nodes to their successor CFG nodes
+      error (errors propagated from function calls are not accounted)
+    index: Dict[ast.Node, Node], mapping AST nodes to the respective CFG node
+    stmt_prev: Dict[ast.Node, FrozenSet[Node, ...]], mapping statement AST nodes
+      to their predecessor CFG nodes
+    stmt_next: Dict[ast.Node, FrozenSet[Node, ...]], mapping statement AST nodes
+      to their successor CFG nodes
   """
 
   def __repr__(self):
@@ -143,7 +136,7 @@ class Graph(
     return result
 
 
-class _WalkMode(Enum):
+class _WalkMode(enum.Enum):
   FORWARD = 1
   REVERSE = 2
 
@@ -177,7 +170,9 @@ class GraphVisitor(object):
     self.reset()
 
   def init_state(self, node):
-    """State initialization function. Optional to overload.
+    """State initialization function.
+
+    Optional to overload.
 
     An in/out state slot will be created for each node in the graph. Subclasses
     must overload this to control what that is initialized to.
@@ -193,6 +188,7 @@ class GraphVisitor(object):
 
     Args:
       node: Node
+
     Returns:
       bool, whether the node should be revisited; subclasses can visit every
           reachable node exactly once by always returning False
@@ -207,8 +203,16 @@ class GraphVisitor(object):
         node: self.init_state(node) for node in self.graph.index.values()
     }
 
+  def can_ignore(self, node):
+    """Returns True if the node can safely be assumed not to touch variables."""
+    ast_node = node.ast_node
+    if anno.hasanno(ast_node, anno.Basic.SKIP_PROCESSING):
+      return True
+    return isinstance(ast_node,
+                      (gast.Break, gast.Continue, gast.Raise, gast.Pass))
+
   def _visit_internal(self, mode):
-    """Visits the CFG, depth-first."""
+    """Visits the CFG, breadth-first."""
     assert mode in (_WalkMode.FORWARD, _WalkMode.REVERSE)
     if mode == _WalkMode.FORWARD:
       open_ = [self.graph.entry]
@@ -257,7 +261,7 @@ class GraphBuilder(object):
   nodes and their subsequent statements.
 
   Important concepts:
-   * nodes - nodes refer refer to CFG nodes; AST nodes are qualified explicitly
+   * nodes - nodes refer to CFG nodes; AST nodes are qualified explicitly
    * leaf set - since the graph is constructed gradually, a leaf set maintains
      the CFG nodes that will precede the node that the builder expects to
      receive next; when an ordinary node is added, it is connected to the
@@ -336,7 +340,7 @@ class GraphBuilder(object):
 
   def _add_new_node(self, ast_node):
     """Grows the graph by adding a CFG node following the current leaves."""
-    if ast_node is self.node_index:
+    if ast_node in self.node_index:
       raise ValueError('%s added twice' % ast_node)
     # Assumption: All CFG nodes have identical life spans, because the graph
     # owns them. Nodes should never be used outside the context of an existing
@@ -362,8 +366,8 @@ class GraphBuilder(object):
     """Marks the beginning of a statement.
 
     Args:
-      stmt: Hashable, a key by which the statement can be identified in
-          the CFG's stmt_prev and stmt_next attributes
+      stmt: Hashable, a key by which the statement can be identified in the
+        CFG's stmt_prev and stmt_next attributes
     """
     self.active_stmts.add(stmt)
 
@@ -371,9 +375,9 @@ class GraphBuilder(object):
     """Marks the end of a statement.
 
     Args:
-      stmt: Hashable, a key by which the statement can be identified in
-          the CFG's stmt_prev and stmt_next attributes; must match a key
-          previously passed to begin_statement.
+      stmt: Hashable, a key by which the statement can be identified in the
+        CFG's stmt_prev and stmt_next attributes; must match a key previously
+        passed to begin_statement.
     """
     self.active_stmts.remove(stmt)
 
@@ -385,6 +389,7 @@ class GraphBuilder(object):
 
     Args:
       ast_node: ast.AST
+
     Returns:
       Node
     """
@@ -402,6 +407,7 @@ class GraphBuilder(object):
     Args:
       ast_node: ast.AST
       guards: Tuple[ast.AST, ...], the finally sections active for this node
+
     Returns:
       Node
     """
@@ -431,9 +437,10 @@ class GraphBuilder(object):
 
     Args:
       ast_node: ast.AST
-      section_id: Hashable, the node for which ast_node should be considered
-          to be an exit node
+      section_id: Hashable, the node for which ast_node should be considered to
+        be an exit node
       guards: Tuple[ast.AST, ...], the finally sections that guard ast_node
+
     Returns:
       Node
     """
@@ -448,8 +455,8 @@ class GraphBuilder(object):
 
     Args:
       ast_node: ast.AST
-      section_id: Hashable, the node for which ast_node should be considered
-          to be an exit node
+      section_id: Hashable, the node for which ast_node should be considered to
+        be an exit node
       guards: Tuple[ast.AST, ...], the finally sections that guard ast_node
     """
     node = self._add_jump_node(ast_node, guards)
@@ -477,7 +484,7 @@ class GraphBuilder(object):
 
     Args:
       section_id: Hashable, the same node that will be used in calls to the
-          ast_node arg passed to add_exit_node
+        ast_node arg passed to add_exit_node
     """
     assert section_id not in self.exits
     self.exits[section_id] = set()
@@ -500,9 +507,9 @@ class GraphBuilder(object):
 
     Args:
       section_id: Hashable, the same node that will be used in calls to the
-          ast_node arg passed to add_continue_node
-      entry_node: ast.AST, the entry node into the loop (e.g. the test node
-          for while loops)
+        ast_node arg passed to add_continue_node
+      entry_node: ast.AST, the entry node into the loop (e.g. the test node for
+        while loops)
     """
     assert section_id not in self.section_entry
     assert section_id not in self.continues
@@ -532,7 +539,7 @@ class GraphBuilder(object):
 
     Args:
       section_id: Hashable, the same node that will be used in calls to the
-          section_id arg passed to new_cond_branch
+        section_id arg passed to new_cond_branch
     """
 
     assert section_id not in self.cond_entry
@@ -677,8 +684,11 @@ class AstToCfg(gast.NodeVisitor):
     self.generic_visit(node)
     self.builder.add_ordinary_node(node)
 
-  def _process_exit_statement(
-      self, node, exits_nodes_of_type, may_exit_via_except=False):
+  def _process_exit_statement(self,
+                              node,
+                              exits_nodes_of_type,
+                              may_exit_via_except=False):
+    self.generic_visit(node)
     # Note: this is safe because we process functions separately.
     try_node, guards = self._get_enclosing_finally_scopes(exits_nodes_of_type)
     assert try_node is not None, '{} that is not enclosed by any of {}'.format(
@@ -727,11 +737,9 @@ class AstToCfg(gast.NodeVisitor):
     # TODO(mdan): Track the CFG local to the class definition as well?
     self.builder = self.builder_stack.pop()
 
-  def visit_FunctionDef(self, node):
-    # We also keep the FunctionDef node in the CFG. This allows us to determine
-    # things like reaching definitions via closure. Note that the function body
-    # will be stored in a separate graph, because function definitions are not
-    # the same as function calls.
+  def _process_function_def(self, node, is_lambda):
+    # The function body is stored in a separate graph, because function
+    # definitions have effects very different from function calls.
     if self.builder is not None:
       self.builder.add_ordinary_node(node)
 
@@ -742,14 +750,23 @@ class AstToCfg(gast.NodeVisitor):
     self.builder.enter_section(node)
 
     self._process_basic_statement(node.args)
-    for stmt in node.body:
-      self.visit(stmt)
+    if is_lambda:
+      self._process_exit_statement(node.body, (gast.Lambda,))
+    else:
+      for stmt in node.body:
+        self.visit(stmt)
 
     self.builder.exit_section(node)
     self._exit_lexical_scope(node)
 
     self.cfgs[node] = self.builder.build()
     self.builder = self.builder_stack.pop()
+
+  def visit_FunctionDef(self, node):
+    self._process_function_def(node, is_lambda=False)
+
+  def visit_Lambda(self, node):
+    self._process_function_def(node, is_lambda=True)
 
   def visit_Return(self, node):
     self._process_exit_statement(node, (gast.FunctionDef,))
@@ -761,6 +778,11 @@ class AstToCfg(gast.NodeVisitor):
     self._process_basic_statement(node)
 
   def visit_Expr(self, node):
+    self._process_basic_statement(node)
+
+  def visit_NamedExpr(self, node):
+    # TODO(yileiyang): Add a test case once we have a newer astunparse version.
+    # NamedExpr was introduced in Python 3.8 and supported in gast 0.5.1+.
     self._process_basic_statement(node)
 
   def visit_Assign(self, node):
@@ -824,6 +846,7 @@ class AstToCfg(gast.NodeVisitor):
 
     self.builder.enter_section(node)
 
+    self.generic_visit(node.test)
     self.builder.enter_loop_section(node, node.test)
     for stmt in node.body:
       self.visit(stmt)
@@ -849,6 +872,7 @@ class AstToCfg(gast.NodeVisitor):
     # Note: Strictly speaking, this should be node.target + node.iter.
     # However, the activity analysis accounts for this inconsistency,
     # so dataflow analysis produces the correct values.
+    self.generic_visit(node.iter)
     self.builder.enter_loop_section(node, node.iter)
     # Also include the "extra loop test" annotation, to capture things like the
     # control variable for return and break in for loops.
@@ -871,10 +895,16 @@ class AstToCfg(gast.NodeVisitor):
     self.builder.end_statement(node)
 
   def visit_Break(self, node):
-    self._process_exit_statement(node, (gast.While, gast.For,))
+    self._process_exit_statement(node, (
+        gast.While,
+        gast.For,
+    ))
 
   def visit_Continue(self, node):
-    self._process_continue_statement(node, (gast.While, gast.For,))
+    self._process_continue_statement(node, (
+        gast.While,
+        gast.For,
+    ))
 
   def visit_ExceptHandler(self, node):
     self.builder.begin_statement(node)

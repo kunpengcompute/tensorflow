@@ -13,16 +13,15 @@
 # limitations under the License.
 # ==============================================================================
 """Tests for vectorization of math kernels."""
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+import itertools
 
 from absl.testing import parameterized
 
 from tensorflow.python.eager import backprop
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
+from tensorflow.python.framework import ops as framework_ops
+from tensorflow.python.framework import tensor
 from tensorflow.python.framework import test_util
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import clip_ops
@@ -32,6 +31,7 @@ from tensorflow.python.ops import nn
 from tensorflow.python.ops import random_ops
 from tensorflow.python.ops import special_math_ops
 from tensorflow.python.ops import tensor_array_grad  # pylint: disable=unused-import
+from tensorflow.python.ops.parallel_for import control_flow_ops as pfor_control_flow_ops
 from tensorflow.python.ops.parallel_for.test_util import PForTestCase
 from tensorflow.python.platform import test
 
@@ -50,23 +50,20 @@ class MathTest(PForTestCase, parameterized.TestCase):
           x = math_ops.complex(x, y)
 
       # pylint: disable=cell-var-from-loop
-      output_dtypes = []
 
       def loop_fn(i):
         with g:
-          x1 = array_ops.gather(x, i)
-          y1 = op(x1)
-          outputs = [op(x), y1]
-          if y1.dtype == dtypes.float32:
-            loss = math_ops.reduce_sum(y1 * y1)
-          else:
-            loss = None
-        if loss is not None:
-          grad = g.gradient(loss, x1)
-          if grad is not None:
-            outputs.append(grad)
-        del output_dtypes[:]
-        output_dtypes.extend(t.dtype for t in outputs)
+          y = op(x)
+          x_i = array_ops.gather(x, i)
+          y_i = op(x_i)
+          outputs = [y_i]
+          # Build cross product of loop variant/invariant outputs and gradients.
+          for out in (y, y_i):
+            if out.dtype == dtypes.float32:
+              for output_gradients in (None, out * math_ops.cast(i, out.dtype)):
+                grad = g.gradient(out, x_i, output_gradients=output_gradients)
+                if grad is not None:
+                  outputs.append(grad)
         return outputs
 
       # pylint: enable=cell-var-from-loop
@@ -92,8 +89,6 @@ class MathTest(PForTestCase, parameterized.TestCase):
         math_ops.asinh,
         math_ops.atan,
         math_ops.atanh,
-        math_ops.bessel_i0e,
-        math_ops.bessel_i1e,
         math_ops.cos,
         math_ops.cosh,
         math_ops.digamma,
@@ -109,6 +104,8 @@ class MathTest(PForTestCase, parameterized.TestCase):
         math_ops.log,
         math_ops.log1p,
         math_ops.ndtri,
+        special_math_ops.bessel_i0e,
+        special_math_ops.bessel_i1e,
     ]
     self._test_unary_cwise_ops(real_ops, False)
 
@@ -131,6 +128,7 @@ class MathTest(PForTestCase, parameterized.TestCase):
         nn.elu,
         nn.relu,
         nn.relu6,
+        lambda t: nn.leaky_relu(t, alpha=0.1),
         nn.selu,
         nn.softplus,
         nn.softsign,
@@ -152,72 +150,84 @@ class MathTest(PForTestCase, parameterized.TestCase):
       self._test_loop_fn(loop_fn, 3)
 
   def test_binary_cwise_ops(self):
-    logical_ops = [
-        math_ops.logical_and, math_ops.logical_or, math_ops.logical_xor
-    ]
+    # Enable tensor equality to test `equal` and `not_equal` ops below.
+    default_equality = tensor.Tensor._USE_EQUALITY
+    tensor.enable_tensor_equality()
+    try:
+      logical_ops = [
+          math_ops.logical_and, math_ops.logical_or, math_ops.logical_xor
+      ]
 
-    # Wrapper functions restricting the range of inputs of zeta and polygamma.
-    def safe_polygamma(x, y):
-      return math_ops.polygamma(
-          math_ops.round(clip_ops.clip_by_value(y, 1, 10)), x * x + 1)
+      # Wrapper functions restricting the range of inputs of zeta and polygamma.
+      def safe_polygamma(x, y):
+        return math_ops.polygamma(
+            math_ops.round(clip_ops.clip_by_value(y, 1, 10)), x * x + 1)
 
-    def safe_zeta(x, y):
-      return math_ops.zeta(x * x + 1, y * y)
+      def safe_zeta(x, y):
+        return math_ops.zeta(x * x + 1, y * y)
 
-    float_ops = [
-        math_ops.add,
-        math_ops.add_v2,
-        math_ops.atan2,
-        math_ops.complex,
-        math_ops.div,
-        math_ops.divide,
-        math_ops.div_no_nan,
-        math_ops.equal,
-        math_ops.floor_mod,
-        math_ops.greater,
-        math_ops.greater_equal,
-        math_ops.igamma,
-        math_ops.igammac,
-        math_ops.igamma_grad_a,
-        math_ops.less,
-        math_ops.less_equal,
-        math_ops.maximum,
-        math_ops.minimum,
-        math_ops.mod,
-        math_ops.multiply,
-        math_ops.not_equal,
-        math_ops.pow,
-        math_ops.squared_difference,
-        math_ops.subtract,
-        math_ops.truncate_mod,
-        safe_polygamma,
-        safe_zeta,
-    ]
-    # FloorDiv fails on XLA due floor's discontinuities exacerbating small
-    # division differences.
-    if not test_util.is_xla_enabled():
-      float_ops += [math_ops.floor_div]
-    for op in logical_ops + float_ops:
-      x = random_ops.random_uniform([7, 3, 5])
-      y = random_ops.random_uniform([3, 5])
-      if op in logical_ops:
-        x = x > 0
-        y = y > 0
+      float_ops = [
+          math_ops.add,
+          math_ops.add_v2,
+          math_ops.atan2,
+          math_ops.complex,
+          math_ops.div,
+          math_ops.divide,
+          math_ops.div_no_nan,
+          math_ops.equal,
+          lambda x, y: framework_ops.convert_to_tensor(x == y),
+          lambda x, y: framework_ops.convert_to_tensor(x != y),
+          math_ops.floor_mod,
+          math_ops.greater,
+          math_ops.greater_equal,
+          math_ops.igamma,
+          math_ops.igammac,
+          math_ops.igamma_grad_a,
+          math_ops.less,
+          math_ops.less_equal,
+          math_ops.maximum,
+          math_ops.minimum,
+          math_ops.mod,
+          math_ops.multiply,
+          math_ops.not_equal,
+          math_ops.pow,
+          math_ops.squared_difference,
+          math_ops.subtract,
+          math_ops.truncate_mod,
+          safe_polygamma,
+      ]
+      # FloorDiv fails on XLA due floor's discontinuities exacerbating small
+      # division differences.
+      if not test_util.is_xla_enabled():
+        float_ops += [math_ops.floor_div]
+        # TODO(b/168912036): Re-enable once GPU + XLA issues for Zeta are
+        # resolved.
+        if not test_util.is_gpu_available():
+          float_ops += [safe_zeta]
+      for op in logical_ops + float_ops:
+        x = random_ops.random_uniform([7, 3, 5])
+        y = random_ops.random_uniform([3, 5])
+        if op in logical_ops:
+          x = x > 0
+          y = y > 0
 
-      output_dtypes = []
+        output_dtypes = []
 
-      # pylint: disable=cell-var-from-loop
-      def loop_fn(i):
-        x1 = array_ops.gather(x, i)
-        y1 = array_ops.gather(y, i)
-        outputs = [op(x, y), op(x1, y), op(x, y1), op(x1, y1), op(x1, x1)]
-        del output_dtypes[:]
-        output_dtypes.extend(t.dtype for t in outputs)
-        return outputs
+        # pylint: disable=cell-var-from-loop
+        def loop_fn(i):
+          x1 = array_ops.gather(x, i)
+          y1 = array_ops.gather(y, i)
+          outputs = [op(x, y), op(x1, y), op(x, y1), op(x1, y1), op(x1, x1)]
+          del output_dtypes[:]
+          output_dtypes.extend(t.dtype for t in outputs)
+          return outputs
 
-      # pylint: enable=cell-var-from-loop
+        # pylint: enable=cell-var-from-loop
 
-      self._test_loop_fn(loop_fn, 3)
+        self._test_loop_fn(loop_fn, 3)
+    finally:
+      if not default_equality:
+        tensor.disable_tensor_equality()
 
   def test_approximate_equal(self):
     x = random_ops.random_uniform([3, 5])
@@ -227,6 +237,21 @@ class MathTest(PForTestCase, parameterized.TestCase):
       x1 = array_ops.gather(x, i)
       y1 = array_ops.gather(y, i)
       return math_ops.approximate_equal(x1, y1)
+
+    self._test_loop_fn(loop_fn, 3)
+
+  def test_abs_complex(self):
+    r = pfor_control_flow_ops.vectorized_map(
+        math_ops.abs, math_ops.cast([0, -1], dtype=dtypes.complex128))
+    self.assertAllEqual(self.evaluate(r), [0, 1])
+
+  def test_colocate_with(self):
+    a = random_ops.random_uniform([3, 5])
+
+    def loop_fn(i):
+      x1 = array_ops.gather(a, i)
+      with framework_ops.colocate_with(x1):
+        return x1 * 2
 
     self._test_loop_fn(loop_fn, 3)
 
@@ -253,6 +278,9 @@ class MathTest(PForTestCase, parameterized.TestCase):
 
     self._test_loop_fn(loop_fn, 4)
 
+  @test_util.run_without_tensor_float_32(
+      "Calls matmul in parallel for-loop and compares result to calling matmul "
+      "in sequential for-loop")
   def test_matmul(self):
     for tr_a in (True, False):
       for tr_b in (True, False):
@@ -333,7 +361,7 @@ class MathTest(PForTestCase, parameterized.TestCase):
         math_ops.reduce_min,
         math_ops.reduce_mean,
     ]:
-      for axis in ([1], None, [0, 2]):
+      for axis in ([1], None, [0, 2], constant_op.constant([1], dtypes.int64)):
         for keepdims in (True, False):
 
           # pylint: disable=cell-var-from-loop
@@ -348,7 +376,7 @@ class MathTest(PForTestCase, parameterized.TestCase):
   def test_boolean_reduction(self):
     x = random_ops.random_uniform([2, 3, 4, 5]) > 0.5
     for op in [math_ops.reduce_any, math_ops.reduce_all]:
-      for axis in ([1], None, [0, 2]):
+      for axis in ([1], None, [0, 2], constant_op.constant([1], dtypes.int64)):
         for keepdims in (True, False):
 
           # pylint: disable=cell-var-from-loop
@@ -374,9 +402,27 @@ class MathTest(PForTestCase, parameterized.TestCase):
 
           self._test_loop_fn(loop_fn, 2)
 
+  def test_bucketize(self):
+    x = random_ops.random_uniform([2, 3, 4])
+
+    def loop_fn(i):
+      a = array_ops.gather(x, i)
+      return math_ops.bucketize(a, [-1, 0.5, 1])
+
+    self._test_loop_fn(loop_fn, 2)
+
+  def test_clip_by_value(self):
+    x = random_ops.random_uniform([2, 3, 4])
+
+    def loop_fn(i):
+      a = array_ops.gather(x, i)
+      return clip_ops.clip_by_value(a, 0.5, 1.0)
+
+    self._test_loop_fn(loop_fn, 2)
+
   def test_cum_sum(self):
     x = random_ops.random_uniform([2, 3, 4, 5])
-    for axis in (1, -2):
+    for axis in (1, -2, constant_op.constant(1, dtypes.int64)):
       for exclusive in (True, False):
         for reverse in (True, False):
 
@@ -392,7 +438,7 @@ class MathTest(PForTestCase, parameterized.TestCase):
 
   def test_cum_prod(self):
     x = random_ops.random_uniform([2, 3, 4, 5])
-    for axis in (1, -2):
+    for axis in (1, -2, constant_op.constant(1, dtypes.int64)):
       for exclusive in (True, False):
         for reverse in (True, False):
 
@@ -449,16 +495,26 @@ class MathTest(PForTestCase, parameterized.TestCase):
           self._test_loop_fn(loop_fn, 2)
 
   @parameterized.parameters(
-      (math_ops.unsorted_segment_sum,), (math_ops.unsorted_segment_min,),
-      (math_ops.unsorted_segment_max,), (math_ops.unsorted_segment_prod,))
-  def test_unsorted_segment_reduction(self, reduction_op):
-    t = random_ops.random_uniform([3, 3, 2])
+      *itertools.product(
+          (
+              math_ops.unsorted_segment_mean,
+              math_ops.unsorted_segment_sum,
+              math_ops.unsorted_segment_min,
+              math_ops.unsorted_segment_max,
+              math_ops.unsorted_segment_prod,
+          ),
+          (
+              [[0, 0, 2], [0, 1, 2], [2, 2, 2]],
+              [[0, 0, 2, -1], [0, 1, 2, -1], [2, 2, 2, -1]],
+          ),
+      )
+  )
+  def test_unsorted_segment_reduction(self, reduction_op, indices):
+    t = random_ops.random_uniform(constant_op.constant(indices).shape + [2])
     for segment_ids_dtype in (dtypes.int32, dtypes.int64):
+      segment_ids = constant_op.constant(indices, dtype=segment_ids_dtype)
       for num_segments_dtype in (dtypes.int32, dtypes.int64):
-        segment_ids = constant_op.constant([[0, 0, 2], [0, 1, 2], [2, 2, 2]],
-                                           dtype=segment_ids_dtype)
         num_segments = constant_op.constant(3, dtype=num_segments_dtype)
-
         # pylint: disable=cell-var-from-loop
         def loop_fn(i):
           data = array_ops.gather(t, i)
@@ -513,7 +569,8 @@ class MathTest(PForTestCase, parameterized.TestCase):
 
     self._test_loop_fn(loop_fn, 3)
 
-  @parameterized.parameters(math_ops.sparse_segment_mean_grad,
+  @parameterized.parameters(math_ops.sparse_segment_sum_grad,
+                            math_ops.sparse_segment_mean_grad,
                             math_ops.sparse_segment_sqrt_n_grad)
   def test_sparse_segment_grad(self, op_func):
     grad = random_ops.random_uniform([3, 3, 2])
@@ -652,15 +709,15 @@ class LinalgTest(PForTestCase):
       self._test_loop_fn(loop_fn, 3)
 
   def test_matrix_inverse(self):
-    x = (random_ops.random_uniform([3, 4, 2, 2]) +
-         10 * linalg_ops.eye(2))  # Ensure well-conditioned.
+    x = (random_ops.random_uniform([3, 4, 2, 2]) + 10 * linalg_ops.eye(2)
+        )  # Ensure well-conditioned.
 
     for adjoint in (True, False):
 
       # pylint: disable=cell-var-from-loop
       def loop_fn(i):
-        return linalg_ops.matrix_inverse(array_ops.gather(x, i),
-                                         adjoint=adjoint)
+        return linalg_ops.matrix_inverse(
+            array_ops.gather(x, i), adjoint=adjoint)
 
       # pylint: enable=cell-var-from-loop
       self._test_loop_fn(loop_fn, 2)
@@ -671,8 +728,8 @@ class LinalgTest(PForTestCase):
         for stack_b in (True, False):
           shape_a = (2, 4, 3, 3) if stack_a else (4, 3, 3)
           shape_b = (2, 4, 3, 5) if stack_b else (4, 3, 5)
-          x = (random_ops.random_uniform(shape_a) +
-               10 * linalg_ops.eye(3))  # Ensure well-conditioned.
+          x = (random_ops.random_uniform(shape_a) + 10 * linalg_ops.eye(3)
+              )  # Ensure well-conditioned.
           y = random_ops.random_uniform(shape_b)
 
           # pylint: disable=cell-var-from-loop
@@ -719,6 +776,9 @@ class LinalgTest(PForTestCase):
 
     self._test_loop_fn(loop_fn, 2)
 
+  @test_util.run_without_tensor_float_32(
+      "Calls einsum in parallel for-loop and compares result to calling einsum "
+      "in sequential for-loop")
   def test_einsum(self):
     b = 10
     x_series = random_ops.random_uniform([b, 9, 9])
@@ -729,12 +789,13 @@ class LinalgTest(PForTestCase):
       y = array_ops.gather(y_series, 0)  # invariant.
       x_i = array_ops.gather(x_series, i)
       y_i = array_ops.gather(y_series, i)
+      z0 = special_math_ops.einsum("ab->b", x_i)
       z1 = special_math_ops.einsum("ab,bc->ac", x_i, y)
       z2 = special_math_ops.einsum("ab,bc->ac", x, y_i)
       z3 = special_math_ops.einsum("ab,bc->ac", x, y)
       z4 = special_math_ops.einsum("ab,bc->ac", x_i, y_i)
       z5 = special_math_ops.einsum("cd,ce->de", y_i, x_i)  # Includes transpose.
-      outputs = [z1, z2, z3, z4, z5]
+      outputs = [z0, z1, z2, z3, z4, z5]
       return outputs
 
     self._test_loop_fn(loop_fn, b)

@@ -14,14 +14,16 @@ limitations under the License.
 ==============================================================================*/
 #include "tensorflow/core/kernels/data/generator_dataset_op.h"
 
-#include <iterator>
+#include <memory>
+#include <utility>
 #include <vector>
 
+#include "tensorflow/core/common_runtime/input_colocation_exemption_registry.h"
+#include "tensorflow/core/data/captured_function.h"
+#include "tensorflow/core/data/dataset_utils.h"
+#include "tensorflow/core/data/name_utils.h"
 #include "tensorflow/core/framework/partial_tensor_shape.h"
 #include "tensorflow/core/framework/tensor.h"
-#include "tensorflow/core/kernels/data/captured_function.h"
-#include "tensorflow/core/kernels/data/dataset_utils.h"
-#include "tensorflow/core/kernels/data/name_utils.h"
 #include "tensorflow/core/lib/random/random.h"
 
 namespace tensorflow {
@@ -60,7 +62,7 @@ class GeneratorDatasetOp::Dataset : public DatasetBase {
 
   std::unique_ptr<IteratorBase> MakeIteratorInternal(
       const string& prefix) const override {
-    return absl::make_unique<Iterator>(Iterator::Params{
+    return std::make_unique<Iterator>(Iterator::Params{
         this, name_utils::IteratorPrefix(kDatasetType, prefix)});
   }
 
@@ -74,16 +76,21 @@ class GeneratorDatasetOp::Dataset : public DatasetBase {
     return name_utils::DatasetDebugString(kDatasetType);
   }
 
-  Status CheckExternalState() const override {
+  absl::Status InputDatasets(
+      std::vector<const DatasetBase*>* inputs) const override {
+    return absl::OkStatus();
+  }
+
+  absl::Status CheckExternalState() const override {
     TF_RETURN_IF_ERROR(init_func_->CheckExternalState());
     TF_RETURN_IF_ERROR(next_func_->CheckExternalState());
     return finalize_func_->CheckExternalState();
   }
 
  protected:
-  Status AsGraphDefInternal(SerializationContext* ctx,
-                            DatasetGraphDefBuilder* b,
-                            Node** output) const override {
+  absl::Status AsGraphDefInternal(SerializationContext* ctx,
+                                  DatasetGraphDefBuilder* b,
+                                  Node** output) const override {
     return errors::Unimplemented(DebugString(),
                                  " does not support serialization");
   }
@@ -97,7 +104,7 @@ class GeneratorDatasetOp::Dataset : public DatasetBase {
     ~Iterator() override {
       if (!finalized_ && initialized_) {
         std::vector<Tensor> ignored;
-        Status s =
+        absl::Status s =
             instantiated_finalize_func_->RunInstantiated(state_, &ignored);
         if (!s.ok()) {
           LOG(WARNING)
@@ -107,46 +114,46 @@ class GeneratorDatasetOp::Dataset : public DatasetBase {
       }
     }
 
-    Status Initialize(IteratorContext* ctx) override {
+    absl::Status Initialize(IteratorContext* ctx) override {
       TF_RETURN_IF_ERROR(
           dataset()->init_func_->Instantiate(ctx, &instantiated_init_func_));
       TF_RETURN_IF_ERROR(
           dataset()->next_func_->Instantiate(ctx, &instantiated_next_func_));
       TF_RETURN_IF_ERROR(dataset()->finalize_func_->Instantiate(
           ctx, &instantiated_finalize_func_));
-      return Status::OK();
+      return absl::OkStatus();
     }
 
-    Status GetNextInternal(IteratorContext* ctx,
-                           std::vector<Tensor>* out_tensors,
-                           bool* end_of_sequence) override {
+    absl::Status GetNextInternal(IteratorContext* ctx,
+                                 std::vector<Tensor>* out_tensors,
+                                 bool* end_of_sequence) override {
       mutex_lock l(mu_);
 
       if (!initialized_) {
-        TF_RETURN_IF_ERROR(
-            instantiated_init_func_->RunWithBorrowedArgs(ctx, {}, &state_));
+        TF_RETURN_IF_ERROR(instantiated_init_func_->RunWithBorrowedArgs(
+            ctx, {}, &state_, model_node()));
         initialized_ = true;
       }
 
       if (finalized_) {
         *end_of_sequence = true;
-        return Status::OK();
+        return absl::OkStatus();
       }
 
-      Status s = instantiated_next_func_->RunWithBorrowedArgs(ctx, state_,
-                                                              out_tensors);
+      absl::Status s = instantiated_next_func_->RunWithBorrowedArgs(
+          ctx, state_, out_tensors, model_node());
       if (s.ok()) {
         *end_of_sequence = false;
-      } else if (errors::IsOutOfRange(s)) {
+      } else if (absl::IsOutOfRange(s)) {
         // `next_func` may deliberately raise `errors::OutOfRange`
         // to indicate that we should terminate the iteration.
-        s = Status::OK();
+        s = absl::OkStatus();
         *end_of_sequence = true;
 
         // NOTE(mrry): We ignore any tensors returned by the finalize function.
         std::vector<Tensor> ignored;
         TF_RETURN_IF_ERROR(instantiated_finalize_func_->RunWithBorrowedArgs(
-            ctx, state_, &ignored));
+            ctx, state_, &ignored, model_node()));
         finalized_ = true;
       }
       return s;
@@ -156,6 +163,18 @@ class GeneratorDatasetOp::Dataset : public DatasetBase {
     std::shared_ptr<model::Node> CreateNode(
         IteratorContext* ctx, model::Node::Args args) const override {
       return model::MakeSourceNode(std::move(args));
+    }
+
+    absl::Status SaveInternal(SerializationContext* ctx,
+                              IteratorStateWriter* writer) override {
+      return errors::Unimplemented(
+          "GeneratorDataset does not support checkpointing.");
+    }
+
+    absl::Status RestoreInternal(IteratorContext* ctx,
+                                 IteratorStateReader* reader) override {
+      return errors::Unimplemented(
+          "GeneratorDataset does not support checkpointing.");
     }
 
    private:
@@ -216,6 +235,7 @@ REGISTER_KERNEL_BUILDER(Name("GeneratorDataset")
                             .HostMemory("handle")
                             .Priority(1),
                         GeneratorDatasetOp);
+REGISTER_INPUT_COLOCATION_EXEMPTION("GeneratorDataset");
 }  // namespace
 
 }  // namespace data

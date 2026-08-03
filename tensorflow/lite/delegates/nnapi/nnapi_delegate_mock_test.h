@@ -42,6 +42,7 @@ class NnApiMock : public ::tflite::nnapi::NnApiHandler {
       : ::tflite::nnapi::NnApiHandler(nnapi) {
     nnapi_->nnapi_exists = true;
     nnapi_->android_sdk_version = android_sdk_version;
+    nnapi_->nnapi_runtime_feature_level = android_sdk_version;
 
     nnapi_->ANeuralNetworksCompilation_free =
         [](ANeuralNetworksCompilation* compilation) {};
@@ -52,6 +53,7 @@ class NnApiMock : public ::tflite::nnapi::NnApiHandler {
     nnapi_->ASharedMemory_create = [](const char* name, size_t size) -> int {
       return open("/dev/zero", O_RDWR);
     };
+    nnapi_->ANeuralNetworksEvent_free = [](ANeuralNetworksEvent* event) {};
 
     ModelCreateReturns<ANEURALNETWORKS_NO_ERROR>();
     AddOperandReturns<ANEURALNETWORKS_NO_ERROR>();
@@ -68,6 +70,10 @@ class NnApiMock : public ::tflite::nnapi::NnApiHandler {
     ExecutionSetInputFromMemoryReturns<ANEURALNETWORKS_NO_ERROR>();
     ExecutionSetOutputFromMemoryReturns<ANEURALNETWORKS_NO_ERROR>();
     ExecutionComputeReturns<ANEURALNETWORKS_NO_ERROR>();
+    ExecutionStartComputeReturns<ANEURALNETWORKS_NO_ERROR>();
+    EventWaitReturns<ANEURALNETWORKS_NO_ERROR>();
+    SetPriorityReturns<ANEURALNETWORKS_NO_ERROR>();
+    SetOperandSymmPerChannelQuantParamsReturns<ANEURALNETWORKS_NO_ERROR>();
     SetNnapiSupportedDevice("test-device", android_sdk_version);
   }
 
@@ -78,7 +84,7 @@ class NnApiDelegateMockTest : public ::testing::Test {
  protected:
   void SetUp() override {
     nnapi_ = *NnApiImplementation();
-    nnapi_mock_ = absl::make_unique<NnApiMock>(&nnapi_);
+    nnapi_mock_ = std::make_unique<NnApiMock>(&nnapi_);
   }
 
   std::unique_ptr<NnApiMock> nnapi_mock_;

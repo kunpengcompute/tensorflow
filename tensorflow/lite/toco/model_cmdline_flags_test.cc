@@ -13,14 +13,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+#include "tensorflow/lite/toco/model_cmdline_flags.h"
+
 #include <string>
 #include <unordered_map>
+#include <vector>
 
-#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include "tensorflow/lite/testing/util.h"
 #include "tensorflow/lite/toco/args.h"
-#include "tensorflow/lite/toco/model_cmdline_flags.h"
 
 namespace toco {
 namespace {
@@ -35,8 +36,8 @@ TEST(ModelCmdlineFlagsTest, ParseArgsStringMapList) {
       "back_edge_source_array:rnn/basic_lstm_cell/Mul_2,size:4}",
       nullptr};
 
-  string expected_input_arrays = "input_1";
-  std::vector<std::unordered_map<string, string>> expected_rnn_states;
+  std::string expected_input_arrays = "input_1";
+  std::vector<std::unordered_map<std::string, std::string>> expected_rnn_states;
   expected_rnn_states.push_back(
       {{"state_array", "rnn/BasicLSTMCellZeroState/zeros"},
        {"back_edge_source_array", "rnn/basic_lstm_cell/Add_1"},
@@ -46,7 +47,7 @@ TEST(ModelCmdlineFlagsTest, ParseArgsStringMapList) {
        {"back_edge_source_array", "rnn/basic_lstm_cell/Mul_2"},
        {"size", "4"}});
 
-  string message;
+  std::string message;
   ParsedModelFlags result_flags;
 
   EXPECT_TRUE(ParseModelFlagsFromCommandLineFlags(

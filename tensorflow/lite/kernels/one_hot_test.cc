@@ -13,13 +13,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include <initializer_list>
+#include <stdint.h>
 
+#include <initializer_list>
+#include <memory>
+#include <vector>
+
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include "tensorflow/lite/interpreter.h"
-#include "tensorflow/lite/kernels/register.h"
+#include "tensorflow/lite/core/interpreter.h"
 #include "tensorflow/lite/kernels/test_util.h"
-#include "tensorflow/lite/model.h"
+#include "tensorflow/lite/schema/schema_generated.h"
 
 namespace tflite {
 namespace {
@@ -66,18 +70,39 @@ TEST(OneHotOpTest, BasicFloat) {
   const int depth = 3;
   OneHotOpModel<float> model({3}, depth, TensorType_FLOAT32);
   model.SetIndices({0, 1, 2});
-  model.Invoke();
+  ASSERT_EQ(model.Invoke(), kTfLiteOk);
 
   EXPECT_THAT(model.GetOutputShape(), ElementsAreArray({3, 3}));
   EXPECT_THAT(model.GetOutput(),
-              ElementsAreArray({1.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 1.f}));
+              Pointwise(FloatingPointEq(),
+                        {1.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 1.f}));
 }
 
 TEST(OneHotOpTest, BasicInt) {
   const int depth = 3;
   OneHotOpModel<int> model({3}, depth, TensorType_INT32);
   model.SetIndices({0, 1, 2});
-  model.Invoke();
+  ASSERT_EQ(model.Invoke(), kTfLiteOk);
+
+  EXPECT_THAT(model.GetOutputShape(), ElementsAreArray({3, 3}));
+  EXPECT_THAT(model.GetOutput(), ElementsAreArray({1, 0, 0, 0, 1, 0, 0, 0, 1}));
+}
+
+TEST(OneHotOpTest, BasicInt8) {
+  const int depth = 3;
+  OneHotOpModel<int8_t> model({3}, depth, TensorType_INT8);
+  model.SetIndices({0, 1, 2});
+  ASSERT_EQ(model.Invoke(), kTfLiteOk);
+
+  EXPECT_THAT(model.GetOutputShape(), ElementsAreArray({3, 3}));
+  EXPECT_THAT(model.GetOutput(), ElementsAreArray({1, 0, 0, 0, 1, 0, 0, 0, 1}));
+}
+
+TEST(OneHotOpTest, BasicUint8) {
+  const int depth = 3;
+  OneHotOpModel<uint8_t> model({3}, depth, TensorType_UINT8);
+  model.SetIndices({0, 1, 2});
+  ASSERT_EQ(model.Invoke(), kTfLiteOk);
 
   EXPECT_THAT(model.GetOutputShape(), ElementsAreArray({3, 3}));
   EXPECT_THAT(model.GetOutput(), ElementsAreArray({1, 0, 0, 0, 1, 0, 0, 0, 1}));
@@ -87,7 +112,7 @@ TEST(OneHotOpTest, BasicBool) {
   const int depth = 3;
   OneHotOpModel<bool> model({3}, depth, TensorType_BOOL);
   model.SetIndices({0, 1, 2});
-  model.Invoke();
+  ASSERT_EQ(model.Invoke(), kTfLiteOk);
 
   EXPECT_THAT(model.GetOutputShape(), ElementsAreArray({3, 3}));
   EXPECT_THAT(model.GetOutput(),
@@ -99,7 +124,7 @@ TEST(OneHotOpTest, SmallDepth) {
   const int depth = 1;
   OneHotOpModel<int> model({3}, depth, TensorType_INT32);
   model.SetIndices({0, 1, 2});
-  model.Invoke();
+  ASSERT_EQ(model.Invoke(), kTfLiteOk);
 
   EXPECT_THAT(model.GetOutputShape(), ElementsAreArray({3, 1}));
   EXPECT_THAT(model.GetOutput(), ElementsAreArray({1, 0, 0}));
@@ -109,7 +134,7 @@ TEST(OneHotOpTest, BigDepth) {
   const int depth = 4;
   OneHotOpModel<int> model({2}, depth, TensorType_INT32);
   model.SetIndices({0, 1});
-  model.Invoke();
+  ASSERT_EQ(model.Invoke(), kTfLiteOk);
 
   EXPECT_THAT(model.GetOutputShape(), ElementsAreArray({2, 4}));
   EXPECT_THAT(model.GetOutput(), ElementsAreArray({1, 0, 0, 0, 0, 1, 0, 0}));
@@ -122,7 +147,7 @@ TEST(OneHotOpTest, OnOffValues) {
   const int off = 0;
   OneHotOpModel<int> model({4}, depth, TensorType_INT32, axis, on, off);
   model.SetIndices({0, 2, -1, 1});
-  model.Invoke();
+  ASSERT_EQ(model.Invoke(), kTfLiteOk);
 
   EXPECT_THAT(model.GetOutputShape(), ElementsAreArray({4, 3}));
   EXPECT_THAT(model.GetOutput(),
@@ -136,7 +161,7 @@ TEST(OneHotOpTest, ZeroAxis) {
   const int off = 0;
   OneHotOpModel<int> model({4}, depth, TensorType_INT32, axis, on, off);
   model.SetIndices({0, 2, -1, 1});
-  model.Invoke();
+  ASSERT_EQ(model.Invoke(), kTfLiteOk);
 
   EXPECT_THAT(model.GetOutputShape(), ElementsAreArray({3, 4}));
   EXPECT_THAT(model.GetOutput(),
@@ -150,7 +175,7 @@ TEST(OneHotOpTest, MultiDimensionalIndices) {
   const float off = 0;
   OneHotOpModel<float> model({2, 2}, depth, TensorType_FLOAT32, axis, on, off);
   model.SetIndices({0, 2, 1, -1});
-  model.Invoke();
+  ASSERT_EQ(model.Invoke(), kTfLiteOk);
 
   EXPECT_THAT(model.GetOutputShape(), ElementsAreArray({2, 2, 3}));
   EXPECT_THAT(model.GetOutput(),
@@ -166,7 +191,7 @@ TEST(OneHotOpTest, Int64Indices) {
                            TensorType_INT64);
   std::initializer_list<int64_t> indices = {0, 1, 2};
   model.SetIndices(indices);
-  model.Invoke();
+  ASSERT_EQ(model.Invoke(), kTfLiteOk);
 
   EXPECT_THAT(model.GetOutputShape(), ElementsAreArray({3, 3}));
   EXPECT_THAT(model.GetOutput(), ElementsAreArray({1, 0, 0, 0, 1, 0, 0, 0, 1}));

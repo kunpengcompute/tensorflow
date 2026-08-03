@@ -13,11 +13,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 #include <string>
-#include "tensorflow/lite/toco/toco_types.h"
 namespace toco {
 
-bool StrContains(const string& x, const string& search_pattern) {
-  return x.find(search_pattern) != string::npos;
+bool StrContains(const std::string& x, const std::string& search_pattern) {
+  return x.find(search_pattern) != std::string::npos;
 }
 
 void Transpose2DTensor(const float* tensor, int row, int col,

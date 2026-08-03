@@ -14,84 +14,51 @@ limitations under the License.
 ==============================================================================*/
 
 #include <memory>
+#include <string>
+#include <utility>
+#include <variant>
 
-#include "absl/memory/memory.h"
-#include "pybind11/pybind11.h"
-#include "tensorflow/core/platform/host_info.h"
-#include "tensorflow/core/platform/types.h"
-#include "tensorflow/core/profiler/convert/xplane_to_profile_response.h"
-#include "tensorflow/core/profiler/lib/profiler_session.h"
-#include "tensorflow/core/profiler/rpc/client/capture_profile.h"
-#include "tensorflow/core/profiler/rpc/client/save_profile.h"
+#include "absl/status/status.h"
+#include "pybind11/pybind11.h"  // from @pybind11
 #include "tensorflow/core/profiler/rpc/profiler_server.h"
 #include "tensorflow/python/lib/core/pybind11_status.h"
+#include "tensorflow/python/profiler/internal/profiler_pywrap_impl.h"
+#include "xprof/convert/repository.h"  // from @org_xprof
+#include "xprof/convert/tool_options.h"  // from @org_xprof
+#include "xprof/convert/xplane_to_tools_data.h"  // from @org_xprof
 
 namespace py = ::pybind11;
 
 namespace {
 
-tensorflow::ProfileRequest MakeProfileRequest(
-    const tensorflow::string& logdir, const tensorflow::string& session_id,
-    const tensorflow::string& host) {
-  tensorflow::ProfileRequest request;
-  request.add_tools("trace_viewer");
-  request.add_tools("overview_page");
-  request.add_tools("input_pipeline");
-  request.add_tools("kernel_stats");
-  request.add_tools("tensorflow_stats");
-  request.set_host_name(host);
-  request.set_repository_root(logdir);
-  request.set_session_id(session_id);
-  return request;
-}
+using ::tensorflow::profiler::ToolOptions;
+using ::tensorflow::profiler::pywrap::ProfilerSessionWrapper;
 
-class ProfilerSessionWrapper {
- public:
-  void Start(const char* logdir) {
-    session_ = tensorflow::ProfilerSession::Create();
-    logdir_ = logdir;
-    tensorflow::MaybeRaiseRegisteredFromStatus(session_->Status());
-  }
-
-  py::bytes Stop() {
-    tensorflow::string content;
-    if (session_ != nullptr) {
-      tensorflow::Status status = session_->SerializeToString(&content);
-      session_.reset();
-      tensorflow::MaybeRaiseRegisteredFromStatus(status);
+// These must be called under GIL because it reads Python objects. Reading
+// Python objects require GIL because the objects can be mutated by other Python
+// threads. In addition, Python objects are reference counted; reading py::dict
+// will increase its reference count.
+ToolOptions ToolOptionsFromPythonDict(const py::dict& dictionary) {
+  ToolOptions map;
+  for (const auto& item : dictionary) {
+    std::variant<bool, int, std::string> value;
+    try {
+      value = item.second.cast<bool>();
+    } catch (...) {
+      try {
+        value = item.second.cast<int>();
+      } catch (...) {
+        try {
+          value = item.second.cast<std::string>();
+        } catch (...) {
+          continue;
+        }
+      }
     }
-    // The content is not valid UTF-8, so it must be converted to bytes.
-    return py::bytes(content);
+    map.emplace(item.first.cast<std::string>(), value);
   }
-
-  void ExportToTensorBoard() {
-    if (!session_ || logdir_.empty()) return;
-    tensorflow::profiler::XSpace xspace;
-    tensorflow::Status status;
-    status = session_->CollectData(&xspace);
-    session_.reset();
-    tensorflow::MaybeRaiseRegisteredFromStatus(status);
-
-    tensorflow::ProfileResponse response;
-    tensorflow::ProfileRequest request = MakeProfileRequest(
-        logdir_, tensorflow::profiler::GetCurrentTimeStampAsString(),
-        tensorflow::port::Hostname());
-    status = tensorflow::profiler::ConvertXSpaceToProfileResponse(
-        xspace, request, &response);
-    tensorflow::MaybeRaiseRegisteredFromStatus(status);
-
-    std::stringstream ss;  // Record LOG messages.
-    status = tensorflow::profiler::SaveTensorboardProfile(
-        request.repository_root(), request.session_id(), request.host_name(),
-        response, &ss);
-    LOG(INFO) << ss.str();
-    tensorflow::MaybeRaiseRegisteredFromStatus(status);
-  }
-
- private:
-  std::unique_ptr<tensorflow::ProfilerSession> session_;
-  tensorflow::string logdir_;
-};
+  return map;
+}
 
 }  // namespace
 
@@ -99,40 +66,46 @@ PYBIND11_MODULE(_pywrap_profiler, m) {
   py::class_<ProfilerSessionWrapper> profiler_session_class(m,
                                                             "ProfilerSession");
   profiler_session_class.def(py::init<>())
-      .def("start", &ProfilerSessionWrapper::Start)
-      .def("stop", &ProfilerSessionWrapper::Stop)
-      .def("export_to_tb", &ProfilerSessionWrapper::ExportToTensorBoard);
+      .def("start",
+           [](ProfilerSessionWrapper& wrapper, const char* logdir,
+              const py::dict& options) {
+             absl::Status status;
+             ToolOptions tool_options = ToolOptionsFromPythonDict(options);
+             {
+               py::gil_scoped_release release;
+               status = wrapper.Start(logdir, tool_options);
+             }
+             // Py_INCREF and Py_DECREF must be called holding the GIL.
+             tensorflow::MaybeRaiseRegisteredFromStatus(status);
+           })
+      .def("stop",
+           [](ProfilerSessionWrapper& wrapper) {
+             tensorflow::string content;
+             absl::Status status;
+             {
+               py::gil_scoped_release release;
+               status = wrapper.Stop(&content);
+             }
+             // Py_INCREF and Py_DECREF must be called holding the GIL.
+             tensorflow::MaybeRaiseRegisteredFromStatus(status);
+             // The content is not valid UTF-8. It must be converted to bytes.
+             return py::bytes(content);
+           })
+      .def("export_to_tb", [](ProfilerSessionWrapper& wrapper) {
+        absl::Status status;
+        {
+          py::gil_scoped_release release;
+          status = wrapper.ExportToTensorBoard();
+        }
+        // Py_INCREF and Py_DECREF must be called holding the GIL.
+        tensorflow::MaybeRaiseRegisteredFromStatus(status);
+      });
 
   m.def("start_server", [](int port) {
-    auto profiler_server = absl::make_unique<tensorflow::ProfilerServer>();
+    auto profiler_server = std::make_unique<tsl::profiler::ProfilerServer>();
     profiler_server->StartProfilerServer(port);
     // Intentionally release profiler server. Should transfer ownership to
     // caller instead.
     profiler_server.release();
-  });
-
-  m.def("trace", [](const char* service_addr, const char* logdir,
-                    const char* worker_list, bool include_dataset_ops,
-                    int duration_ms, int num_tracing_attempts) {
-    tensorflow::Status status =
-        tensorflow::profiler::ValidateHostPortPair(service_addr);
-    tensorflow::MaybeRaiseRegisteredFromStatus(status);
-    status = tensorflow::profiler::Trace(service_addr, logdir, worker_list,
-                                         include_dataset_ops, duration_ms,
-                                         num_tracing_attempts);
-    tensorflow::MaybeRaiseRegisteredFromStatus(status);
-  });
-
-  m.def("monitor", [](const char* service_addr, int duration_ms,
-                      int monitoring_level, bool display_timestamp) {
-    tensorflow::Status status =
-        tensorflow::profiler::ValidateHostPortPair(service_addr);
-    tensorflow::MaybeRaiseRegisteredFromStatus(status);
-    tensorflow::string content;
-    status = tensorflow::profiler::Monitor(service_addr, duration_ms,
-                                           monitoring_level, display_timestamp,
-                                           &content);
-    tensorflow::MaybeRaiseRegisteredFromStatus(status);
-    return content;
   });
 };

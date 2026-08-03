@@ -320,6 +320,25 @@ TEST(NNOpsTest, FusedBatchNormGrad_ShapeFn) {
            "[d0_3|d2_0|d3_0|d4_0];[d0_3|d2_0|d3_0|d4_0];[0];[0]");
 }
 
+TEST(NNOpsTest, Conv2DBackpropInput_ShapeFn) {
+  ShapeInferenceTestOp op("Conv2DBackpropInput");
+
+  // Test rank error.
+  INFER_ERROR("input_sizes to contain 4 values or 2 values", op,
+              "[3];[?,?,?,?];[?,?,?,?]");
+  INFER_ERROR("Shape must be rank 4 but is rank 3", op,
+              "[4];[?,?,?,?];[?,?,?]");
+
+  // When input_sizes is a 4D shape and the convolution is grouped, the channel
+  // size of the input grad doesn't always equal the input channel size of the
+  // filter. So, when input_sizes is a 4D shape, the channel size of the input
+  // grad is determined by the content of input_sizes.
+  INFER_OK(op, "[4];[?,?,2,?];[1,?,?,?]", "[d2_0,?,?,?]");
+  // When input_sizes is a 2D shape, the channel size of the input grad always
+  // matches the filter shape.
+  INFER_OK(op, "[2];[?,?,2,?];[1,?,?,?]", "[d2_0,?,?,d1_2]");
+}
+
 TEST(NNOpsTest, Conv3DBackpropInput_ShapeFn) {
   ShapeInferenceTestOp op("Conv3DBackpropInput");
 
@@ -504,7 +523,8 @@ TEST(NNOpsTest, FractionalPool_ShapeFn) {
                        .Finalize(&op.node_def));
     };
 
-    set_op(std::vector<float>{2.0f, 1, 1 / 1.5f, 1 / 2.0f});
+    // pooling_ratio must >= 1.0
+    set_op(std::vector<float>{2.0f, 1, 1.5f, 4.0f});
 
     // Rank check.
     INFER_ERROR("must be rank 4", op, "[?,?,?]");
@@ -513,11 +533,11 @@ TEST(NNOpsTest, FractionalPool_ShapeFn) {
     INFER_OK(op, "?", "[?,?,?,?];[?];[?]");
     INFER_OK(op, "[?,?,?,?]", "[?,?,?,?];[?];[?]");
 
-    INFER_OK(op, "[10,20,30,40]", "[5,20,45,80];[20];[45]");
-    INFER_OK(op, "[?,20,30,40]", "[?,20,45,80];[20];[45]");
-    INFER_OK(op, "[10,?,30,40]", "[5,?,45,80];[?];[45]");
-    INFER_OK(op, "[10,20,?,40]", "[5,20,?,80];[20];[?]");
-    INFER_OK(op, "[10,20,30,?]", "[5,20,45,?];[20];[45]");
+    INFER_OK(op, "[10,20,30,40]", "[5,20,20,10];[20];[20]");
+    INFER_OK(op, "[?,20,30,40]", "[?,20,20,10];[20];[20]");
+    INFER_OK(op, "[10,?,30,40]", "[5,?,20,10];[?];[20]");
+    INFER_OK(op, "[10,20,?,40]", "[5,20,?,10];[20];[?]");
+    INFER_OK(op, "[10,20,30,?]", "[5,20,20,?];[20];[20]");
 
     // Wrong number of values for pooling_ratio.
     set_op(std::vector<float>{.5, 1.0, 1.5});

@@ -12,112 +12,20 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
+#include <stdint.h>
+
+#include <string>
+#include <vector>
+
 #include <gtest/gtest.h>
-#include "tensorflow/lite/interpreter.h"
-#include "tensorflow/lite/kernels/register.h"
-#include "tensorflow/lite/kernels/test_util.h"
-#include "tensorflow/lite/model.h"
+#include "tensorflow/lite/core/interpreter.h"
+#include "tensorflow/lite/kernels/reshape_test_common.h"
+#include "tensorflow/lite/string_type.h"
 
 namespace tflite {
 namespace {
-
 using ::testing::ElementsAreArray;
 using ::testing::IsEmpty;
-
-// There are three ways to specify the output shape of a Reshape
-// op.
-enum class ShapeSpecificationType {
-  // The output shape is hardcoded in the ReshapeOptions object.
-  kAsReshapeOption,
-  // The output shape is specified as an input tensor, which is connected to a
-  // Const node, which is guaranteed not to change once inference starts. The
-  // shape is also hardcoded as in kAsReshapeOption.
-  kAsConstantTensor,
-  // The output shape is specified as an input tensor that can change based on
-  // external input. That is, the shape is not know before the inference
-  // starts. The shape is also hardcoded as in kAsReshapeOption.
-  kAsTensor,
-};
-
-template <typename T>
-class ReshapeOpModel : public SingleOpModel {
- public:
-  ReshapeOpModel(std::initializer_list<int> input_shape,
-                 std::initializer_list<int> shape_shape,
-                 std::initializer_list<int> shape_data,
-                 ShapeSpecificationType shape_type) {
-    switch (shape_type) {
-      case ShapeSpecificationType::kAsTensor:
-        BuildWithTensorShape(input_shape, shape_shape, shape_data);
-        break;
-      case ShapeSpecificationType::kAsConstantTensor:
-        BuildWithConstantTensorShape(input_shape, shape_shape, shape_data);
-        break;
-      case ShapeSpecificationType::kAsReshapeOption:
-        // In this case the shape of the new shape doesn't matter. It is
-        // always hardcoded as a flat vector.
-        BuildWithHardcodedShape(input_shape, shape_data);
-        break;
-    }
-  }
-
-  void SetInput(std::initializer_list<T> data) {
-    PopulateTensor<T>(input_, data);
-  }
-
-  void SetStringInput(std::initializer_list<string> data) {
-    PopulateStringTensor(input_, data);
-  }
-
-  std::vector<T> GetOutput() { return ExtractVector<T>(output_); }
-  std::vector<int> GetOutputShape() { return GetTensorShape(output_); }
-
- private:
-  void BuildWithHardcodedShape(std::initializer_list<int> input_shape,
-                               std::initializer_list<int> shape_data) {
-    input_ = AddInput({GetTensorType<T>(), input_shape});
-    output_ = AddOutput(GetTensorType<T>());
-    SetBuiltinOp(
-        BuiltinOperator_RESHAPE, BuiltinOptions_ReshapeOptions,
-        CreateReshapeOptions(builder_, builder_.CreateVector<int>(shape_data))
-            .Union());
-    BuildInterpreter({GetShape(input_)});
-  }
-
-  void BuildWithTensorShape(std::initializer_list<int> input_shape,
-                            std::initializer_list<int> shape_shape,
-                            std::initializer_list<int> shape_data) {
-    input_ = AddInput({GetTensorType<T>(), input_shape});
-    output_ = AddOutput(GetTensorType<T>());
-    int shape_input_tensor = AddInput({TensorType_INT32, shape_shape});
-    // Note how shape also appears in ReshapeOptions
-    SetBuiltinOp(
-        BuiltinOperator_RESHAPE, BuiltinOptions_ReshapeOptions,
-        CreateReshapeOptions(builder_, builder_.CreateVector<int>(shape_data))
-            .Union());
-    BuildInterpreter({GetShape(input_), GetShape(shape_input_tensor)});
-    if (shape_data.size() != 0) {
-      PopulateTensor<int32_t>(shape_input_tensor, shape_data);
-    }
-  }
-
-  void BuildWithConstantTensorShape(std::initializer_list<int> input_shape,
-                                    std::initializer_list<int> shape_shape,
-                                    std::initializer_list<int> shape_data) {
-    input_ = AddInput({GetTensorType<T>(), input_shape});
-    output_ = AddOutput(GetTensorType<T>());
-    AddConstInput(TensorType_INT32, shape_data, shape_shape);
-    // Note how the shape also appears in the ReshapeOptions.
-    SetBuiltinOp(
-        BuiltinOperator_RESHAPE, BuiltinOptions_ReshapeOptions,
-        CreateReshapeOptions(builder_, builder_.CreateVector<int>(shape_data))
-            .Union());
-    BuildInterpreter({GetShape(input_)});
-  }
-
-  int input_;
-  int output_;
-};
 
 template <typename T>
 class ReshapeOpTest : public ::testing::Test {
@@ -138,38 +46,46 @@ TYPED_TEST_SUITE(ReshapeOpTest, DataTypes);
 TYPED_TEST(ReshapeOpTest, MismatchedDimensions) {
   for (ShapeSpecificationType shape_type :
        ReshapeOpTest<ShapeSpecificationType>::_range_) {
-    if (shape_type == ShapeSpecificationType::kAsTensor) {
-      ReshapeOpModel<TypeParam> m({1, 2, 4, 1}, {2}, {2, 1}, shape_type);
-      m.SetInput({3});
-      EXPECT_NE(m.InvokeUnchecked(), kTfLiteOk)
-          << "num_input_elements != num_output_elements";
-    } else {
-#ifdef GTEST_HAS_DEATH_TEST
-      EXPECT_DEATH(
-          ReshapeOpModel<TypeParam>({1, 2, 4, 1}, {2}, {2, 1}, shape_type),
-          "num_input_elements != num_output_elements");
+    for (bool constant_input : {false, true}) {
+      if (shape_type == ShapeSpecificationType::kAsTensor) {
+        std::vector<TypeParam> input_data{0, 1, 2, 3, 4, 5, 6, 7};
+        std::vector<TypeParam>* input_ptr =
+            constant_input ? &input_data : nullptr;
+        ReshapeOpModel<TypeParam> m({1, 2, 4, 1}, {2}, {2, 1}, shape_type,
+                                    input_ptr);
+        if (!constant_input) {
+          m.SetInput(input_data);
+        }
+        EXPECT_NE(m.Invoke(), kTfLiteOk)
+            << "num_input_elements != num_output_elements";
+      } else {
+#if GTEST_HAS_DEATH_TEST
+        EXPECT_DEATH(
+            ReshapeOpModel<TypeParam>({1, 2, 4, 1}, {2}, {2, 1}, shape_type),
+            "num_input_elements != num_output_elements");
 #endif
+      }
     }
   }
 }
 
 TYPED_TEST(ReshapeOpTest, TooManyDimensions) {
+#if GTEST_HAS_DEATH_TEST
   for (ShapeSpecificationType shape_type :
        ReshapeOpTest<ShapeSpecificationType>::_range_) {
-#ifdef GTEST_HAS_DEATH_TEST
     EXPECT_DEATH(
         ReshapeOpModel<TypeParam>({1, 1, 2, 1, 1, 1, 1, 1, 1}, {9},
                                   {1, 1, 1, 1, 1, 1, 1, 1, 2}, shape_type),
         "Found too many dimensions");
-#endif
   }
+#endif
 }
 
 TYPED_TEST(ReshapeOpTest, TooManySpecialDimensions) {
   for (ShapeSpecificationType shape_type :
        ReshapeOpTest<ShapeSpecificationType>::_range_) {
     if (shape_type != ShapeSpecificationType::kAsTensor) {
-#ifdef GTEST_HAS_DEATH_TEST
+#if GTEST_HAS_DEATH_TEST
       EXPECT_DEATH(ReshapeOpModel<TypeParam>({1, 2, 4, 1}, {4}, {-1, -1, 2, 4},
                                              shape_type),
                    "stretch_dim != -1");
@@ -177,7 +93,7 @@ TYPED_TEST(ReshapeOpTest, TooManySpecialDimensions) {
     } else {
       ReshapeOpModel<TypeParam> m({1, 2, 4, 1}, {4}, {-1, -1, 2, 4},
                                   shape_type);
-      EXPECT_NE(m.InvokeUnchecked(), kTfLiteOk) << "stretch_dim != -1";
+      EXPECT_NE(m.Invoke(), kTfLiteOk) << "stretch_dim != -1";
     }
   }
 }
@@ -187,34 +103,95 @@ TYPED_TEST(ReshapeOpTest, TooManySpecialDimensions) {
 TYPED_TEST(ReshapeOpTest, InvalidShape) {
   for (ShapeSpecificationType shape_type :
        ReshapeOpTest<ShapeSpecificationType>::_range_) {
-    ReshapeOpModel<TypeParam> m({1, 2, 2}, {2, 2}, {1, 2, 2, 1}, shape_type);
-    m.SetInput({5, 6, 7, 8});
-    m.Invoke();
-    EXPECT_THAT(m.GetOutputShape(), ElementsAreArray({1, 2, 2, 1}));
-    EXPECT_THAT(m.GetOutput(), ElementsAreArray({5, 6, 7, 8}));
+    for (bool constant_input : {false, true}) {
+      if (SingleOpModel::GetForceUseNnapi() &&
+          (shape_type == ShapeSpecificationType::kAsTensor || constant_input)) {
+        // NNAPI delegate does not support RESHAPE with shape as a non-constant
+        // tensor.
+        // NNAPI does not support graphs with all constant inputs.
+        continue;
+      }
+      std::vector<TypeParam> input_data{5, 6, 7, 8};
+      std::vector<TypeParam>* input_ptr =
+          constant_input ? &input_data : nullptr;
+      ReshapeOpModel<TypeParam> m({1, 2, 2}, {2, 2}, {1, 2, 2, 1}, shape_type,
+                                  input_ptr);
+      if (!constant_input) {
+        m.SetInput({5, 6, 7, 8});
+      }
+      ASSERT_EQ(m.Invoke(), kTfLiteOk);
+      EXPECT_THAT(m.GetOutputShape(), ElementsAreArray({1, 2, 2, 1}));
+      EXPECT_THAT(m.GetOutput(), ElementsAreArray({5, 6, 7, 8}));
+    }
   }
+}
+
+TYPED_TEST(ReshapeOpTest, RegularShapesInplace) {
+  std::vector<TypeParam> input_data{1, 2, 3, 4, 5, 6, 7, 8};
+  ReshapeOpModel<TypeParam> m({1, 2, 4, 1}, {3}, {2, 2, 2},
+                              ShapeSpecificationType::kAsConstantTensor);
+  m.SetInput(input_data);
+  const int kInplaceInputTensorIdx = 0;
+  const int kInplaceOutputTensorIdx = 0;
+  const TfLiteTensor* input_tensor = m.GetInputTensor(kInplaceInputTensorIdx);
+  TfLiteTensor* output_tensor = m.GetOutputTensor(kInplaceOutputTensorIdx);
+  output_tensor->data.data = input_tensor->data.data;
+  ASSERT_EQ(m.Invoke(), kTfLiteOk);
+  EXPECT_THAT(m.GetOutput(), ElementsAreArray({1, 2, 3, 4, 5, 6, 7, 8}));
+  EXPECT_THAT(m.GetOutputShape(), ElementsAreArray({2, 2, 2}));
+  EXPECT_EQ(output_tensor->data.data, input_tensor->data.data);
 }
 
 // This is the normal scenario, where shape is a vector.
 TYPED_TEST(ReshapeOpTest, RegularShapes) {
   for (ShapeSpecificationType shape_type :
        ReshapeOpTest<ShapeSpecificationType>::_range_) {
-    ReshapeOpModel<TypeParam> m({1, 2, 4, 1}, {3}, {2, 2, 2}, shape_type);
-    m.SetInput({1, 2, 3, 4, 5, 6, 7, 8});
-    m.Invoke();
-    EXPECT_THAT(m.GetOutput(), ElementsAreArray({1, 2, 3, 4, 5, 6, 7, 8}));
-    EXPECT_THAT(m.GetOutputShape(), ElementsAreArray({2, 2, 2}));
+    for (bool constant_input : {false, true}) {
+      if (SingleOpModel::GetForceUseNnapi() &&
+          (shape_type == ShapeSpecificationType::kAsTensor || constant_input)) {
+        // NNAPI delegate does not support RESHAPE with shape as a non-constant
+        // tensor.
+        // NNAPI does not support graphs with all constant inputs.
+        continue;
+      }
+      std::vector<TypeParam> input_data{1, 2, 3, 4, 5, 6, 7, 8};
+      std::vector<TypeParam>* input_ptr =
+          constant_input ? &input_data : nullptr;
+      ReshapeOpModel<TypeParam> m({1, 2, 4, 1}, {3}, {2, 2, 2}, shape_type,
+                                  input_ptr);
+      if (!constant_input) {
+        m.SetInput(input_data);
+      }
+      ASSERT_EQ(m.Invoke(), kTfLiteOk);
+      EXPECT_THAT(m.GetOutput(), ElementsAreArray({1, 2, 3, 4, 5, 6, 7, 8}));
+      EXPECT_THAT(m.GetOutputShape(), ElementsAreArray({2, 2, 2}));
+    }
   }
 }
 
 TYPED_TEST(ReshapeOpTest, WithStretchDimension) {
   for (ShapeSpecificationType shape_type :
        ReshapeOpTest<ShapeSpecificationType>::_range_) {
-    ReshapeOpModel<TypeParam> m({1, 2, 4, 1}, {3}, {2, 1, -1}, shape_type);
-    m.SetInput({1, 2, 3, 4, 5, 6, 7, 8});
-    m.Invoke();
-    EXPECT_THAT(m.GetOutput(), ElementsAreArray({1, 2, 3, 4, 5, 6, 7, 8}));
-    EXPECT_THAT(m.GetOutputShape(), ElementsAreArray({2, 1, 4}));
+    for (bool constant_input : {false, true}) {
+      if (SingleOpModel::GetForceUseNnapi() &&
+          (shape_type == ShapeSpecificationType::kAsTensor || constant_input)) {
+        // NNAPI delegate does not support RESHAPE with shape as a non-constant
+        // tensor.
+        // NNAPI does not support graphs with all constant inputs.
+        continue;
+      }
+      std::vector<TypeParam> input_data{1, 2, 3, 4, 5, 6, 7, 8};
+      std::vector<TypeParam>* input_ptr =
+          constant_input ? &input_data : nullptr;
+      ReshapeOpModel<TypeParam> m({1, 2, 4, 1}, {3}, {2, 1, -1}, shape_type,
+                                  input_ptr);
+      if (!constant_input) {
+        m.SetInput(input_data);
+      }
+      ASSERT_EQ(m.Invoke(), kTfLiteOk);
+      EXPECT_THAT(m.GetOutput(), ElementsAreArray({1, 2, 3, 4, 5, 6, 7, 8}));
+      EXPECT_THAT(m.GetOutputShape(), ElementsAreArray({2, 1, 4}));
+    }
   }
 }
 
@@ -225,9 +202,21 @@ TYPED_TEST(ReshapeOpTest, ScalarOutput) {
        ReshapeOpTest<ShapeSpecificationType>::_range_) {
     ReshapeOpModel<TypeParam> m({1}, {0}, {}, shape_type);
     m.SetInput({3});
-    m.Invoke();
+    ASSERT_EQ(m.Invoke(), kTfLiteOk);
     EXPECT_THAT(m.GetOutput(), ElementsAreArray({3}));
     EXPECT_THAT(m.GetOutputShape(), IsEmpty());
+  }
+}
+
+TYPED_TEST(ReshapeOpTest, ZeroInShape) {
+  if (SingleOpModel::GetForceUseNnapi()) {
+    return;
+  }
+  for (ShapeSpecificationType shape_type :
+       ReshapeOpTest<ShapeSpecificationType>::_range_) {
+    ReshapeOpModel<TypeParam> m({4, 0}, {3}, {2, 0, -1}, shape_type);
+    ASSERT_EQ(m.Invoke(), kTfLiteOk);
+    EXPECT_THAT(m.GetOutputShape(), ElementsAreArray({2, 0, 2}));
   }
 }
 
@@ -237,19 +226,19 @@ TYPED_TEST(ReshapeOpTest, LegacyScalarOutput) {
   for (ShapeSpecificationType shape_type :
        ReshapeOpTest<ShapeSpecificationType>::_range_) {
     if (shape_type == ShapeSpecificationType::kAsConstantTensor) {
-#ifdef GTEST_HAS_DEATH_TEST
+#if GTEST_HAS_DEATH_TEST
       EXPECT_DEATH(ReshapeOpModel<TypeParam>({1}, {1}, {0}, shape_type),
                    "num_input_elements != num_output_elements");
 #endif
     } else if (shape_type == ShapeSpecificationType::kAsTensor) {
       ReshapeOpModel<TypeParam> m({1}, {1}, {0}, shape_type);
       m.SetInput({3});
-      ASSERT_NE(m.InvokeUnchecked(), kTfLiteOk)
+      ASSERT_NE(m.Invoke(), kTfLiteOk)
           << "num_input_elements != num_output_elements";
     } else {
       ReshapeOpModel<TypeParam> m({1}, {1}, {0}, shape_type);
       m.SetInput({3});
-      m.Invoke();
+      ASSERT_EQ(m.Invoke(), kTfLiteOk);
       EXPECT_THAT(m.GetOutput(), ElementsAreArray({3}));
       EXPECT_THAT(m.GetOutputShape(), IsEmpty());
     }
@@ -261,12 +250,11 @@ TYPED_TEST(ReshapeOpTest, Strings) {
        ReshapeOpTest<ShapeSpecificationType>::_range_) {
     ReshapeOpModel<string> m({1, 2, 4, 1}, {3}, {2, 2, 2}, shape_type);
     m.SetStringInput({"1", "2", "3", "4", "5", "6", "7", "8"});
-    m.Invoke();
+    ASSERT_EQ(m.Invoke(), kTfLiteOk);
     EXPECT_THAT(m.GetOutputShape(), ElementsAreArray({2, 2, 2}));
     EXPECT_THAT(m.GetOutput(),
                 ElementsAreArray({"1", "2", "3", "4", "5", "6", "7", "8"}));
   }
 }
-
 }  // namespace
 }  // namespace tflite

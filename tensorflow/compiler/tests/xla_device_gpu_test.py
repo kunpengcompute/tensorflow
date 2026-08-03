@@ -14,11 +14,9 @@
 # ==============================================================================
 """Test cases for XLA devices."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 from tensorflow.python.client import session as session_lib
+from tensorflow.python.eager import context
+from tensorflow.python.framework import config
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import array_ops
@@ -27,9 +25,13 @@ from tensorflow.python.platform import test
 
 class XlaDeviceGpuTest(test.TestCase):
 
+  def __init__(self, method_name="runTest"):
+    super(XlaDeviceGpuTest, self).__init__(method_name)
+    context.context().enable_xla_devices()
+
   def testCopiesToAndFromGpuWork(self):
     """Tests that copies between GPU and XLA devices work."""
-    if not test.is_gpu_available():
+    if not config.list_physical_devices("GPU"):
       return
 
     with session_lib.Session() as sess:

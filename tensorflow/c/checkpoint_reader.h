@@ -21,7 +21,7 @@ limitations under the License.
 
 #include "tensorflow/c/tf_status_helper.h"
 #include "tensorflow/core/framework/tensor_shape.h"
-#include "tensorflow/core/lib/core/status.h"
+#include "tensorflow/core/platform/status.h"
 #include "tensorflow/core/platform/types.h"
 #include "tensorflow/core/util/tensor_bundle/tensor_bundle.h"
 #include "tensorflow/core/util/tensor_slice_reader.h"
@@ -73,7 +73,8 @@ class CheckpointReader {
   std::unique_ptr<TensorSliceReader::VarToShapeMap> var_to_shape_map_;
   std::unique_ptr<TensorSliceReader::VarToDataTypeMap> var_to_data_type_map_;
 
-  TF_DISALLOW_COPY_AND_ASSIGN(CheckpointReader);
+  CheckpointReader(const CheckpointReader&) = delete;
+  void operator=(const CheckpointReader&) = delete;
 };
 
 }  // namespace checkpoint

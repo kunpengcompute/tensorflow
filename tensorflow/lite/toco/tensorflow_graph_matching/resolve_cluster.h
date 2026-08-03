@@ -15,14 +15,15 @@ limitations under the License.
 #ifndef TENSORFLOW_LITE_TOCO_TENSORFLOW_GRAPH_MATCHING_RESOLVE_CLUSTER_H_
 #define TENSORFLOW_LITE_TOCO_TENSORFLOW_GRAPH_MATCHING_RESOLVE_CLUSTER_H_
 
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-#include "tensorflow/lite/toco/tensorflow_graph_matching/cluster.h"
-#include "tensorflow/lite/toco/tensorflow_graph_matching/resolve_svdf.h"
 #include "tensorflow/core/framework/graph.pb.h"
 #include "tensorflow/core/framework/node_def.pb.h"
+#include "tensorflow/lite/toco/tensorflow_graph_matching/cluster.h"
+#include "tensorflow/lite/toco/tensorflow_graph_matching/resolve_svdf.h"
 
 namespace toco {
 
@@ -40,7 +41,7 @@ std::unique_ptr<tensorflow::GraphDef> MaybeResolveClusters(
 // belongs to another cluster, then those inputs are renamed to the source
 // cluster name.
 void AddNodeToGraph(const tensorflow::NodeDef& node,
-                    const std::vector<string>& cluster_names,
+                    const std::vector<std::string>& cluster_names,
                     tensorflow::GraphDef* graph);
 
 // Given a graph and a cluster class, it finds all the nodes which belong to a
@@ -49,7 +50,7 @@ void AddNodeToGraph(const tensorflow::NodeDef& node,
 // they belong to the generated clusters.
 bool FindCluster(const ClusterFactoryInterface& cluster_factory,
                  const tensorflow::GraphDef& graph_def,
-                 std::unordered_map<string, bool>* is_node_in_cluster,
+                 std::unordered_map<std::string, bool>* is_node_in_cluster,
                  std::vector<std::unique_ptr<Cluster>>* clusters);
 
 // Receives a graph and generates another graph by replacing the cluster of

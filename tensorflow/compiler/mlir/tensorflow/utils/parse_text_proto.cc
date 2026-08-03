@@ -15,8 +15,11 @@ limitations under the License.
 
 #include "tensorflow/compiler/mlir/tensorflow/utils/parse_text_proto.h"
 
+#include <string>
+
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
+#include "google/protobuf/io/tokenizer.h"
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/lib/core/status.h"
 #include "tensorflow/core/platform/casts.h"
@@ -24,29 +27,27 @@ limitations under the License.
 
 namespace tensorflow {
 
-#ifndef TENSORFLOW_LITE_PROTOS
 namespace {
 // Error collector that simply ignores errors reported.
 class NoOpErrorCollector : public protobuf::io::ErrorCollector {
  public:
-  void AddError(int line, int column, const std::string& message) override {}
+  void RecordError(int line, tsl::protobuf::io::ColumnNumber column,
+                   absl::string_view message) override {}
 };
 }  // namespace
-#endif  // TENSORFLOW_LITE_PROTOS
 
-Status ConsumePrefix(absl::string_view str, absl::string_view prefix,
-                     absl::string_view* output) {
+absl::Status ConsumePrefix(absl::string_view str, absl::string_view prefix,
+                           absl::string_view* output) {
   if (absl::StartsWith(str, prefix)) {
     *output = str.substr(prefix.size());
-    return Status::OK();
+    return absl::OkStatus();
   }
   return errors::NotFound("No prefix \"", prefix, "\" in \"", str, "\"");
 }
 
-Status ParseTextProto(absl::string_view text_proto,
-                      absl::string_view prefix_to_strip,
-                      protobuf::MessageLite* parsed_proto) {
-#ifndef TENSORFLOW_LITE_PROTOS
+absl::Status ParseTextProto(absl::string_view text_proto,
+                            absl::string_view prefix_to_strip,
+                            protobuf::Message* parsed_proto) {
   protobuf::TextFormat::Parser parser;
   // Don't produce errors when attempting to parse text format as it would fail
   // when the input is actually a binary file.
@@ -60,15 +61,11 @@ Status ParseTextProto(absl::string_view text_proto,
   }
   protobuf::io::ArrayInputStream input_stream(text_proto_without_prefix.data(),
                                               text_proto_without_prefix.size());
-  if (parser.Parse(&input_stream,
-                   tensorflow::down_cast<protobuf::Message*>(parsed_proto))) {
-    return Status::OK();
+  if (parser.Parse(&input_stream, parsed_proto)) {
+    return absl::OkStatus();
   }
   parsed_proto->Clear();
   return errors::InvalidArgument("Could not parse text proto: ", text_proto);
-#else
-  return errors::Unavailable("Cannot parse text protos on mobile.");
-#endif  // TENSORFLOW_LITE_PROTOS
 }
 
 }  // namespace tensorflow

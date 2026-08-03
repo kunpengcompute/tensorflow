@@ -34,6 +34,8 @@ class EventsWriter {
   // Prefix of version string present in the first entry of every event file.
   static constexpr const char* kVersionPrefix = "brain.Event:";
   static constexpr const int kCurrentVersion = 2;
+  static constexpr const char* kWriterSourceMetadata =
+      "tensorflow.core.util.events_writer";
 #endif
 
   // Events files typically have a name of the form
@@ -44,7 +46,7 @@ class EventsWriter {
   // to the ultimate filename once Init() is called.
   // Note that it is not recommended to simultaneously have two
   // EventWriters writing to the same file_prefix.
-  explicit EventsWriter(const string& file_prefix);
+  explicit EventsWriter(const std::string& file_prefix);
   ~EventsWriter();
 
   // Sets the event file filename and opens file for writing.  If not called by
@@ -53,12 +55,12 @@ class EventsWriter {
   // and is open this is a no-op.  If on the other hand the file was opened,
   // but has since disappeared (e.g. deleted by another process), this will open
   // a new file with a new timestamp in its filename.
-  Status Init();
-  Status InitWithSuffix(const string& suffix);
+  absl::Status Init();
+  absl::Status InitWithSuffix(const std::string& suffix);
 
   // Returns the filename for the current events file:
   // filename_ = [file_prefix_].out.events.[timestamp].[hostname][suffix]
-  string FileName();
+  std::string FileName();
 
   // Append "event" to the file.  The "tensorflow::" part is for swig happiness.
   void WriteEvent(const tensorflow::Event& event);
@@ -66,7 +68,7 @@ class EventsWriter {
   // Append "event_str", a serialized Event, to the file.
   // Note that this function does NOT check that de-serializing event_str
   // results in a valid Event proto.  The tensorflow:: bit makes SWIG happy.
-  void WriteSerializedEvent(tensorflow::StringPiece event_str);
+  void WriteSerializedEvent(absl::string_view event_str);
 
   // EventWriter automatically flushes and closes on destruction, but
   // these two methods are provided for users who want to write to disk sooner
@@ -76,21 +78,24 @@ class EventsWriter {
   // be written too.
   //   Close() calls Flush() and then closes the current events file.
   // Returns true only if both the flush and the closure were successful.
-  Status Flush();
-  Status Close();
+  absl::Status Flush();
+  absl::Status Close();
 
  private:
-  Status FileStillExists();  // OK if event_file_path_ exists.
-  Status InitIfNeeded();
+  absl::Status FileStillExists();  // OK if event_file_path_ exists.
+  absl::Status InitIfNeeded();
 
   Env* env_;
-  const string file_prefix_;
-  string file_suffix_;
-  string filename_;
+  const std::string file_prefix_;
+  std::string file_suffix_;
+  std::string filename_;
   std::unique_ptr<WritableFile> recordio_file_;
   std::unique_ptr<io::RecordWriter> recordio_writer_;
   int num_outstanding_events_;
-  TF_DISALLOW_COPY_AND_ASSIGN(EventsWriter);
+#ifndef SWIG
+  EventsWriter(const EventsWriter&) = delete;
+  void operator=(const EventsWriter&) = delete;
+#endif
 };
 
 }  // namespace tensorflow

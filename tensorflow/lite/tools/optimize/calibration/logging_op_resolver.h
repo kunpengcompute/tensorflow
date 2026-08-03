@@ -12,15 +12,18 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
-#ifndef TENSORFLOW_LITE_TOOLS_OPTIMIZE_LOGGING_OP_RESOLVER_H_
-#define TENSORFLOW_LITE_TOOLS_OPTIMIZE_LOGGING_OP_RESOLVER_H_
+#ifndef TENSORFLOW_LITE_TOOLS_OPTIMIZE_CALIBRATION_LOGGING_OP_RESOLVER_H_
+#define TENSORFLOW_LITE_TOOLS_OPTIMIZE_CALIBRATION_LOGGING_OP_RESOLVER_H_
 
 #include <set>
 #include <unordered_map>
 
+#include "tensorflow/lite/c/common.h"
+#include "tensorflow/lite/core/api/error_reporter.h"
 #include "tensorflow/lite/core/api/op_resolver.h"
 #include "tensorflow/lite/mutable_op_resolver.h"
 #include "tensorflow/lite/op_resolver.h"
+#include "tensorflow/lite/schema/schema_generated.h"
 #include "tensorflow/lite/tools/optimize/calibration/calibration_common.h"
 
 namespace tflite {
@@ -39,7 +42,8 @@ class LoggingOpResolver : public OpResolver {
   LoggingOpResolver(const BuiltinOpsSet& builtin_ops_to_replace,
                     const CustomOpsSet& custom_ops_to_replace,
                     const OpResolver& base_resolver,
-                    KernelEvalFuncPtr logging_eval_fn);
+                    KernelEvalFuncPtr logging_eval_fn,
+                    ErrorReporter* error_reporter);
 
   const TfLiteRegistration* FindOp(BuiltinOperator op,
                                    int version) const override;
@@ -61,4 +65,4 @@ class LoggingOpResolver : public OpResolver {
 }  // namespace optimize
 }  // namespace tflite
 
-#endif  // TENSORFLOW_LITE_TOOLS_OPTIMIZE_LOGGING_OP_RESOLVER_H_
+#endif  // TENSORFLOW_LITE_TOOLS_OPTIMIZE_CALIBRATION_LOGGING_OP_RESOLVER_H_

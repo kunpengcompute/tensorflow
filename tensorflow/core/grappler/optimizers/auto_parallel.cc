@@ -25,6 +25,7 @@ limitations under the License.
 #include "tensorflow/core/grappler/grappler_item.h"
 #include "tensorflow/core/grappler/op_types.h"
 #include "tensorflow/core/grappler/utils.h"
+#include "tensorflow/core/grappler/utils/transitive_fanin.h"
 #include "tensorflow/core/lib/strings/strcat.h"
 
 namespace tensorflow {
@@ -73,18 +74,20 @@ NodeDef* AutoParallel::AddNodeControl(const string& name,
   return node;
 }
 
-Status AutoParallel::Initialize(const GrapplerItem& item) {
+absl::Status AutoParallel::Initialize(const GrapplerItem& item) {
   num_gpus_ = GetNumAvailableGPUs();
   LOG(INFO) << "Number of GPUs: " << num_gpus_;
   item_ = &item;
   graph_ = item.graph;
   LOG(INFO) << "Original graph size: " << graph_.node_size();
   if (item.fetch.empty()) {
-    return Status(error::INVALID_ARGUMENT, "No fetch nodes provided.");
+    return absl::Status(absl::StatusCode::kInvalidArgument,
+                        "No fetch nodes provided.");
   }
 
   if (item.MainVariables().empty()) {
-    return Status(error::INVALID_ARGUMENT, "No variables provided.");
+    return absl::Status(absl::StatusCode::kInvalidArgument,
+                        "No variables provided.");
   }
 
   for (const auto& init : item.init_ops) {
@@ -147,10 +150,11 @@ Status AutoParallel::Initialize(const GrapplerItem& item) {
   }
   LOG(INFO) << "Graph size after adding div nodes: " << all_nodes_.size();
 
-  auto train_nodes = ComputeTransitiveFanin(graph_, item.fetch);
+  std::vector<const NodeDef*> train_nodes;
+  TF_RETURN_IF_ERROR(ComputeTransitiveFanin(graph_, item.fetch, &train_nodes));
   LOG(INFO) << "Number of training nodes: " << train_nodes.size();
 
-  const NodeDef* dequeue_node;
+  const NodeDef* dequeue_node = nullptr;
   for (const auto& train_node : train_nodes) {
     if (IsDequeueOp(*train_node)) {
       dequeue_node = train_node;
@@ -161,7 +165,8 @@ Status AutoParallel::Initialize(const GrapplerItem& item) {
   std::vector<const NodeDef*> input_nodes;
   if (dequeue_node) {
     LOG(INFO) << "Dequeue node: " << dequeue_node->name();
-    input_nodes = ComputeTransitiveFanin(graph_, {dequeue_node->name()});
+    TF_RETURN_IF_ERROR(ComputeTransitiveFanin(graph_, {dequeue_node->name()},
+                                              {}, &input_nodes));
   }
   LOG(INFO) << "Number of input nodes: " << input_nodes.size();
 
@@ -194,7 +199,7 @@ Status AutoParallel::Initialize(const GrapplerItem& item) {
     }
   }
   LOG(INFO) << "Number of shared nodes: " << shared_nodes_.size();
-  return Status::OK();
+  return absl::OkStatus();
 }
 
 bool AutoParallel::NotSharedNode(const string& name) {
@@ -260,16 +265,11 @@ void AutoParallel::BuildGraph(GraphDef* graph) {
   LOG(INFO) << "Parallelized graph size: " << graph->node_size();
 }
 
-Status AutoParallel::Optimize(Cluster* cluster, const GrapplerItem& item,
-                              GraphDef* output) {
+absl::Status AutoParallel::Optimize(Cluster* cluster, const GrapplerItem& item,
+                                    GraphDef* output) {
   TF_RETURN_IF_ERROR(Initialize(item));
   BuildGraph(output);
-  return Status::OK();
-}
-
-void AutoParallel::Feedback(Cluster* cluster, const GrapplerItem& item,
-                            const GraphDef& optimize_output, double result) {
-  // TODO(yaozhang): Add feedback.
+  return absl::OkStatus();
 }
 
 }  // end namespace grappler

@@ -13,12 +13,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include "tensorflow/compiler/tf2tensorrt/plugin/trt_plugin.h"
-
 #include <cstring>
 
-#if GOOGLE_CUDA
-#if GOOGLE_TENSORRT
+#if GOOGLE_CUDA && GOOGLE_TENSORRT
 
 namespace tensorflow {
 namespace tensorrt {
@@ -30,5 +27,4 @@ const char* kTfTrtPluginNamespace = "TF";
 }  // namespace tensorrt
 }  // namespace tensorflow
 
-#endif  // GOOGLE_CUDA
-#endif  // GOOGLE_TENSORRT
+#endif  // GOOGLE_CUDA && GOOGLE_TENSORRT

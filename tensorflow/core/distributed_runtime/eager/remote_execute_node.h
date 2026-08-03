@@ -17,13 +17,15 @@ limitations under the License.
 #define TENSORFLOW_CORE_DISTRIBUTED_RUNTIME_EAGER_REMOTE_EXECUTE_NODE_H_
 
 #include <cstddef>
+#include <memory>
+#include <utility>
 
 #include "absl/types/span.h"
-#include "tensorflow/core/common_runtime/device.h"
 #include "tensorflow/core/common_runtime/eager/eager_executor.h"
 #include "tensorflow/core/common_runtime/eager/shape_inference.h"
 #include "tensorflow/core/common_runtime/eager/tensor_handle.h"
 #include "tensorflow/core/distributed_runtime/eager/eager_client.h"
+#include "tensorflow/core/framework/cancellation.h"
 #include "tensorflow/core/framework/function.h"
 #include "tensorflow/core/framework/node_def.pb.h"
 #include "tensorflow/core/lib/gtl/inlined_vector.h"
@@ -39,8 +41,10 @@ class RemoteExecuteNode : public AsyncRemoteExecuteNode {
   RemoteExecuteNode(EagerContext* eager_context,
                     std::unique_ptr<EnqueueRequest> request, Device* device,
                     uint64 context_view_id, EagerClient* eager_client,
-                    const NodeDef& ndef, FunctionLibraryDefinition* lib_def,
-                    const gtl::InlinedVector<TensorHandle*, 4>& inputs,
+                    CancellationManager* cancellation_manager,
+                    const NodeDef& ndef,
+                    const FunctionLibraryDefinition* lib_def,
+                    const absl::InlinedVector<TensorHandle*, 4UL>& inputs,
                     absl::Span<TensorHandle*> retvals)
       : AsyncRemoteExecuteNode(),
         eager_context_(eager_context),
@@ -48,6 +52,7 @@ class RemoteExecuteNode : public AsyncRemoteExecuteNode {
         device_(device),
         context_view_id_(context_view_id),
         eager_client_(eager_client),
+        cancellation_manager_(cancellation_manager),
         ndef_(ndef),
         lib_def_(lib_def),
         inputs_(inputs) {
@@ -87,15 +92,17 @@ class RemoteExecuteNode : public AsyncRemoteExecuteNode {
     eager_client_->Unref();
   }
 
-  Status Prepare() override {
+  absl::Status Prepare() override {
     return RunShapeInference(ndef_, *lib_def_, inputs_, retvals_);
   }
 
   void RunAsync(StatusCallback done) override;
 
-  Status SyncExecutors() override { return eager_context_->SyncExecutors(); }
+  absl::Status SyncExecutors() override {
+    return eager_context_->SyncExecutors();
+  }
 
-  void Abort(Status status) override {
+  void Abort(absl::Status status) override {
     int i = 0;
     for (auto handle : retvals_) {
       handle->PoisonRemote(status, device_, context_view_id_);
@@ -125,10 +132,11 @@ class RemoteExecuteNode : public AsyncRemoteExecuteNode {
   uint64 context_view_id_;
   bool needs_remote_inputs_;
   EagerClient* eager_client_;  // Not owned, and must outlive this node.
+  CancellationManager* cancellation_manager_;
   const NodeDef ndef_;
   const FunctionLibraryDefinition* lib_def_;
-  gtl::InlinedVector<TensorHandle*, 4> inputs_;
-  gtl::InlinedVector<TensorHandle*, 2> retvals_;
+  absl::InlinedVector<TensorHandle*, 4UL> inputs_;
+  absl::InlinedVector<TensorHandle*, 2UL> retvals_;
 };
 
 }  // namespace eager

@@ -41,29 +41,41 @@ class MetaOptimizer : public GraphOptimizer {
 
   bool UsesFunctionLibrary() const override { return true; }
 
-  Status Optimize(Cluster* cluster, const GrapplerItem& item,
-                  GraphDef* optimized_graph) override;
+  absl::Status Optimize(Cluster* cluster, const GrapplerItem& item,
+                        GraphDef* optimized_graph) override {
+    GrapplerItem copy(item);
+    return OptimizeConsumeItem(cluster, std::move(copy), optimized_graph);
+  }
+
+  absl::Status OptimizeConsumeItem(Cluster* cluster, GrapplerItem&& item,
+                                   GraphDef* optimized_graph);
+
+  string GetResultString() const;
 
   void PrintResult();
 
-  void Feedback(Cluster* cluster, const GrapplerItem& item,
-                const GraphDef& optimized_graph, double result) override {}
-
  private:
   std::unique_ptr<GraphOptimizer> MakeNewOptimizer(
-      const string& optimizer) const;
+      const string& optimizer, const std::set<string>& device_types) const;
 
-  bool IsSingleThreadedExecutor() const;
+  // When grappler should lower control flow to V1 switch/merge style nodes.
+  bool LowerControlFlow() const;
 
   // Initialize active optimizers from RewriterConfig toggles.
-  Status InitializeOptimizers(
+  absl::Status InitializeOptimizers(
+      const std::set<string>& device_types,
       std::vector<std::unique_ptr<GraphOptimizer>>* optimizers) const;
   // Initialize active optimizers from RewriterConfig optimizer names.
-  Status InitializeOptimizersByName(
+  absl::Status InitializeOptimizersByName(
+      const std::set<string>& device_types,
       std::vector<std::unique_ptr<GraphOptimizer>>* optimizers) const;
   // Initialize active optimizers from RewriterConfig.custom_optimizers.
-  Status InitializeCustomGraphOptimizers(
+  absl::Status InitializeCustomGraphOptimizers(
+      const std::set<string>& device_types,
       const std::set<string>& pre_initialized_optimizers,
+      std::vector<std::unique_ptr<GraphOptimizer>>* optimizers) const;
+  absl::Status InitializePluginGraphOptimizers(
+      const std::set<string>& device_types,
       std::vector<std::unique_ptr<GraphOptimizer>>* optimizers) const;
   // Returns the config for a custom graph optimizer. Null if none was found.
   const RewriterConfig::CustomGraphOptimizer* GetCustomGraphOptimizerConfig(
@@ -75,19 +87,25 @@ class MetaOptimizer : public GraphOptimizer {
       std::vector<std::unique_ptr<GraphVerifier>>* post_optimization_verifiers)
       const;
 
+  void PrintUserAndPluginConfigs(const std::set<string>& device_types) const;
+
   // Run optimization pass over a single GrapplerItem. Meta optimizer might run
   // multiple such passes: 1) for the main graph 2) for the function library
-  Status OptimizeGraph(Cluster* cluster, const GrapplerItem& item,
-                       GraphDef* optimized_graph);
+  absl::Status OptimizeGraph(
+      const std::vector<std::unique_ptr<GraphOptimizer>>& optimizers,
+      Cluster* cluster, GrapplerItem&& item, GraphDef* optimized_graph);
+  absl::Status OptimizeGraph(Cluster* cluster, GrapplerItem&& item,
+                             GraphDef* optimized_graph);
 
   DeviceBase* const cpu_device_;  // may be NULL
   ConfigProto config_proto_;
   RewriterConfig& cfg_;
+  bool xla_auto_clustering_on_;
 
   struct OptimizerResult {
     string optimizer_name;
     string message;
-    Status status;
+    absl::Status status;
   };
 
   struct GraphOptimizationResult {
@@ -96,9 +114,10 @@ class MetaOptimizer : public GraphOptimizer {
     std::vector<OptimizerResult> results;
   };
 
-  Status RunOptimizer(GraphOptimizer* optimizer, Cluster* cluster,
-                      GrapplerItem* optimized_item, GraphDef* optimized_graph,
-                      GraphOptimizationResult* optimization_result);
+  absl::Status RunOptimizer(GraphOptimizer* optimizer, Cluster* cluster,
+                            GrapplerItem* optimized_item,
+                            GraphDef* optimized_graph,
+                            GraphOptimizationResult* optimization_result);
 
   std::vector<GraphOptimizationResult> optimization_results_;
 };
@@ -111,9 +130,9 @@ bool MetaOptimizerEnabled(const ConfigProto& cfg);
 // during constant folding; if NULL, a new device is created for doing constant
 // folding. For performance, it is recommended to pass in an existing cpu_device
 // when possible.
-Status RunMetaOptimizer(const GrapplerItem& item, const ConfigProto& cfg,
-                        DeviceBase* cpu_device, Cluster* cluster,
-                        GraphDef* optimized_graph);
+absl::Status RunMetaOptimizer(GrapplerItem&& item, const ConfigProto& cfg,
+                              DeviceBase* cpu_device, Cluster* cluster,
+                              GraphDef* optimized_graph);
 
 // Wrapper around RunMetaOptimizer convenient for optimizing
 // function graphs.
@@ -133,7 +152,7 @@ Status RunMetaOptimizer(const GrapplerItem& item, const ConfigProto& cfg,
 // OptimizeGraph mutates **g extensively and replaces '*g' with a
 // complete copy. Therefore, the caller should not keep any references
 // to nodes *g.
-Status OptimizeGraph(
+absl::Status OptimizeGraph(
     std::vector<string> ret_node_names, std::vector<string> keep_node_names,
     FunctionLibraryDefinition* lib, const DeviceSet& device_set,
     Device* cpu_device, const ConfigProto& config_proto,

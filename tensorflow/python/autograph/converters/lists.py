@@ -26,17 +26,15 @@ This includes converting Python lists to TensorArray/TensorList.
 #   * convert to TensorArray only when complete write once behavior can be
 #     guaranteed (e.g. list comprehensions)
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import gast
 
 from tensorflow.python.autograph.core import converter
 from tensorflow.python.autograph.lang import directives
 from tensorflow.python.autograph.pyct import anno
 from tensorflow.python.autograph.pyct import parser
+from tensorflow.python.autograph.pyct import qual_names
 from tensorflow.python.autograph.pyct import templates
+from tensorflow.python.autograph.pyct.static_analysis import activity
 from tensorflow.python.autograph.pyct.static_analysis.annos import NodeAnno
 
 
@@ -235,4 +233,7 @@ class ListTransformer(converter.Base):
 
 
 def transform(node, ctx):
+  node = qual_names.resolve(node)
+  node = activity.resolve(node, ctx, None)
+
   return ListTransformer(ctx).visit(node)

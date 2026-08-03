@@ -14,22 +14,18 @@
 # ==============================================================================
 """Utilities for serializing Python objects."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import numpy as np
 import wrapt
 
+from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import tensor_shape
 from tensorflow.python.util.compat import collections_abc
-from tensorflow.python.keras.utils import generic_utils
 
 
 def get_json_type(obj):
   """Serializes any object to a JSON-serializable structure.
 
-  Arguments:
+  Args:
       obj: the object to serialize
 
   Returns:
@@ -41,10 +37,7 @@ def get_json_type(obj):
   # if obj is a serializable Keras class instance
   # e.g. optimizer, layer
   if hasattr(obj, 'get_config'):
-    return {
-        'class_name': generic_utils.get_registered_name(obj.__class__),
-        'config': obj.get_config()
-    }
+    return {'class_name': obj.__class__.__name__, 'config': obj.get_config()}
 
   # if obj is any numpy type
   if type(obj).__module__ == np.__name__:
@@ -67,10 +60,19 @@ def get_json_type(obj):
   if isinstance(obj, tensor_shape.TensorShape):
     return obj.as_list()
 
+  if isinstance(obj, dtypes.DType):
+    return obj.name
+
   if isinstance(obj, collections_abc.Mapping):
     return dict(obj)
+
+  if obj is Ellipsis:
+    return {'class_name': '__ellipsis__'}
 
   if isinstance(obj, wrapt.ObjectProxy):
     return obj.__wrapped__
 
-  raise TypeError('Not JSON Serializable:', obj)
+  raise TypeError(f'Object {obj} is not JSON-serializable. You may implement '
+                  'a `get_config()` method on the class '
+                  '(returning a JSON-serializable dictionary) to make it '
+                  'serializable.')

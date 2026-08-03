@@ -18,6 +18,9 @@ limitations under the License.
 #include <string.h>
 #include <sys/types.h>
 #include <zlib.h>
+
+#include <csetjmp>
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -25,6 +28,10 @@ limitations under the License.
 // provokes a compile error. We instead let png.h include what is needed.
 
 #include "absl/base/casts.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/strings/string_view.h"
+#include "png.h"  // from @png
 #include "tensorflow/core/lib/png/png_io.h"
 #include "tensorflow/core/platform/byte_order.h"
 #include "tensorflow/core/platform/logging.h"
@@ -53,7 +60,7 @@ static void Convert8to16(const uint8* p8, int num_comps, int p8_row_bytes,
   // enforced to < 29 bits in decode_png_op.cc, but height*row_bytes is
   // height*width*channels*(8bit?1:2) which is therefore only constrained to <
   // 33 bits.
-  int64 height = static_cast<int64>(height_in);
+  int64_t height = static_cast<int64_t>(height_in);
 
   // Adjust pointers to copy backwards
   width *= num_comps;
@@ -77,7 +84,7 @@ static void Convert8to16(const uint8* p8, int num_comps, int p8_row_bytes,
 
 void ErrorHandler(png_structp png_ptr, png_const_charp msg) {
   DecodeContext* const ctx =
-      absl::bit_cast<DecodeContext*>(png_get_io_ptr(png_ptr));
+      absl::bit_cast<DecodeContext*>(png_get_error_ptr(png_ptr));
   ctx->error_condition = true;
   // To prevent log spam, errors are logged as VLOG(1) instead of ERROR.
   VLOG(1) << "PNG error: " << msg;
@@ -113,7 +120,7 @@ void StringWriter(png_structp png_ptr, png_bytep data, png_size_t length) {
 
 void StringWriterFlush(png_structp png_ptr) {}
 
-char* check_metadata_string(const string& s) {
+char* check_metadata_string(const std::string& s) {
   const char* const c_string = s.c_str();
   const size_t length = s.size();
   if (strlen(c_string) != length) {
@@ -136,9 +143,9 @@ void CommonFreeDecode(DecodeContext* context) {
   }
 }
 
-bool DecodeHeader(StringPiece png_string, int* width, int* height,
+bool DecodeHeader(absl::string_view png_string, int* width, int* height,
                   int* components, int* channel_bit_depth,
-                  std::vector<std::pair<string, string> >* metadata) {
+                  std::vector<std::pair<std::string, std::string> >* metadata) {
   DecodeContext context;
   // Ask for 16 bits even if there may be fewer.  This assures that sniffing
   // the metadata will succeed in all cases.
@@ -197,7 +204,7 @@ bool DecodeHeader(StringPiece png_string, int* width, int* height,
   return true;
 }
 
-bool CommonInitDecode(StringPiece png_string, int desired_channels,
+bool CommonInitDecode(absl::string_view png_string, int desired_channels,
                       int desired_channel_bits, DecodeContext* context) {
   CHECK(desired_channel_bits == 8 || desired_channel_bits == 16)
       << "desired_channel_bits = " << desired_channel_bits;
@@ -345,7 +352,7 @@ template <typename T>
 bool WriteImageToBuffer(
     const void* image, int width, int height, int row_bytes, int num_channels,
     int channel_bits, int compression, T* png_string,
-    const std::vector<std::pair<string, string> >* metadata) {
+    const std::vector<std::pair<std::string, std::string> >* metadata) {
   CHECK_NOTNULL(image);
   CHECK_NOTNULL(png_string);
   // Although this case is checked inside png.cc and issues an error message,
@@ -354,8 +361,9 @@ bool WriteImageToBuffer(
 
   png_string->resize(0);
   png_infop info_ptr = nullptr;
-  png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr,
-                                                ErrorHandler, WarningHandler);
+  DecodeContext decode_context;
+  png_structp png_ptr = png_create_write_struct(
+      PNG_LIBPNG_VER_STRING, &decode_context, ErrorHandler, WarningHandler);
   if (png_ptr == nullptr) return false;
   if (setjmp(png_jmpbuf(png_ptr))) {
     png_destroy_write_struct(&png_ptr, info_ptr ? &info_ptr : nullptr);
@@ -420,14 +428,14 @@ bool WriteImageToBuffer(
   return true;
 }
 
-template bool WriteImageToBuffer<string>(
+template bool WriteImageToBuffer<std::string>(
     const void* image, int width, int height, int row_bytes, int num_channels,
-    int channel_bits, int compression, string* png_string,
-    const std::vector<std::pair<string, string> >* metadata);
+    int channel_bits, int compression, std::string* png_string,
+    const std::vector<std::pair<std::string, std::string> >* metadata);
 template bool WriteImageToBuffer<tstring>(
     const void* image, int width, int height, int row_bytes, int num_channels,
     int channel_bits, int compression, tstring* png_string,
-    const std::vector<std::pair<string, string> >* metadata);
+    const std::vector<std::pair<std::string, std::string> >* metadata);
 
 }  // namespace png
 }  // namespace tensorflow

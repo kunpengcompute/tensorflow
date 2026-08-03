@@ -16,32 +16,57 @@ limitations under the License.
 #ifndef TENSORFLOW_CORE_PROFILER_RPC_CLIENT_SAVE_PROFILE_H_
 #define TENSORFLOW_CORE_PROFILER_RPC_CLIENT_SAVE_PROFILE_H_
 
-#include "tensorflow/core/lib/core/status.h"
-#include "tensorflow/core/profiler/profiler_service.pb.h"
+#include <ostream>
+#include <string>
+
+#include "absl/base/macros.h"
+#include "absl/status/status.h"
+#include "xla/tsl/profiler/rpc/client/save_profile.h"
+#include "tsl/profiler/protobuf/profiler_service.pb.h"
+#include "tsl/profiler/protobuf/xplane.pb.h"
+
+// TODO: b/323943471 - This macro should eventually be provided by Abseil.
+#ifndef ABSL_DEPRECATE_AND_INLINE
+#define ABSL_DEPRECATE_AND_INLINE()
+#endif
 
 namespace tensorflow {
 namespace profiler {
 
-string GetCurrentTimeStampAsString();
+ABSL_DEPRECATE_AND_INLINE()
+inline std::string GetCurrentTimeStampAsString() {
+  return tsl::profiler::GetCurrentTimeStampAsString();
+}
 
-// Returns the profile plugin directory given a logdir to TensorBoard.
-string GetTensorBoardProfilePluginDir(const string& logdir);
+ABSL_DEPRECATE_AND_INLINE()
+inline std::string GetTensorBoardProfilePluginDir(const std::string& logdir) {
+  return tsl::profiler::GetTensorBoardProfilePluginDir(logdir);
+}
 
-// Saves all profiling tool data in a profile to a TensorBoard log directory
-// with the given run name. This writes user-facing log messages to `os`.
-// Note: this function creates a directory even when all fields in
-// ProfileResponse are unset/empty.
-Status SaveTensorboardProfile(const string& logdir, const string& run,
-                              const string& host,
-                              const ProfileResponse& response,
-                              std::ostream* os);
+ABSL_DEPRECATE_AND_INLINE()
+inline absl::Status SaveGzippedToolData(const std::string& repository_root,
+                                        const std::string& run,
+                                        const std::string& host,
+                                        const std::string& tool_name,
+                                        const std::string& data) {
+  return tsl::profiler::SaveGzippedToolData(repository_root, run, host,
+                                            tool_name, data);
+}
 
-// Gzip the data and save to the specified filepath.
-Status SaveGzippedToolDataToTensorboardProfile(const string& logdir,
-                                               const string& run,
-                                               const string& host,
-                                               const string& tool_name,
-                                               const string& data);
+ABSL_DEPRECATE_AND_INLINE()
+inline absl::Status SaveProfile(const std::string& repository_root,
+                                const std::string& run, const std::string& host,
+                                const tensorflow::ProfileResponse& response,
+                                std::ostream* os) {
+  return tsl::profiler::SaveProfile(repository_root, run, host, response, os);
+}
+
+ABSL_DEPRECATE_AND_INLINE()
+inline absl::Status SaveXSpace(const std::string& repository_root,
+                               const std::string& run, const std::string& host,
+                               const tensorflow::profiler::XSpace& xspace) {
+  return tsl::profiler::SaveXSpace(repository_root, run, host, xspace);
+}
 
 }  // namespace profiler
 }  // namespace tensorflow

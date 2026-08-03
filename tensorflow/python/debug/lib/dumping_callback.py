@@ -14,10 +14,6 @@
 # ==============================================================================
 """Dumping op callbacks: Enables dump-based features in tfdbg v2."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import atexit
 import os
 import re
@@ -25,11 +21,9 @@ import socket
 import threading
 import uuid
 
-from six.moves import xrange  # pylint: disable=redefined-builtin
-
+from tensorflow.core.framework import graph_debug_info_pb2
 from tensorflow.core.framework import tensor_pb2
 from tensorflow.core.protobuf import debug_event_pb2
-from tensorflow.core.protobuf import graph_debug_info_pb2
 from tensorflow.python.debug.lib import debug_events_writer
 from tensorflow.python.debug.lib import op_callbacks_common
 from tensorflow.python.debug.lib import source_utils
@@ -43,6 +37,7 @@ from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import gen_debug_ops
 from tensorflow.python.platform import tf_logging as logging
 from tensorflow.python.util import compat
+from tensorflow.python.util import object_identity
 from tensorflow.python.util import tf_stack
 from tensorflow.python.util.tf_export import tf_export
 
@@ -68,6 +63,10 @@ def _debug_identity_v2_grad(op, dy):
   return dy
 
 
+def _get_tfdbg_run_id():
+  return str(uuid.uuid4())[:8]
+
+
 def _get_id():
   """Get a short unique ID."""
   return str(uuid.uuid4())
@@ -87,6 +86,7 @@ class _DumpingCallback(object):
                op_regex,
                tensor_dtypes):
     self._dump_root = dump_root
+    self._tfdbg_run_id = _get_tfdbg_run_id()
     self._tensor_debug_mode = tensor_debug_mode
     self._circular_buffer_size = circular_buffer_size
     self._op_regex = op_regex
@@ -102,7 +102,12 @@ class _DumpingCallback(object):
     self._function_to_graph_id = dict()
     self._op_type_to_context_id = dict()
     # Keeps track of counter for symbolic tensors output by in-graph ops.
+    # It is used to make unique names for debugger-generated tensors.
     self._symbolic_tensor_counter = 0
+    # A map from the names of debugger-generated Identity and DebugIdentityV2
+    # tensors to the names of the original insrumented graph tensors. This is
+    # applicable to v1 graph mode only.
+    self._tensor_aliases = dict()
     self._source_file_paths_lock = threading.Lock()
     self._stack_frame_to_id_lock = threading.Lock()
     self._context_lock = threading.Lock()
@@ -111,20 +116,15 @@ class _DumpingCallback(object):
     # Used only under V1 graph mode, where we can't rely on auto control
     # dependency to execute the debug tensors and hence need to attach the debug
     # tensors as control dependencies of the ops that consume the Placeholder.
-    self._placeholder_to_debug_tensor = dict()
+    self._placeholder_to_debug_tensor = (
+        object_identity.ObjectIdentityDictionary())
     self._writer = None
 
   def function_callback(self, function):
-    """A callback to be called on creation of Functions.
-
-    Used to establish a join between function name and graph (context) ID.
-
-    Args:
-      function: The just-created Function.
-    """
+    """A callback to be called on creation of ConcreteFunctions."""
     graph_id = self._get_context_id(function.graph)
     with self._context_lock:
-      # NOTE(cais): We currently store the function (_EagerDefinedFunction)
+      # NOTE(cais): We currently store the function (ConcreteFunction)
       # as keys of this dict, because weakrefs to them sometimes become
       # unreferenceable by the time the op callback is called. This approach
       # may cause memory leaks due to the holding of the functions. If that's
@@ -143,6 +143,10 @@ class _DumpingCallback(object):
       self._writer = None
 
   @property
+  def tfdbg_run_id(self):
+    return self._tfdbg_run_id
+
+  @property
   def tensor_debug_mode(self):
     return self._tensor_debug_mode
 
@@ -155,6 +159,7 @@ class _DumpingCallback(object):
     if not self._writer:
       self._writer = debug_events_writer.DebugEventsWriter(
           self._dump_root,
+          self._tfdbg_run_id,
           circular_buffer_size=self._circular_buffer_size)
     return self._writer
 
@@ -292,12 +297,21 @@ class _DumpingCallback(object):
       # TODO(cais): Evaluate performance optimization options. For the
       # `NO_TENSOR` debug mode, an alternative is to add `debug_tensor` as a
       # control dependency of `tensor.op` without an additional identity op.
-      if tensor_debug_mode == debug_event_pb2.TensorDebugMode.FULL_TENSOR:
+      if (tensor_debug_mode == debug_event_pb2.TensorDebugMode.FULL_TENSOR and
+          op_type != "Const"):
+        # NOTE(b/153716279): Under v1 graph mode, overriding the output tensor
+        # of Const ops can lead to downstream errors related to shapes. We opt
+        # to use an identity op to avoid this issue at the cost of slightly
+        # larger graph size.
+        self._tensor_aliases[debug_tensor.name] = tensor.name
         return debug_tensor
       else:
-        identity = array_ops.identity(tensor)
+        with self._symbolic_tensor_counter_lock:
+          identity_name = "tfdbg_identity_%d" % self._symbolic_tensor_counter
+        identity = array_ops.identity(tensor, name=identity_name)
         identity.op._add_control_input(  # pylint: disable=protected-access
             debug_tensor.op)
+        self._tensor_aliases[identity.name] = tensor.name
         return identity
 
   def _instrument_symbolic_tensors(self,
@@ -335,8 +349,21 @@ class _DumpingCallback(object):
     debug_urls = ["file://%s" % self._dump_root]
     is_v1_graph_mode = not ops.executing_eagerly_outside_functions()
     instrumented_tensors = [] if is_v1_graph_mode else None
-    if tensor_debug_mode == debug_event_pb2.TensorDebugMode.NO_TENSOR:
-      for output_slot, tensor in enumerate(tensors):
+    for output_slot, tensor in enumerate(tensors):
+      with self._symbolic_tensor_counter_lock:
+        debug_identity_name = ("DebugIdentityV2_%d" %
+                               self._symbolic_tensor_counter)
+      debug_identity_op_kwargs = {
+          "tfdbg_context_id": tfdbg_context_id,
+          "op_name": op_name,
+          "output_slot": output_slot,
+          "tensor_debug_mode": self._tensor_debug_mode,
+          "debug_urls": debug_urls,
+          "name": debug_identity_name,
+          "circular_buffer_size": self._circular_buffer_size,
+          "tfdbg_run_id": self._tfdbg_run_id,
+      }
+      if tensor_debug_mode == debug_event_pb2.TensorDebugMode.NO_TENSOR:
         if (not self._should_dump_tensor(op_type, tensor.dtype) or
             not tensor.dtype.is_numpy_compatible):
           if is_v1_graph_mode:
@@ -354,20 +381,14 @@ class _DumpingCallback(object):
             # as a low-overhead placeholder, since no actual tensor value is
             # traced.
             constant_op.constant([], dtype=dtypes.float32),
-            tfdbg_context_id=tfdbg_context_id,
-            op_name=op_name,
-            output_slot=output_slot,
-            tensor_debug_mode=self._tensor_debug_mode,
-            debug_urls=debug_urls)
+            **debug_identity_op_kwargs)
         if is_v1_graph_mode:
           instrumented_tensors.append(self._process_v1_graph_mode_tensor(
               op_type, tensor, debug_tensor, tensor_debug_mode))
-      return instrumented_tensors
-    elif tensor_debug_mode in (debug_event_pb2.TensorDebugMode.CURT_HEALTH,
-                               debug_event_pb2.TensorDebugMode.CONCISE_HEALTH,
-                               debug_event_pb2.TensorDebugMode.FULL_HEALTH,
-                               debug_event_pb2.TensorDebugMode.SHAPE):
-      for output_slot, tensor in enumerate(tensors):
+      elif tensor_debug_mode in (debug_event_pb2.TensorDebugMode.CURT_HEALTH,
+                                 debug_event_pb2.TensorDebugMode.CONCISE_HEALTH,
+                                 debug_event_pb2.TensorDebugMode.FULL_HEALTH,
+                                 debug_event_pb2.TensorDebugMode.SHAPE):
         dtype = tensor.dtype
         dtype_is_dumpable = (
             tensor_debug_mode in (
@@ -387,18 +408,11 @@ class _DumpingCallback(object):
                 tensor,
                 tensor_id=tensor_ids[output_slot],
                 tensor_debug_mode=self._tensor_debug_mode,
-                output_dtype=dtypes.float64),
-            tfdbg_context_id=tfdbg_context_id,
-            op_name=op_name,
-            output_slot=output_slot,
-            tensor_debug_mode=self._tensor_debug_mode,
-            debug_urls=debug_urls)
+                output_dtype=dtypes.float64), **debug_identity_op_kwargs)
         if is_v1_graph_mode:
           instrumented_tensors.append(self._process_v1_graph_mode_tensor(
               op_type, tensor, debug_tensor, tensor_debug_mode))
-      return instrumented_tensors
-    elif tensor_debug_mode == debug_event_pb2.TensorDebugMode.FULL_TENSOR:
-      for output_slot, tensor in enumerate(tensors):
+      elif tensor_debug_mode == debug_event_pb2.TensorDebugMode.FULL_TENSOR:
         if (not self._should_dump_tensor(op_type, tensor.dtype) or
             not tensor.dtype.is_numpy_compatible):
           # Instrumenting DT_VARIANT and DT_RESOURCE type tensors under
@@ -407,20 +421,15 @@ class _DumpingCallback(object):
             instrumented_tensors.append(tensor)
           continue
         debug_tensor = gen_debug_ops.debug_identity_v2(
-            tensor,
-            tfdbg_context_id=tfdbg_context_id,
-            op_name=op_name,
-            output_slot=output_slot,
-            tensor_debug_mode=self._tensor_debug_mode,
-            debug_urls=debug_urls)
+            tensor, **debug_identity_op_kwargs)
         if is_v1_graph_mode:
           instrumented_tensors.append(self._process_v1_graph_mode_tensor(
               op_type, tensor, debug_tensor, tensor_debug_mode))
-      return instrumented_tensors
-    else:
-      raise NotImplementedError(
-          "Symbolic tensor instrumentation is not implemented for debug mode "
-          "%s" % self._tensor_debug_mode)
+      else:
+        raise NotImplementedError(
+            "Symbolic tensor instrumentation is not implemented for debug mode "
+            "%s" % self._tensor_debug_mode)
+    return instrumented_tensors
 
   def _dump_eager_tensors(self,
                           tensors,
@@ -530,15 +539,14 @@ class _DumpingCallback(object):
       is_v1_graph_mode = not ops.executing_eagerly_outside_functions()
       context_id = self._get_context_id(graph)  # Innermost context ID.
       output_tensor_ids = self._get_symbolic_tensor_ids(len(outputs))
-      if op_type in ("Placeholder", "PlaceholderWithDefault"):
-        # In some cases, the op name of a Placeholder op in a graph
-        # can be duplicate (e.g., with the name "resource").
-        # When this happens, we give the op an debugger-generated name
-        # in order to prevent problems and check failures down the pipe.
-        op_name = "%s_%d" % (op_name, self._symbolic_tensor_counter)
+      if op_type in ("Const", "Placeholder", "PlaceholderWithDefault"):
+        # In some cases, the op name of a Const or Placeholder op in a graph
+        # can be duplicate (e.g., `None` or "resource").
+        # When this happens, we use the output tensor name to infer
+        # the non-duplicated tensor name.
+        op_name = outputs[0].name.split(":")[0]
       if is_v1_graph_mode:
         for input_tensor in inputs:
-          # TODO(cais):
           if input_tensor in self._placeholder_to_debug_tensor and outputs:
             outputs[0].op._add_control_input(  # pylint: disable=protected-access
                 self._placeholder_to_debug_tensor[input_tensor].op)
@@ -547,7 +555,9 @@ class _DumpingCallback(object):
           op_name=op_name,
           graph_name=graph.name if hasattr(graph, "name") else None,
           graph_id=context_id,
-          input_names=[input_tensor.name for input_tensor in inputs],
+          input_names=[
+              self._lookup_tensor_name(input_tensor) for input_tensor in inputs
+          ],
           num_outputs=len(outputs),
           output_tensor_ids=output_tensor_ids,
           code_location=self._process_stack_frames())
@@ -571,6 +581,22 @@ class _DumpingCallback(object):
       writer.WriteExecution(self._dump_eager_tensors(
           outputs, op_type, input_ids, output_tensor_device_ids,
           graph_id=context_id))
+
+  def _lookup_tensor_name(self, tensor):
+    """Look up the name of a graph tensor.
+
+    This method maps the name of a debugger-generated Identity or
+    DebugIdentityV2 tensor to the name of the original instrumented tensor,
+    if `tensor` is such a debugger-created tensor.
+    Otherwise, it returns the name of `tensor` as is.
+
+    Args:
+      tensor: The graph tensor to look up the name for.
+
+    Returns:
+      Name of the original instrumented tensor as known to the debugger.
+    """
+    return self._tensor_aliases.get(tensor.name, tensor.name)
 
   def _func_graph_id_from_func_name(self, op_type):
     """Attempt to get the ID of a FuncGraph based on an op type name.
@@ -611,7 +637,7 @@ class _DumpingCallback(object):
     tensor_ids = []
     if num_tensors:
       with self._symbolic_tensor_counter_lock:
-        for _ in xrange(num_tensors):
+        for _ in range(num_tensors):
           self._symbolic_tensor_counter += 1
           tensor_ids.append(self._symbolic_tensor_counter)
     return tensor_ids
@@ -686,13 +712,40 @@ def enable_dump_debug_info(dump_root,
   # Code to build, train and run your TensorFlow model...
   ```
 
+  NOTE: If your code is running on TPUs, be sure to call
+  `tf.config.set_soft_device_placement(True)` before calling
+  `tf.debugging.experimental.enable_dump_debug_info()` as this API uses
+  automatic outside compilation on TPUs. For example:
+
+  ```py
+  tf.config.set_soft_device_placement(True)
+  tf.debugging.experimental.enable_dump_debug_info(
+      logdir, tensor_debug_mode="FULL_HEALTH")
+
+  resolver = tf.distribute.cluster_resolver.TPUClusterResolver(tpu='')
+  strategy = tf.distribute.TPUStrategy(resolver)
+  with strategy.scope():
+    # ...
+  ```
+
   Args:
     dump_root: The directory path where the dumping information will be written.
     tensor_debug_mode: Debug mode for tensor values, as a string.
       The currently supported options are:
-        - "NO_TENSOR": (Default) Only traces the execution of ops' output
-          tensors, while not dumping the value of the ops' output tensors
-          or any form of concise summary of them.
+      - "NO_TENSOR": (Default) Only traces the output tensors of all executed
+        ops (including those executed eagerly at the Python level or as a part
+        of a TensorFlow graph) and functions, while not extracting any
+        information from the values of the tensors.
+      - "CURT_HEALTH": For each floating-dtype tensor (e.g., tensors of dtypes
+        such as `float32`, `float64` and `bfloat16`), extracts a binary bit
+        indicating whether it contains any -infinity, +infinity or NaN.
+      - "CONCISE_HEALTH": For each floating-dtype tensor, extract total
+        element count, and counts of -infinity, +infinity and NaN elements.
+      - "FULL_HEALTH": For each floating-dtype tensor, extracts the dtype,
+        rank (number of dimensions), total element count, and counts of
+        -infinity, +infinity and NaN elements.
+      - "SHAPE": For each tensor (regardless of dtype), extracts its dtype,
+        rank, total element count and shape.
     circular_buffer_size: Size of the circular buffers for execution events.
       These circular buffers are designed to reduce the overhead of debugging
       dumping. They hold the most recent debug events concerning eager execution
@@ -790,7 +843,7 @@ def enable_dump_debug_info(dump_root,
                                                op_regex,
                                                tensor_dtypes)
     op_callbacks.add_op_callback(_state.dumping_callback.callback)
-    function_lib.add_function_callback(
+    function_lib.CONCRETE_FUNCTION_CALLBACKS.append(
         _state.dumping_callback.function_callback)
 
   if _state.dumping_callback.dump_root != dump_root:
@@ -818,10 +871,16 @@ def disable_dump_debug_info():
   """
   if hasattr(_state, "dumping_callback"):
     dump_root = _state.dumping_callback.dump_root
-    debug_events_writer.DebugEventsWriter(dump_root).Close()
+    tfdbg_run_id = _state.dumping_callback.tfdbg_run_id
+    debug_events_writer.DebugEventsWriter(dump_root, tfdbg_run_id).Close()
     op_callbacks.remove_op_callback(_state.dumping_callback.callback)
-    function_lib.remove_function_callback(
-        _state.dumping_callback.function_callback)
+    if (
+        _state.dumping_callback.function_callback
+        in function_lib.CONCRETE_FUNCTION_CALLBACKS
+    ):
+      function_lib.CONCRETE_FUNCTION_CALLBACKS.remove(
+          _state.dumping_callback.function_callback
+      )
     delattr(_state, "dumping_callback")
     logging.info("Disabled dumping callback in thread %s (dump root: %s)",
                  threading.current_thread().name, dump_root)

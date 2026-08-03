@@ -16,13 +16,17 @@ limitations under the License.
 #include "tensorflow/lite/tools/benchmark/benchmark_performance_options.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <iomanip>
 #include <memory>
+#include <random>
 #include <sstream>
+#include <string>
 #include <utility>
 
 #include "tensorflow/core/util/stats_calculator.h"
-#include "tensorflow/lite/c/common.h"
+#include "tensorflow/lite/core/c/c_api_types.h"
+#include "tensorflow/lite/core/c/common.h"
 #if defined(__ANDROID__)
 #include "tensorflow/lite/delegates/gpu/delegate.h"
 #include "tensorflow/lite/nnapi/nnapi_util.h"
@@ -30,47 +34,57 @@ limitations under the License.
 #include "tensorflow/lite/profiling/time.h"
 #include "tensorflow/lite/tools/benchmark/benchmark_params.h"
 #include "tensorflow/lite/tools/benchmark/benchmark_utils.h"
-#include "tensorflow/lite/tools/benchmark/logging.h"
 #include "tensorflow/lite/tools/command_line_flags.h"
+#include "tensorflow/lite/tools/logging.h"
 
-#if (defined(ANDROID) || defined(__ANDROID__)) && \
-    (defined(__arm__) || defined(__aarch64__))
-#define TFLITE_ENABLE_HEXAGON
+#if defined(__APPLE__)
+#include "TargetConditionals.h"
+#if (TARGET_OS_IPHONE && !TARGET_IPHONE_SIMULATOR) || \
+    (TARGET_OS_OSX && TARGET_CPU_ARM64)
+// Only enable coreml delegate when using a real iPhone device or Apple Silicon.
+#define REAL_IPHONE_DEVICE
+#endif
 #endif
 
 namespace tflite {
 namespace benchmark {
 
-void MultiRunStatsRecorder::OnBenchmarkStart(const BenchmarkParams& params) {
-  current_run_name_.clear();
-
+std::string MultiRunStatsRecorder::PerfOptionName(
+    const BenchmarkParams& params) const {
 #if defined(__ANDROID__)
   if (params.Get<bool>("use_nnapi")) {
     const std::string accelerator =
         params.Get<std::string>("nnapi_accelerator_name");
-    current_run_name_ = accelerator.empty() ? "nnapi(w/o accel name)"
-                                            : "nnapi(" + accelerator + ")";
-    return;
+    return accelerator.empty() ? "nnapi(w/o accel name)"
+                               : "nnapi(" + accelerator + ")";
   }
 #endif
 
-  if (params.Get<bool>("use_gpu")) {
-#if defined(__ANDROID__)
+  bool gpu_enabled = params.Get<bool>("use_gpu");
+#if defined(SUPPORTS_GPU_CL_DELEGATE)
+  gpu_enabled = gpu_enabled || params.Get<bool>("use_gpuv3");
+#endif
+  if (gpu_enabled) {
+#if defined(__ANDROID__) || defined(REAL_IPHONE_DEVICE)
     if (params.Get<bool>("gpu_precision_loss_allowed")) {
-      current_run_name_ = "gpu-fp16";
+      return "gpu-fp16";
     } else {
-      current_run_name_ = "gpu-default";
+      return "gpu-default";
     }
 #else
-    current_run_name_ = "gpu-default";
+    return "gpu-default";
 #endif
-    return;
   }
 
 #if defined(TFLITE_ENABLE_HEXAGON)
   if (params.Get<bool>("use_hexagon")) {
-    current_run_name_ = "dsp w/ hexagon";
-    return;
+    return "dsp w/ hexagon";
+  }
+#endif
+
+#if defined(REAL_IPHONE_DEVICE)
+  if (params.Get<bool>("use_coreml")) {
+    return "coreml";
   }
 #endif
 
@@ -82,40 +96,44 @@ void MultiRunStatsRecorder::OnBenchmarkStart(const BenchmarkParams& params) {
 
   // Handle cases run on CPU w/ the xnnpack delegate
   if (params.Get<bool>("use_xnnpack")) {
-    sstm << " (xnnpack)";
+    sstm << " (xnnpack";
+    if (params.Get<bool>("xnnpack_force_fp16")) {
+      sstm << "-fp16";
+    }
+    sstm << ")";
   }
 
-  current_run_name_ = sstm.str();
-}
-
-void MultiRunStatsRecorder::OnBenchmarkEnd(const BenchmarkResults& results) {
-  each_run_stats_.emplace_back(std::make_pair(current_run_name_, results));
+  return sstm.str();
 }
 
 void MultiRunStatsRecorder::OutputStats() {
   // Make a 80-character-long header.
   TFLITE_LOG(INFO) << "\n==============Summary of All Runs w/ Different "
                       "Performance Options==============";
-  std::sort(each_run_stats_.begin(), each_run_stats_.end(),
-            EachRunStatsEntryComparator());
+  std::sort(results_.begin(), results_.end(), EachRunStatsEntryComparator());
 
-  for (const auto& run_stats : each_run_stats_) {
+  for (const auto& run_stats : results_) {
+    const auto perf_option_name = PerfOptionName(*run_stats.params);
     std::stringstream stream;
-    // Output the name of this run first.
-    stream << std::setw(26) << run_stats.first << ": ";
-    run_stats.second.inference_time_us().OutputToStream(&stream);
-    // NOTE: As of 2019/11/07, the memory usage is collected in an
-    // OS-process-wide way and this program performs multiple runs in a single
-    // OS process, therefore, the memory usage information of each run becomes
-    // incorrect, hence no output here.
+    stream << std::setw(26) << perf_option_name << ": ";
+    if (!run_stats.completed) {
+      stream << " failed!";
+    } else {
+      run_stats.metrics.inference_time_us().OutputToStream(&stream);
+      // NOTE: As of 2019/11/07, the memory usage is collected in an
+      // OS-process-wide way and this program performs multiple runs in a single
+      // OS process, therefore, the memory usage information of each run becomes
+      // incorrect, hence no output here.
+    }
     TFLITE_LOG(INFO) << stream.str();
   }
 }
 
 BenchmarkPerformanceOptions::BenchmarkPerformanceOptions(
-    BenchmarkModel* single_option_run)
+    BenchmarkModel* single_option_run,
+    std::unique_ptr<MultiRunStatsRecorder> all_run_stats)
     : BenchmarkPerformanceOptions(DefaultParams(), single_option_run,
-                                  DefaultRunStatsRecorder()) {}
+                                  std::move(all_run_stats)) {}
 
 BenchmarkPerformanceOptions::BenchmarkPerformanceOptions(
     BenchmarkParams params, BenchmarkModel* single_option_run,
@@ -135,12 +153,8 @@ BenchmarkParams BenchmarkPerformanceOptions::DefaultParams() {
                   BenchmarkParam::Create<float>(-1.0f));
   params.AddParam("random_shuffle_benchmark_runs",
                   BenchmarkParam::Create<bool>(true));
+  params.AddParam("gpu_invoke_loop_times", BenchmarkParam::Create<int32_t>(1));
   return params;
-}
-
-std::unique_ptr<MultiRunStatsRecorder>
-BenchmarkPerformanceOptions::DefaultRunStatsRecorder() {
-  return std::unique_ptr<MultiRunStatsRecorder>(new MultiRunStatsRecorder());
 }
 
 std::vector<Flag> BenchmarkPerformanceOptions::GetFlags() {
@@ -158,17 +172,20 @@ std::vector<Flag> BenchmarkPerformanceOptions::GetFlags() {
           "random_shuffle_benchmark_runs", &params_,
           "Whether to perform all benchmark runs, each of which has different "
           "performance options, in a random order. It is enabled by default."),
-  };
+      CreateFlag<int32_t>(
+          "gpu_invoke_loop_times", &params_,
+          "Number of GPU delegate invoke loop iterations. Used only when "
+          "TFLITE_GPU_ENABLE_INVOKE_LOOP is defined.")};
 }
 
-bool BenchmarkPerformanceOptions::ParseFlags(int* argc, char** argv) {
+TfLiteStatus BenchmarkPerformanceOptions::ParseFlags(int* argc, char** argv) {
   auto flag_list = GetFlags();
   const bool parse_result =
       Flags::Parse(argc, const_cast<const char**>(argv), flag_list);
   if (!parse_result) {
     std::string usage = Flags::Usage(argv[0], flag_list);
     TFLITE_LOG(ERROR) << usage;
-    return false;
+    return kTfLiteError;
   }
 
   // Parse the value of --perf_options_list to find performance options to be
@@ -176,14 +193,14 @@ bool BenchmarkPerformanceOptions::ParseFlags(int* argc, char** argv) {
   return ParsePerfOptions();
 }
 
-bool BenchmarkPerformanceOptions::ParsePerfOptions() {
+TfLiteStatus BenchmarkPerformanceOptions::ParsePerfOptions() {
   const auto& perf_options_list = params_.Get<std::string>("perf_options_list");
   if (!util::SplitAndParse(perf_options_list, ',', &perf_options_)) {
     TFLITE_LOG(ERROR) << "Cannot parse --perf_options_list: '"
                       << perf_options_list
                       << "'. Please double-check its value.";
     perf_options_.clear();
-    return false;
+    return kTfLiteError;
   }
 
   const auto valid_options = GetValidPerfOptions();
@@ -206,22 +223,22 @@ bool BenchmarkPerformanceOptions::ParsePerfOptions() {
         << perf_options_list << "'. Valid perf options are: ["
         << valid_options_str << "]";
     perf_options_.clear();
-    return false;
+    return kTfLiteError;
   }
 
   if (HasOption("none") && perf_options_.size() > 1) {
     TFLITE_LOG(ERROR) << "The 'none' option can not be used together with "
                          "other perf options in --perf_options_list!";
     perf_options_.clear();
-    return false;
+    return kTfLiteError;
   }
-  return true;
+  return kTfLiteOk;
 }
 
 std::vector<std::string> BenchmarkPerformanceOptions::GetValidPerfOptions()
     const {
-  std::vector<std::string> valid_options = {"all", "cpu", "gpu", "nnapi",
-                                            "none"};
+  std::vector<std::string> valid_options = {"all",   "cpu",    "gpu",
+                                            "nnapi", "coreml", "none"};
 #if defined(TFLITE_ENABLE_HEXAGON)
   valid_options.emplace_back("dsp");
 #endif
@@ -236,17 +253,27 @@ bool BenchmarkPerformanceOptions::HasOption(const std::string& option) const {
 void BenchmarkPerformanceOptions::ResetPerformanceOptions() {
   single_option_run_params_->Set<int32_t>("num_threads", 1);
   single_option_run_params_->Set<bool>("use_gpu", false);
+#ifdef TFLITE_GPU_ENABLE_INVOKE_LOOP
+  single_option_run_params_->Set<int32_t>("gpu_invoke_loop_times", 1);
+  single_option_run_params_->Set<bool>("require_full_delegation", false);
+#endif
 #if defined(__ANDROID__)
   single_option_run_params_->Set<bool>("gpu_precision_loss_allowed", true);
   single_option_run_params_->Set<bool>("use_nnapi", false);
   single_option_run_params_->Set<std::string>("nnapi_accelerator_name", "");
   single_option_run_params_->Set<bool>("disable_nnapi_cpu", false);
   single_option_run_params_->Set<int>("max_delegated_partitions", 0);
+  single_option_run_params_->Set<bool>("nnapi_allow_fp16", false);
 #endif
 #if defined(TFLITE_ENABLE_HEXAGON)
   single_option_run_params_->Set<bool>("use_hexagon", false);
 #endif
+#if defined(REAL_IPHONE_DEVICE)
+  single_option_run_params_->Set<bool>("use_coreml", false);
+  single_option_run_params_->Set<bool>("gpu_precision_loss_allowed", true);
+#endif
   single_option_run_params_->Set<bool>("use_xnnpack", false);
+  single_option_run_params_->Set<bool>("xnnpack_force_fp16", false);
 }
 
 void BenchmarkPerformanceOptions::CreatePerformanceOptions() {
@@ -273,6 +300,8 @@ void BenchmarkPerformanceOptions::CreatePerformanceOptions() {
       BenchmarkParams xnnpack_params;
       xnnpack_params.AddParam("use_xnnpack",
                               BenchmarkParam::Create<bool>(true));
+      xnnpack_params.AddParam("xnnpack_force_fp16",
+                              BenchmarkParam::Create<bool>(false));
       xnnpack_params.AddParam("num_threads",
                               BenchmarkParam::Create<int32_t>(count));
       all_run_params_.emplace_back(std::move(xnnpack_params));
@@ -287,11 +316,25 @@ void BenchmarkPerformanceOptions::CreatePerformanceOptions() {
       params.AddParam("use_gpu", BenchmarkParam::Create<bool>(true));
       params.AddParam("gpu_precision_loss_allowed",
                       BenchmarkParam::Create<bool>(precision_loss));
+#ifdef TFLITE_GPU_ENABLE_INVOKE_LOOP
+      int32_t invoke_loop_times = params_.Get<int32_t>("gpu_invoke_loop_times");
+      params.AddParam("gpu_invoke_loop_times",
+                      BenchmarkParam::Create<int32_t>(invoke_loop_times));
+      params.AddParam("require_full_delegation",
+                      BenchmarkParam::Create<bool>(true));
+#endif
       all_run_params_.emplace_back(std::move(params));
     }
 #else
     BenchmarkParams params;
     params.AddParam("use_gpu", BenchmarkParam::Create<bool>(true));
+#ifdef TFLITE_GPU_ENABLE_INVOKE_LOOP
+    int32_t invoke_loop_times = params_.Get<int32_t>("gpu_invoke_loop_times");
+    params.AddParam("gpu_invoke_loop_times",
+                    BenchmarkParam::Create<int32_t>(invoke_loop_times));
+    params.AddParam("require_full_delegation",
+                    BenchmarkParam::Create<bool>(true));
+#endif
     all_run_params_.emplace_back(std::move(params));
 #endif
   }
@@ -302,7 +345,7 @@ void BenchmarkPerformanceOptions::CreatePerformanceOptions() {
     if (!nnapi_accelerators.empty()) {
       std::vector<std::string> device_names;
       util::SplitAndParse(nnapi_accelerators, ',', &device_names);
-      for (const auto name : device_names) {
+      for (const auto& name : device_names) {
         BenchmarkParams params;
         params.AddParam("use_nnapi", BenchmarkParam::Create<bool>(true));
         params.AddParam("nnapi_accelerator_name",
@@ -330,20 +373,30 @@ void BenchmarkPerformanceOptions::CreatePerformanceOptions() {
     all_run_params_.emplace_back(std::move(params));
   }
 #endif
+
+#if defined(REAL_IPHONE_DEVICE)
+  if (benchmark_all || HasOption("coreml")) {
+    BenchmarkParams params;
+    params.AddParam("use_coreml", BenchmarkParam::Create<bool>(true));
+    all_run_params_.emplace_back(std::move(params));
+  }
+#endif
 }
 
-void BenchmarkPerformanceOptions::Run() {
+TfLiteStatus BenchmarkPerformanceOptions::Run() {
   CreatePerformanceOptions();
 
   if (params_.Get<bool>("random_shuffle_benchmark_runs")) {
-    std::random_shuffle(all_run_params_.begin(), all_run_params_.end());
+    std::random_device rd;
+    std::mt19937 generator(rd());
+    std::shuffle(all_run_params_.begin(), all_run_params_.end(), generator);
   }
 
   // We need to clean *internally* created benchmark listeners, like the
   // profiling listener etc. in each Run() invoke because such listeners may be
   // reset and become invalid in the next Run(). As a result, we record the
   // number of externally-added listeners here to prevent they're cleared later.
-  const int num_external_listners = single_option_run_->NumListeners();
+  const int num_external_listeners = single_option_run_->NumListeners();
 
   // Now perform all runs, each with different performance-affecting parameters.
   for (const auto& run_params : all_run_params_) {
@@ -358,28 +411,43 @@ void BenchmarkPerformanceOptions::Run() {
 
     // Clear internally created listeners before each run but keep externally
     // created ones.
-    single_option_run_->RemoveListeners(num_external_listners);
+    single_option_run_->RemoveListeners(num_external_listeners);
 
-    single_option_run_->Run();
+    all_run_stats_->MarkBenchmarkStart(*single_option_run_params_);
+    if (TfLiteStatus status = single_option_run_->Run(); status != kTfLiteOk) {
+      TFLITE_LOG(ERROR) << "Error while running a single-option run: "
+                        << status;
+      return status;
+    }
   }
 
   all_run_stats_->OutputStats();
+  return kTfLiteOk;
 }
 
-void BenchmarkPerformanceOptions::Run(int argc, char** argv) {
-  // We first parse flags for single-option runs to get information like
-  // parameters of the input model etc.
-  if (single_option_run_->ParseFlags(&argc, argv) != kTfLiteOk) return;
+TfLiteStatus BenchmarkPerformanceOptions::Run(int argc, char** argv) {
+  // Parse flags that are supported by this particular binary first.
+  if (TfLiteStatus status = ParseFlags(&argc, argv); status != kTfLiteOk) {
+    TFLITE_LOG(ERROR) << "Error while parsing the flags for multi-option runs: "
+                      << status;
+    return status;
+  }
 
-  // Now, we parse flags that are specified for this particular binary.
-  if (!ParseFlags(&argc, argv)) return;
+  // Then parse flags for single-option runs to get information like parameters
+  // of the input model etc.
+  if (TfLiteStatus status = single_option_run_->ParseFlags(&argc, argv);
+      status != kTfLiteOk) {
+    TFLITE_LOG(ERROR)
+        << "Error while parsing the flags for single-option runs: " << status;
+    return status;
+  }
 
   // Now, the remaining are unrecognized flags and we simply print them out.
   for (int i = 1; i < argc; ++i) {
     TFLITE_LOG(WARN) << "WARNING: unrecognized commandline flag: " << argv[i];
   }
 
-  Run();
+  return Run();
 }
 }  // namespace benchmark
 }  // namespace tflite

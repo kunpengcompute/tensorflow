@@ -49,7 +49,7 @@ TEST_F(GraphMemoryTest, Basic) {
   item.feed.clear();
 
   GraphMemory memory(item);
-  Status s = memory.InferStatically(devices_);
+  absl::Status s = memory.InferStatically(devices_);
   TF_CHECK_OK(s);
   const GraphMemory::MemoryUsage& mem_usage =
       memory.GetPeakMemoryUsage("/CPU:0");
@@ -59,13 +59,13 @@ TEST_F(GraphMemoryTest, Basic) {
   for (const auto& t : mem_usage.live_tensors) {
     tensors.insert(strings::StrCat(t.node, ":", t.output_id));
   }
-  // When the execution of the 'Square' node completes, TF can start executing
-  // 'Square_1' and release the memory used by 'x'. Since we can't be sure of
+  // When the execution of the 'Sign' node completes, TF can start executing
+  // 'Sign_1' and release the memory used by 'x'. Since we can't be sure of
   // the order in which this takes place, in the worst case the 3 tensors are in
   // memory.
   std::set<string> expected;
-  expected.insert("Square:0");
-  expected.insert("Square_1:0");
+  expected.insert("Sign:0");
+  expected.insert("Sign_1:0");
   expected.insert("x:0");
   EXPECT_EQ(expected, tensors);
 }
@@ -77,7 +77,7 @@ TEST_F(GraphMemoryTest, UnknownBatchSize) {
   item.feed.clear();
 
   GraphMemory memory(item);
-  Status s = memory.InferStatically(devices_);
+  absl::Status s = memory.InferStatically(devices_);
   TF_CHECK_OK(s);
   // Same maths as before, except that batch size is unknown and therefore
   // assumed to be one.
@@ -91,7 +91,7 @@ TEST_F(GraphMemoryTest, UnknownBatchSize) {
   }
   std::set<string> expected;
   expected.insert("Const/Const:0");
-  expected.insert("Square:0");
+  expected.insert("Sign:0");
   expected.insert("x:0");
   EXPECT_EQ(expected, tensors);
 }
@@ -104,7 +104,7 @@ TEST_F(GraphMemoryTest, MultiDevice) {
   item.feed.clear();
 
   GraphMemory memory(item);
-  Status s = memory.InferStatically(devices_);
+  absl::Status s = memory.InferStatically(devices_);
   TF_CHECK_OK(s);
 
   const GraphMemory::MemoryUsage& cpu_mem = memory.GetPeakMemoryUsage("/CPU:0");
@@ -114,8 +114,8 @@ TEST_F(GraphMemoryTest, MultiDevice) {
     cpu_tensors.insert(strings::StrCat(t.node, ":", t.output_id));
   }
   std::set<string> cpu_expected;
-  cpu_expected.insert("Recv_Square_1_0_on_/CPU_0:0");
-  cpu_expected.insert("Square:0");
+  cpu_expected.insert("Recv_Sign_1_0_on_/CPU_0:0");
+  cpu_expected.insert("Sign:0");
   cpu_expected.insert("x:0");
   cpu_expected.insert("AddN:0");
   EXPECT_EQ(cpu_expected, cpu_tensors);
@@ -128,7 +128,7 @@ TEST_F(GraphMemoryTest, MultiDevice) {
   }
   std::set<string> gpu_expected;
   gpu_expected.insert("Recv_AddN_0_on_/GPU_0:0");
-  gpu_expected.insert("Square_1:0");
+  gpu_expected.insert("Sign_1:0");
   gpu_expected.insert("AddN_1:0");
   gpu_expected.insert("AddN_3:0");
   EXPECT_EQ(gpu_expected, gpu_tensors);
@@ -143,7 +143,7 @@ TEST_F(GraphMemoryTest, GpuSwapping) {
   {
     // Estimate the max memory usage for the graph.
     GraphMemory memory(item);
-    Status s = memory.InferStatically(devices_);
+    absl::Status s = memory.InferStatically(devices_);
     TF_CHECK_OK(s);
 
     const GraphMemory::MemoryUsage& gpu_mem =
@@ -154,8 +154,8 @@ TEST_F(GraphMemoryTest, GpuSwapping) {
       gpu_tensors.insert(strings::StrCat(t.node, ":", t.output_id));
     }
     std::set<string> gpu_expected;
-    gpu_expected.insert("Square:0");
-    gpu_expected.insert("Square_1:0");
+    gpu_expected.insert("Sign:0");
+    gpu_expected.insert("Sign_1:0");
     gpu_expected.insert("AddN:0");
     gpu_expected.insert("AddN_1:0");
     gpu_expected.insert("AddN_2:0");
@@ -171,7 +171,7 @@ TEST_F(GraphMemoryTest, GpuSwapping) {
       }
     }
     GraphMemory memory(item);
-    Status s = memory.InferStatically(devices_);
+    absl::Status s = memory.InferStatically(devices_);
     TF_CHECK_OK(s);
     const GraphMemory::MemoryUsage& new_gpu_mem =
         memory.GetPeakMemoryUsage("/GPU:0");
@@ -207,7 +207,7 @@ TEST_F(GraphMemoryTest, CtrlDependencies) {
   TF_CHECK_OK(s.ToGraphDef(&item.graph));
 
   GraphMemory memory(item);
-  Status status = memory.InferStatically(devices_);
+  absl::Status status = memory.InferStatically(devices_);
   TF_CHECK_OK(status);
 
   const GraphMemory::MemoryUsage& mem = memory.GetPeakMemoryUsage("/CPU:0");

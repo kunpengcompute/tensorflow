@@ -15,8 +15,7 @@ limitations under the License.
 
 #include "tensorflow/core/common_runtime/lower_case_op.h"
 
-#include "tensorflow/core/common_runtime/function.h"
-#include "tensorflow/core/common_runtime/lower_functional_ops.h"
+#include "tensorflow/core/common_runtime/inline_function_utils.h"
 #include "tensorflow/core/framework/node_def_builder.h"
 #include "tensorflow/core/graph/graph.h"
 #include "tensorflow/core/graph/node_builder.h"
@@ -29,7 +28,7 @@ namespace {
 using NodeOut = NodeBuilder::NodeOut;
 
 constexpr const char* const kLowerAsMultiDeviceFunctionAttr =
-    LowerFunctionalOpsPass::kLowerAsMultiDeviceFunctionAttr;
+    LowerFunctionalOpsConstants::kLowerAsMultiDeviceFunctionAttr;
 
 // Convenience builder to make it easy to construct a case with a single
 // function call in each branch. This first converts the Case node
@@ -43,18 +42,18 @@ class CaseBuilder {
               bool keep_node_fetchable, Graph* graph);
 
   // Constructs the basic conditional control flow using switch and merge nodes.
-  Status CreatePivotNodes();
+  absl::Status CreatePivotNodes();
 
   // Adds the inputs from the if node to the merge nodes of the lowered if.
-  Status AddInputs();
+  absl::Status AddInputs();
 
   // Adds the outputs from the if node to the merge nodes of the lowered if.
   // Note: no inputs can be added once outputs are added as the then and else
   // nodes are finalized while adding outputs.
-  Status AddOutputs();
+  absl::Status AddOutputs();
 
   // Builds an identity node with the same outputs as Case.
-  Status BuildLoweredCaseOutput();
+  absl::Status BuildLoweredCaseOutput();
 
  private:
   // Returns unique name containing the name of the Case op being rewritten
@@ -62,7 +61,7 @@ class CaseBuilder {
   string NewName(const string& infix);
 
   // Adds input to both the then and else nodes from src:src_output.
-  Status AddInput(Node* src, int src_output);
+  absl::Status AddInput(Node* src, int src_output);
 
   // The merged outputs of the then and else nodes.
   std::vector<NodeOut> outputs_;
@@ -116,7 +115,7 @@ CaseBuilder::CaseBuilder(Node* case_op,
   TF_CHECK_OK(case_op_->input_tensor(0, &branch_index_));
 }
 
-Status CaseBuilder::CreatePivotNodes() {
+absl::Status CaseBuilder::CreatePivotNodes() {
   // Construct the basic case body (consisting of feeding in the val to
   // create pivot nodes).
   Node* branch_index;
@@ -137,14 +136,14 @@ Status CaseBuilder::CreatePivotNodes() {
                            .Device(case_op_->requested_device())
                            .Finalize(graph_, &pivots_[b]));
   }
-  return Status::OK();
+  return absl::OkStatus();
 }
 
 string CaseBuilder::NewName(const string& infix) {
   return graph_->NewName(strings::StrCat(name_, "/", infix));
 }
 
-Status CaseBuilder::AddInput(Node* src, int src_output) {
+absl::Status CaseBuilder::AddInput(Node* src, int src_output) {
   Node* input;
   NodeDebugInfo debug_info(*src);
   // Colocate the Switch node with the `src` node.
@@ -167,10 +166,10 @@ Status CaseBuilder::AddInput(Node* src, int src_output) {
   for (int b = 0; b < num_branches_; b++) {
     branch_call_builders_[b].Input(input, b);
   }
-  return Status::OK();
+  return absl::OkStatus();
 }
 
-Status CaseBuilder::AddInputs() {
+absl::Status CaseBuilder::AddInputs() {
   // Add input data edges.
   std::vector<const Edge*> edges;
   TF_RETURN_IF_ERROR(case_op_->input_edges(&edges));
@@ -185,10 +184,10 @@ Status CaseBuilder::AddInputs() {
       graph_->AddControlEdge(e->src(), control_predecessor_);
     }
   }
-  return Status::OK();
+  return absl::OkStatus();
 }
 
-Status CaseBuilder::AddOutputs() {
+absl::Status CaseBuilder::AddOutputs() {
   // Construct the call nodes for each branch.
   call_nodes_.resize(num_branches_, nullptr);
   for (int b = 0; b < num_branches_; b++) {
@@ -248,10 +247,10 @@ Status CaseBuilder::AddOutputs() {
       graph_->AddEdge(merges[e->src_output()], 0, e->dst(), e->dst_input());
     }
   }
-  return Status::OK();
+  return absl::OkStatus();
 }
 
-Status CaseBuilder::BuildLoweredCaseOutput() {
+absl::Status CaseBuilder::BuildLoweredCaseOutput() {
   // If outputs are empty, it means that we might have only output control
   // edges (already connected to the `branch_executed_node`). Furthermore it's
   // illegal to have an IdentityN with empty inputs.
@@ -268,7 +267,7 @@ Status CaseBuilder::BuildLoweredCaseOutput() {
 
 }  // namespace
 
-Status RewriteCaseNode(Node* n, Graph* g, bool keep_node_fetchable) {
+absl::Status RewriteCaseNode(Node* n, Graph* g, bool keep_node_fetchable) {
   VLOG(2) << "Lower Case node (keep_node_fetchable=" << keep_node_fetchable
           << "): " << SummarizeNode(*n);
   const AttrValue* branches_attr = n->attrs().Find("branches");
@@ -288,7 +287,7 @@ Status RewriteCaseNode(Node* n, Graph* g, bool keep_node_fetchable) {
   TF_RETURN_IF_ERROR(cb.AddOutputs());
   g->RemoveNode(n);
 
-  return Status::OK();
+  return absl::OkStatus();
 }
 
 }  // namespace tensorflow

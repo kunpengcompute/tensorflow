@@ -13,14 +13,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include "pybind11/pybind11.h"
-#include "pybind11/pytypes.h"
+#include "pybind11/pybind11.h"  // from @pybind11
+#include "pybind11/pytypes.h"  // from @pybind11
+#include "tensorflow/lite/python/interpreter_wrapper/numpy.h"
 #include "tensorflow/lite/testing/string_util.h"
 #include "tensorflow/python/lib/core/pybind11_lib.h"
 
 namespace py = pybind11;
 
 PYBIND11_MODULE(_pywrap_string_util, m) {
+  tflite::python::ImportNumpy();
+
   m.doc() = R"pbdoc(
     _pywrap_string_util
     -----
@@ -28,7 +31,7 @@ PYBIND11_MODULE(_pywrap_string_util, m) {
   m.def(
       "SerializeAsHexString",
       [](py::handle& string_tensor) {
-        return tensorflow::pyo_or_throw(
+        return tensorflow::PyoOrThrow(
             tflite::testing::python::SerializeAsHexString(string_tensor.ptr()));
       },
       R"pbdoc(

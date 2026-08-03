@@ -17,17 +17,19 @@ limitations under the License.
 #define TENSORFLOW_LITE_DELEGATES_GPU_CL_OPENCL_WRAPPER_H_
 
 #include <CL/cl.h>
+#include <CL/cl_egl.h>
 #include <CL/cl_ext.h>
 #include <CL/cl_gl.h>
 #include <CL/cl_platform.h>
+#include "tensorflow/lite/delegates/gpu/cl/default/qcom_wrapper.h"
 #include "tensorflow/lite/delegates/gpu/common/status.h"
 
 namespace tflite {
 namespace gpu {
 namespace cl {
 
-Status LoadOpenCL();
-void LoadOpenCLFunctions(void *libopencl, bool is_pixel);
+absl::Status LoadOpenCL();
+void LoadOpenCLFunctionExtensions(cl_platform_id platform_id);
 
 typedef cl_int(CL_API_CALL *PFN_clGetPlatformIDs)(
     cl_uint /* num_entries */, cl_platform_id * /* platforms */,
@@ -488,7 +490,6 @@ typedef cl_int(CL_API_CALL *PFN_clEnqueueAcquireGLObjects)(
     cl_command_queue /* command_queue */, cl_uint /* num_objects */,
     const cl_mem * /* mem_objects */, cl_uint /* num_events_in_wait_list */,
     const cl_event * /* event_wait_list */, cl_event * /* event */);
-
 typedef cl_int(CL_API_CALL *PFN_clEnqueueReleaseGLObjects)(
     cl_command_queue /* command_queue */, cl_uint /* num_objects */,
     const cl_mem * /* mem_objects */, cl_uint /* num_events_in_wait_list */,
@@ -506,6 +507,95 @@ typedef void *CLeglSyncKHR;
 typedef cl_event(CL_API_CALL *PFN_clCreateEventFromEGLSyncKHR)(
     cl_context /* context */, CLeglSyncKHR /* sync */,
     CLeglDisplayKHR /* display */, cl_int * /* errcode_ret */);
+
+// EGL sharing
+typedef cl_mem(CL_API_CALL *PFN_clCreateFromEGLImageKHR)(
+    cl_context /*context*/, CLeglDisplayKHR /*display*/,
+    CLeglImageKHR /*image*/, cl_mem_flags /*flags*/,
+    const cl_egl_image_properties_khr * /*properties*/,
+    cl_int * /*errcode_ret*/);
+typedef cl_int(CL_API_CALL *PFN_clEnqueueAcquireEGLObjectsKHR)(
+    cl_command_queue /*command_queue*/, cl_uint /*num_objects*/,
+    const cl_mem * /*mem_objects*/, cl_uint /*num_events_in_wait_list*/,
+    const cl_event * /*event_wait_list*/, cl_event * /*event*/);
+typedef cl_int(CL_API_CALL *PFN_clEnqueueReleaseEGLObjectsKHR)(
+    cl_command_queue /*command_queue*/, cl_uint /*num_objects*/,
+    const cl_mem * /*mem_objects*/, cl_uint /*num_events_in_wait_list*/,
+    const cl_event * /*event_wait_list*/, cl_event * /*event*/);
+
+// cl_khr_command_buffer
+typedef cl_command_buffer_khr(CL_API_CALL *PFN_clCreateCommandBufferKHR)(
+    cl_uint /*num_queues*/, const cl_command_queue * /*queues*/,
+    const cl_command_buffer_properties_khr * /*properties*/,
+    cl_int * /*errcode_ret*/);
+
+typedef cl_int(CL_API_CALL *PFN_clRetainCommandBufferKHR)(
+    cl_command_buffer_khr /*command_buffer*/);
+
+typedef cl_int(CL_API_CALL *PFN_clReleaseCommandBufferKHR)(
+    cl_command_buffer_khr /*command_buffer*/);
+
+typedef cl_int(CL_API_CALL *PFN_clFinalizeCommandBufferKHR)(
+    cl_command_buffer_khr /*command_buffer*/);
+
+typedef cl_int(CL_API_CALL *PFN_clEnqueueCommandBufferKHR)(
+    cl_uint /*num_queues*/, cl_command_queue * /*queues*/,
+    cl_command_buffer_khr /*command_buffer*/,
+    cl_uint /*num_events_in_wait_list*/, const cl_event * /*event_wait_list*/,
+    cl_event * /*event*/);
+
+#if CL_KHR_COMMAND_BUFFER_EXTENSION_VERSION >= CL_MAKE_VERSION(0, 9, 5)
+typedef cl_int(CL_API_CALL *PFN_clCommandNDRangeKernelKHR)(
+    cl_command_buffer_khr /*command_buffer*/,
+    cl_command_queue /*command_queue*/,
+    const cl_command_properties_khr * /*properties*/, cl_kernel /*kernel*/,
+    cl_uint /*work_dim*/, const size_t * /*global_work_offset*/,
+    const size_t * /*global_work_size*/, const size_t * /*local_work_size*/,
+    cl_uint /*num_sync_points_in_wait_list*/,
+    const cl_sync_point_khr * /*sync_point_wait_list*/,
+    cl_sync_point_khr * /*sync_point*/,
+    cl_mutable_command_khr * /*mutable_handle*/);
+#else
+typedef cl_int(CL_API_CALL *PFN_clCommandNDRangeKernelKHR)(
+    cl_command_buffer_khr /*command_buffer*/,
+    cl_command_queue /*command_queue*/,
+    const cl_ndrange_kernel_command_properties_khr * /*properties*/,
+    cl_kernel /*kernel*/, cl_uint /*work_dim*/,
+    const size_t * /*global_work_offset*/, const size_t * /*global_work_size*/,
+    const size_t * /*local_work_size*/,
+    cl_uint /*num_sync_points_in_wait_list*/,
+    const cl_sync_point_khr * /*sync_point_wait_list*/,
+    cl_sync_point_khr * /*sync_point*/,
+    cl_mutable_command_khr * /*mutable_handle*/);
+#endif
+
+typedef cl_int(CL_API_CALL *PFN_clGetCommandBufferInfoKHR)(
+    cl_command_buffer_khr /*command_buffer*/,
+    cl_command_buffer_info_khr /*param_name*/, size_t /*param_value_size*/,
+    void * /*param_value*/, size_t * /*param_value_size_ret*/);
+
+// cl_arm_import_memory extension
+typedef cl_mem(CL_API_CALL *PFN_clImportMemoryARM)(
+    cl_context /*context*/, cl_mem_flags /*flags*/,
+    const cl_import_properties_arm * /*properties*/, void * /*memory*/,
+    size_t /*size*/, cl_int * /*errcode_ret*/);
+
+// cl_khr_semaphore extension
+typedef cl_semaphore_khr(CL_API_CALL *PFN_clCreateSemaphoreWithPropertiesKHR)(
+    cl_context /*context*/, const cl_semaphore_properties_khr * /*sema_props*/,
+    cl_int * /*errcode_ret*/);
+typedef cl_int(CL_API_CALL *PFN_clEnqueueWaitSemaphoresKHR)(
+    cl_command_queue /*command_queue*/, cl_uint /*num_sema_objects*/,
+    const cl_semaphore_khr * /*sema_objects*/,
+    const cl_semaphore_payload_khr * /*sema_payload_list*/,
+    cl_uint /*num_events_in_wait_list*/, const cl_event * /*event_wait_list*/,
+    cl_event * /*event*/);
+typedef cl_int(CL_API_CALL *PFN_clEnqueueSignalSemaphoresKHR)(
+    cl_command_queue /*command_queue*/, cl_uint /*num_sema_objects*/,
+    const cl_semaphore_khr * /*sema_objects*/,
+    const cl_semaphore_payload_khr * /*sema_payload_list*/,
+    cl_uint /*num_events_in_wait_list*/, const cl_event * /*event_wait_list*/,
+    cl_event * /*event*/);
 
 extern PFN_clGetPlatformIDs clGetPlatformIDs;
 extern PFN_clGetPlatformInfo clGetPlatformInfo;
@@ -620,7 +710,30 @@ extern PFN_clEnqueueReleaseGLObjects clEnqueueReleaseGLObjects;
 // cl_khr_egl_event extension
 extern PFN_clCreateEventFromEGLSyncKHR clCreateEventFromEGLSyncKHR;
 
-// For convinient image creation
+// EGL sharing
+extern PFN_clCreateFromEGLImageKHR clCreateFromEGLImageKHR;
+extern PFN_clEnqueueAcquireEGLObjectsKHR clEnqueueAcquireEGLObjectsKHR;
+extern PFN_clEnqueueReleaseEGLObjectsKHR clEnqueueReleaseEGLObjectsKHR;
+
+// cl_khr_command_buffer extension
+extern PFN_clCreateCommandBufferKHR clCreateCommandBufferKHR;
+extern PFN_clRetainCommandBufferKHR clRetainCommandBufferKHR;
+extern PFN_clReleaseCommandBufferKHR clReleaseCommandBufferKHR;
+extern PFN_clFinalizeCommandBufferKHR clFinalizeCommandBufferKHR;
+extern PFN_clEnqueueCommandBufferKHR clEnqueueCommandBufferKHR;
+extern PFN_clCommandNDRangeKernelKHR clCommandNDRangeKernelKHR;
+extern PFN_clGetCommandBufferInfoKHR clGetCommandBufferInfoKHR;
+
+// cl_arm_import_memory extension
+extern PFN_clImportMemoryARM clImportMemoryARM;
+
+// cl_khr_semaphore extension
+extern PFN_clCreateSemaphoreWithPropertiesKHR
+    clCreateSemaphoreWithPropertiesKHR;
+extern PFN_clEnqueueWaitSemaphoresKHR clEnqueueWaitSemaphoresKHR;
+extern PFN_clEnqueueSignalSemaphoresKHR clEnqueueSignalSemaphoresKHR;
+
+// For convenient image creation
 // It uses clCreateImage if it available (clCreateImage available since cl 1.2)
 // otherwise it will use legacy clCreateImage2D
 cl_mem CreateImage2DLegacy(cl_context context, cl_mem_flags flags,

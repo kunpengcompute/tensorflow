@@ -12,17 +12,18 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
+#include <cstddef>
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
+#include "absl/status/status.h"
+#include "tensorflow/core/platform/status.h"
 #include "tensorflow/lite/toco/graph_transformations/graph_transformations.h"
 #include "tensorflow/lite/toco/graph_transformations/quantization_util.h"
 #include "tensorflow/lite/toco/model.h"
 #include "tensorflow/lite/toco/model_flags.pb.h"
 #include "tensorflow/lite/toco/tooling_util.h"
-#include "tensorflow/core/platform/logging.h"
 
 namespace toco {
 
@@ -31,7 +32,8 @@ namespace toco {
 // generate this output to be removed by graph transformations.  Note that there
 // may be more than one operator that takes the input_array as their input, and
 // that some of these may be removed by graph transformations.
-bool AddDequantizeOperatorToInput(const string& input_name, const Operator* op,
+bool AddDequantizeOperatorToInput(const std::string& input_name,
+                                  const Operator* op,
                                   GraphTransformation* transformation,
                                   Model* model) {
   // An operator with the required output may be a dequantize operator already
@@ -65,7 +67,7 @@ bool AddDequantizeOperatorToInput(const string& input_name, const Operator* op,
   const auto& dequantized_input_name =
       AvailableArrayName(*model, input_name + "_dequantized");
   for (auto& other_op : model->operators) {
-    for (string& other_op_input : other_op->inputs) {
+    for (std::string& other_op_input : other_op->inputs) {
       if (other_op_input == input_name) {
         other_op_input = dequantized_input_name;
       }
@@ -97,9 +99,9 @@ bool AddDequantizeOperatorToInput(const string& input_name, const Operator* op,
   return true;
 }
 
-::tensorflow::Status MakeInitialDequantizeOperator::Run(Model* model,
-                                                        std::size_t op_index,
-                                                        bool* modified) {
+absl::Status MakeInitialDequantizeOperator::Run(Model* model,
+                                                std::size_t op_index,
+                                                bool* modified) {
   *modified = false;
   // This is effectively a transformation applied to edges.  We iterate over the
   // specified node (op) and proceed for input edges.
@@ -118,7 +120,7 @@ bool AddDequantizeOperatorToInput(const string& input_name, const Operator* op,
     }
   }
   *modified = change_made;
-  return ::tensorflow::Status::OK();
+  return absl::OkStatus();
 }
 
 }  // namespace toco

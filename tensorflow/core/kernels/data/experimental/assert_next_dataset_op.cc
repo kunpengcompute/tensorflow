@@ -15,10 +15,14 @@ limitations under the License.
 #include "tensorflow/core/kernels/data/experimental/assert_next_dataset_op.h"
 
 #include <map>
+#include <memory>
+#include <utility>
+#include <vector>
 
+#include "tensorflow/core/data/dataset_utils.h"
+#include "tensorflow/core/data/name_utils.h"
 #include "tensorflow/core/framework/partial_tensor_shape.h"
 #include "tensorflow/core/framework/tensor.h"
-#include "tensorflow/core/kernels/data/name_utils.h"
 
 namespace tensorflow {
 namespace data {
@@ -48,7 +52,7 @@ class AssertNextDatasetOp::Dataset : public DatasetBase {
 
   std::unique_ptr<IteratorBase> MakeIteratorInternal(
       const string& prefix) const override {
-    return absl::make_unique<Iterator>(Iterator::Params{
+    return std::make_unique<Iterator>(Iterator::Params{
         this, name_utils::IteratorPrefix(kDatasetType, prefix)});
   }
 
@@ -61,23 +65,31 @@ class AssertNextDatasetOp::Dataset : public DatasetBase {
     return name_utils::DatasetDebugString(kDatasetType);
   }
 
-  int64 Cardinality() const override { return input_->Cardinality(); }
+  int64_t CardinalityInternal(CardinalityOptions options) const override {
+    return input_->Cardinality(options);
+  }
 
-  Status CheckExternalState() const override {
+  absl::Status InputDatasets(
+      std::vector<const DatasetBase*>* inputs) const override {
+    inputs->push_back(input_);
+    return absl::OkStatus();
+  }
+
+  absl::Status CheckExternalState() const override {
     return input_->CheckExternalState();
   }
 
  protected:
-  Status AsGraphDefInternal(SerializationContext* ctx,
-                            DatasetGraphDefBuilder* b,
-                            Node** output) const override {
+  absl::Status AsGraphDefInternal(SerializationContext* ctx,
+                                  DatasetGraphDefBuilder* b,
+                                  Node** output) const override {
     Node* input_graph_node = nullptr;
     TF_RETURN_IF_ERROR(b->AddInputDataset(ctx, input_, &input_graph_node));
     Node* transformations_node = nullptr;
     TF_RETURN_IF_ERROR(b->AddVector(transformations_, &transformations_node));
     TF_RETURN_IF_ERROR(
         b->AddDataset(this, {input_graph_node, transformations_node}, output));
-    return Status::OK();
+    return absl::OkStatus();
   }
 
  private:
@@ -86,7 +98,7 @@ class AssertNextDatasetOp::Dataset : public DatasetBase {
     explicit Iterator(const Params& params)
         : DatasetIterator<Dataset>(params) {}
 
-    Status Initialize(IteratorContext* ctx) override {
+    absl::Status Initialize(IteratorContext* ctx) override {
       std::vector<string> tokens =
           absl::StrSplit(prefix(), ':', absl::SkipEmpty());
       if (dataset()->transformations_.size() > tokens.size() - 2) {
@@ -96,19 +108,21 @@ class AssertNextDatasetOp::Dataset : public DatasetBase {
       }
       int n = tokens.size();
       for (size_t i = 0; i < dataset()->transformations_.size(); ++i) {
-        if (dataset()->transformations_[i] != tokens[n - 2 - i]) {
-          return errors::InvalidArgument(
-              "Asserted ", dataset()->transformations_[i],
-              " transformation at offset ", i, " but encountered ",
-              tokens[n - 2 - i], " transformation instead.");
+        if (!MatchesAnyVersion(dataset()->transformations_[i],
+                               tokens[n - 2 - i])) {
+          return errors::InvalidArgument("Asserted transformation matching ",
+                                         dataset()->transformations_[i],
+                                         " at offset ", i, " but encountered ",
+                                         tokens[n - 2 - i],
+                                         " transformation instead.");
         }
       }
       return dataset()->input_->MakeIterator(ctx, this, prefix(), &input_impl_);
     }
 
-    Status GetNextInternal(IteratorContext* ctx,
-                           std::vector<Tensor>* out_tensors,
-                           bool* end_of_sequence) override {
+    absl::Status GetNextInternal(IteratorContext* ctx,
+                                 std::vector<Tensor>* out_tensors,
+                                 bool* end_of_sequence) override {
       return input_impl_->GetNext(ctx, out_tensors, end_of_sequence);
     }
 
@@ -119,15 +133,16 @@ class AssertNextDatasetOp::Dataset : public DatasetBase {
                                        /*ratio=*/1);
     }
 
-    Status SaveInternal(IteratorStateWriter* writer) override {
-      TF_RETURN_IF_ERROR(SaveInput(writer, input_impl_));
-      return Status::OK();
+    absl::Status SaveInternal(SerializationContext* ctx,
+                              IteratorStateWriter* writer) override {
+      TF_RETURN_IF_ERROR(SaveInput(ctx, writer, input_impl_));
+      return absl::OkStatus();
     }
 
-    Status RestoreInternal(IteratorContext* ctx,
-                           IteratorStateReader* reader) override {
+    absl::Status RestoreInternal(IteratorContext* ctx,
+                                 IteratorStateReader* reader) override {
       TF_RETURN_IF_ERROR(RestoreInput(ctx, reader, input_impl_));
-      return Status::OK();
+      return absl::OkStatus();
     }
 
    private:

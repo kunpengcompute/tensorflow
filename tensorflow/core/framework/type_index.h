@@ -22,6 +22,7 @@ limitations under the License.
 #include <typeinfo>
 #endif  // __GXX_RTTI
 
+#include "tensorflow/core/platform/hash.h"
 #include "tensorflow/core/platform/types.h"
 
 namespace tensorflow {
@@ -53,10 +54,31 @@ class TypeIndex {
 
   // Returns a TypeIndex object that corresponds to a typename.
   template <typename T>
-  static TypeIndex Make(const char* name) {
+  static TypeIndex Make() {
+#ifdef PLATFORM_CLOUD_TPU
     static bool hash_bit[1];
     return TypeIndex(static_cast<uint64>(reinterpret_cast<intptr_t>(hash_bit)),
-                     name);
+                     typeid(T).name());
+#endif
+#if defined(__GXX_RTTI) || defined(_CPPRTTI)
+
+    // Use a hash based on the type name to avoid issues due to RTLD_LOCAL on
+    // MacOS (b/156979412).
+    return TypeIndex(Hash64(typeid(T).name()), typeid(T).name());
+
+#else
+    static bool hash_bit[1];
+#if TARGET_OS_OSX
+    // Warn MacOS users that not using RTTI can cause problems (b/156979412).
+#warning \
+    "Compiling with RTTI disabled on MacOS can cause problems when comparing " \
+    "types across shared libraries."
+#endif  // TARGET_OS_OSX
+
+    // No type names available.
+    return TypeIndex(static_cast<uint64>(reinterpret_cast<intptr_t>(hash_bit)),
+                     "[RTTI disabled]");
+#endif  // __GXX_RTTI
   }
 
  private:
@@ -67,16 +89,6 @@ class TypeIndex {
   uint64 hash_;
   const char* name_;
 };
-
-template <typename T>
-inline TypeIndex MakeTypeIndex() {
-#if defined(__GXX_RTTI) || defined(_CPPRTTI)
-  // Use the real type name if we have RTTI.
-  return TypeIndex::Make<T>(typeid(T).name());
-#else
-  return TypeIndex::Make<T>("[RTTI disabled]");
-#endif  // __GXX_RTTI
-}
 
 }  // namespace tensorflow
 

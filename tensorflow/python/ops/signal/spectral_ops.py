@@ -14,10 +14,6 @@
 # ==============================================================================
 """Spectral operations (e.g. Short-time Fourier Transform)."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import numpy as np
 
 from tensorflow.python.framework import constant_op
@@ -31,10 +27,12 @@ from tensorflow.python.ops.signal import fft_ops
 from tensorflow.python.ops.signal import reconstruction_ops
 from tensorflow.python.ops.signal import shape_ops
 from tensorflow.python.ops.signal import window_ops
+from tensorflow.python.util import dispatch
 from tensorflow.python.util.tf_export import tf_export
 
 
 @tf_export('signal.stft')
+@dispatch.add_dispatch_support
 def stft(signals, frame_length, frame_step, fft_length=None,
          window_fn=window_ops.hann_window,
          pad_end=False, name=None):
@@ -95,6 +93,7 @@ def stft(signals, frame_length, frame_step, fft_length=None,
 
 
 @tf_export('signal.inverse_stft_window_fn')
+@dispatch.add_dispatch_support
 def inverse_stft_window_fn(frame_step,
                            forward_window_fn=window_ops.hann_window,
                            name=None):
@@ -117,10 +116,6 @@ def inverse_stft_window_fn(frame_step,
       The returned window is suitable for reconstructing original waveform in
       inverse_stft.
   """
-  with ops.name_scope(name, 'inverse_stft_window_fn', [forward_window_fn]):
-    frame_step = ops.convert_to_tensor(frame_step, name='frame_step')
-    frame_step.shape.assert_has_rank(0)
-
   def inverse_stft_window_fn_inner(frame_length, dtype):
     """Computes a window that can be used in `inverse_stft`.
 
@@ -138,24 +133,32 @@ def inverse_stft_window_fn(frame_step,
       `frame_step` is not scalar, or `frame_step` is not scalar.
     """
     with ops.name_scope(name, 'inverse_stft_window_fn', [forward_window_fn]):
+      frame_step_ = ops.convert_to_tensor(frame_step, name='frame_step')
+      frame_step_.shape.assert_has_rank(0)
       frame_length = ops.convert_to_tensor(frame_length, name='frame_length')
       frame_length.shape.assert_has_rank(0)
 
       # Use equation 7 from Griffin + Lim.
       forward_window = forward_window_fn(frame_length, dtype=dtype)
       denom = math_ops.square(forward_window)
-      overlaps = -(-frame_length // frame_step)  # Ceiling division.
-      denom = array_ops.pad(denom, [(0, overlaps * frame_step - frame_length)])
-      denom = array_ops.reshape(denom, [overlaps, frame_step])
+      overlaps = -(-frame_length // frame_step_)  # Ceiling division.  # pylint: disable=invalid-unary-operand-type
+      denom = array_ops.pad(denom, [(0, overlaps * frame_step_ - frame_length)])
+      denom = array_ops.reshape(denom, [overlaps, frame_step_])
       denom = math_ops.reduce_sum(denom, 0, keepdims=True)
       denom = array_ops.tile(denom, [overlaps, 1])
-      denom = array_ops.reshape(denom, [overlaps * frame_step])
+      denom = array_ops.reshape(denom, [overlaps * frame_step_])
 
-      return forward_window / denom[:frame_length]
+      denom = denom[:frame_length]
+      return array_ops.where(
+          math_ops.equal(denom, 0.0),
+          array_ops.zeros_like(forward_window),
+          forward_window / denom,
+      )
   return inverse_stft_window_fn_inner
 
 
 @tf_export('signal.inverse_stft')
+@dispatch.add_dispatch_support
 def inverse_stft(stfts,
                  frame_length,
                  frame_step,
@@ -291,6 +294,7 @@ def _enclosing_power_of_two(value):
 
 
 @tf_export('signal.mdct')
+@dispatch.add_dispatch_support
 def mdct(signals, frame_length, window_fn=window_ops.vorbis_window,
          pad_end=False, norm=None, name=None):
   """Computes the [Modified Discrete Cosine Transform][mdct] of `signals`.
@@ -366,6 +370,7 @@ def mdct(signals, frame_length, window_fn=window_ops.vorbis_window,
 
 
 @tf_export('signal.inverse_mdct')
+@dispatch.add_dispatch_support
 def inverse_mdct(mdcts,
                  window_fn=window_ops.vorbis_window,
                  norm=None,

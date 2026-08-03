@@ -1,9 +1,11 @@
 # Experimental posix filesystem plugin.
 load("//tensorflow:tensorflow.bzl", "tf_cc_shared_object")
+load("//tensorflow/core/platform:rules_cc.bzl", "cc_library")
 
 package(
+    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     default_visibility = ["//visibility:private"],
-    licenses = ["notice"],  # Apache 2.0
+    licenses = ["notice"],
 )
 
 # Filesystem implementation for POSIX environments: Linux, MacOS, Android, etc.
@@ -19,11 +21,29 @@ tf_cc_shared_object(
 cc_library(
     name = "posix_filesystem_impl",
     srcs = ["posix_filesystem.cc"],
+    hdrs = ["posix_filesystem.h"],
     deps = [
         ":posix_filesystem_helper",
+        "//tensorflow/c:tf_file_statistics",
         "//tensorflow/c:tf_status",
         "//tensorflow/c/experimental/filesystem:filesystem_interface",
     ],
+)
+
+# Since building pip package and API tests require a filesystem, we provide a
+# static registration target that they should link against.
+cc_library(
+    name = "posix_filesystem_static",
+    srcs = ["posix_filesystem_static.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":posix_filesystem_impl",
+        "//tensorflow/c/experimental/filesystem:filesystem_interface",
+        "//tensorflow/c/experimental/filesystem:modular_filesystem",
+        "//tensorflow/core/platform:status",
+        "@com_google_absl//absl/log",
+    ],
+    alwayslink = 1,
 )
 
 # Library implementing helper functionality, so that the above only contains

@@ -15,6 +15,11 @@ limitations under the License.
 #ifndef TENSORFLOW_LITE_NNAPI_NNAPI_HANDLER_H_
 #define TENSORFLOW_LITE_NNAPI_NNAPI_HANDLER_H_
 
+#include <cstddef>
+#include <cstdint>
+#include <string>
+
+#include "absl/log/check.h"
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/lite/nnapi/NeuralNetworksTypes.h"
 #include "tensorflow/lite/nnapi/nnapi_implementation.h"
@@ -116,6 +121,11 @@ class NnApiHandler {
     nnapi_->ANeuralNetworksModel_addOperand =
         [](ANeuralNetworksModel* model,
            const ANeuralNetworksOperandType* type) { return Value; };
+  }
+
+  void StubAddOperandWith(int(stub)(ANeuralNetworksModel* model,
+                                    const ANeuralNetworksOperandType* type)) {
+    nnapi_->ANeuralNetworksModel_addOperand = stub;
   }
 
   template <int Value>
@@ -252,7 +262,46 @@ class NnApiHandler {
     nnapi_->ANeuralNetworksModel_getSupportedOperationsForDevices = stub;
   }
 
-  void SetAndroidSdkVersion(int version);
+  template <int Value>
+  void ExecutionStartComputeReturns() {
+    nnapi_->ANeuralNetworksExecution_startCompute =
+        [](ANeuralNetworksExecution* execution, ANeuralNetworksEvent** event) {
+          *event = reinterpret_cast<ANeuralNetworksEvent*>(1);
+          return Value;
+        };
+  }
+
+  template <int Value>
+  void EventWaitReturns() {
+    nnapi_->ANeuralNetworksEvent_wait = [](ANeuralNetworksEvent* event) {
+      return Value;
+    };
+  }
+
+  template <int Value>
+  void SetPriorityReturns() {
+    nnapi_->ANeuralNetworksCompilation_setPriority =
+        [](ANeuralNetworksCompilation* compilation, int priority) -> int {
+      return Value;
+    };
+  }
+
+  template <int Value>
+  void SetOperandSymmPerChannelQuantParamsReturns() {
+    nnapi_->ANeuralNetworksModel_setOperandSymmPerChannelQuantParams =
+        [](ANeuralNetworksModel* model, int32_t index,
+           const ANeuralNetworksSymmPerChannelQuantParams* channelQuant) {
+          return Value;
+        };
+  }
+
+  /*
+   * Sets the SDK Version in the nnapi structure.
+   * If set_unsupported_ops_to_null is set to true, all the functions not
+   * available at the given sdk level will be set to null too.
+   */
+  void SetAndroidSdkVersion(int version,
+                            bool set_unsupported_ops_to_null = false);
 
   const NnApi* GetNnApi() { return nnapi_; }
 

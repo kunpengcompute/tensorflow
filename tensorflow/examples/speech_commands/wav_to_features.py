@@ -27,10 +27,6 @@ bazel run tensorflow/examples/speech_commands:wav_to_features -- \
 --input_wav=my.wav --output_c_file=my_wav_data.c
 
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import argparse
 import os.path
 import sys
@@ -117,7 +113,7 @@ def wav_to_features(sample_rate, clip_duration_ms, window_size_ms,
       for value in features.flatten():
         if i == 0:
           f.write('\n  ')
-        f.write(' ,%f' % value)
+        f.write('%f, ' % value)
         i = (i + 1) % 10
     f.write('\n};\n')
 

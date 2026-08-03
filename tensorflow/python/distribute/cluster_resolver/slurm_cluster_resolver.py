@@ -14,13 +14,9 @@
 # ==============================================================================
 """Implementation of Cluster Resolvers for Slurm workload manager."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import os
-import subprocess
 import re
+import subprocess
 
 from tensorflow.python.distribute.cluster_resolver.cluster_resolver import ClusterResolver
 from tensorflow.python.distribute.cluster_resolver.cluster_resolver import format_master_url
@@ -29,7 +25,7 @@ from tensorflow.python.util.tf_export import tf_export
 
 
 def expand_hostlist(hostlist):
-  """Create a list of hosts out of a SLURM hostlist
+  """Create a list of hosts out of a SLURM hostlist.
 
   The order of nodes is preserved and no deduplication is done
   Input: 'n[1-2],m5,o[3-4,6,7-9]')
@@ -37,7 +33,7 @@ def expand_hostlist(hostlist):
   """
 
   def split_hostlist(hostlist):
-    """Split hostlist at commas outside of range expressions ('[3-5]')"""
+    """Split hostlist at commas outside of range expressions ('[3-5]')."""
     in_brackets = False
     cur_host = ''
     for c in hostlist:
@@ -57,15 +53,16 @@ def expand_hostlist(hostlist):
       yield cur_host
 
   def expand_range_expression(range_exp):
-    """Expand a range expression like '3-5' to values 3,4,5"""
+    """Expand a range expression like '3-5' to values 3,4,5."""
     for part in range_exp.split(','):
       sub_range = part.split('-')
       if len(sub_range) == 1:
         sub_range = sub_range * 2
       else:
         assert len(sub_range) == 2
+      num_digits = len(sub_range[0])
       for i in range(int(sub_range[0]), int(sub_range[1]) + 1):
-        yield i
+        yield str(i).zfill(num_digits)
 
   hosts = []
   try:
@@ -79,15 +76,14 @@ def expand_hostlist(hostlist):
       if m.group(3) is None:
         hosts.append(prefix)
       else:
-        hosts.extend(
-            prefix + str(i) for i in expand_range_expression(m.group(3)))
+        hosts.extend(prefix + i for i in expand_range_expression(m.group(3)))
   except Exception as e:
     raise ValueError('Invalid hostlist format "%s": %s' % (hostlist, e))
   return hosts
 
 
 def expand_tasks_per_node(tasks_per_node):
-  """Expand the tasks per node expression from SLURM
+  """Expands the tasks per node expression from SLURM.
 
   The order is preserved so it can be matched to the hostlist
   Input: '3(x2),2,1'
@@ -108,7 +104,7 @@ def expand_tasks_per_node(tasks_per_node):
 
 
 def _get_slurm_var(name):
-  """Get the SLURM variable from the environment
+  """Gets the SLURM variable from the environment.
 
   Args:
     name: Name of the step variable
@@ -126,8 +122,8 @@ def _get_slurm_var(name):
                        'Not running inside a SLURM step?' % name)
 
 
-def get_num_slurm_tasks():
-  """Return the number of SLURM tasks of the current job step
+def _get_num_slurm_tasks():
+  """Returns the number of SLURM tasks of the current job step.
 
   Returns:
     The number of tasks as an int
@@ -136,7 +132,7 @@ def get_num_slurm_tasks():
 
 
 def _get_num_nvidia_gpus():
-  """Get the number of NVIDIA GPUs by using CUDA_VISIBLE_DEVICES and nvidia-smi
+  """Gets the number of NVIDIA GPUs by using CUDA_VISIBLE_DEVICES and nvidia-smi.
 
   Returns:
     Number of GPUs available on the node
@@ -157,9 +153,9 @@ def _get_num_nvidia_gpus():
 
 
 def get_num_gpus():
-  """Return the number of GPUs visible on the current node
+  """Returns the number of GPUs visible on the current node.
 
-  Currently only implemented for NVIDIA GPUs
+  Currently only implemented for NVIDIA GPUs.
   """
   return _get_num_nvidia_gpus()
 
@@ -175,7 +171,6 @@ class SlurmClusterResolver(ClusterResolver):
   names, constructs a cluster and returns a ClusterResolver object which can be
   used for distributed TensorFlow.
   """
-
 
   def __init__(self,
                jobs=None,
@@ -201,7 +196,7 @@ class SlurmClusterResolver(ClusterResolver):
       - SLURM_PROCID
       - (opt) SLURM_STEP_NUM_TASKS
       - (opt) SLURM_STEP_NODELIST
-      - (opt) SLURM_TASKS_PER_NODE
+      - (opt) SLURM_STEP_TASKS_PER_NODE
 
     Args:
       jobs: Dictionary with job names as key and number of tasks in the job as
@@ -225,8 +220,8 @@ class SlurmClusterResolver(ClusterResolver):
       A ClusterResolver object which can be used with distributed TensorFlow.
 
     Raises:
-      RuntimeError: If requested more GPUs per node then available or
-        requested more tasks then assigned tasks or
+      RuntimeError: If requested more GPUs per node than available or
+        requested more tasks than assigned tasks or
         resolving missing values from the environment failed.
     """
 
@@ -269,26 +264,26 @@ class SlurmClusterResolver(ClusterResolver):
     self._cluster_allocation = {}
 
     if max_tasks_per_node * self._gpus_per_task > self._gpus_per_node:
-      raise RuntimeError('Requested more GPUs per node then available.')
+      raise RuntimeError('Requested more GPUs per node than available.')
 
     if sum(self._jobs.values()) != num_tasks:
       raise RuntimeError('Requested {} tasks but only {} were assigned.'.format(
           sum(self._jobs.values()), num_tasks))
 
   def _resolve_own_rank(self):
-    """Return the rank of the current task in range [0, num_tasks)"""
+    """Returns the rank of the current task in range [0, num_tasks)."""
     return int(_get_slurm_var('PROCID'))
 
   def _resolve_num_tasks(self):
-    """Return the number of tasks for the current job step"""
-    return get_num_slurm_tasks()
+    """Returns the number of tasks for the current job step."""
+    return _get_num_slurm_tasks()
 
   def _resolve_hostlist(self):
-    """Return a list of hostnames for nodes running the current job step"""
+    """Returns a list of hostnames for nodes running the current job step."""
     return expand_hostlist(_get_slurm_var('STEP_NODELIST'))
 
   def _resolve_task_configuration(self):
-    """Create a mapping of hostnames to the number of tasks allocated on it
+    """Creates a mapping of hostnames to the number of tasks allocated on it.
 
     Reads the SLURM environment to determine the nodes involved in the current
     job step and number of tasks running on each node.
@@ -352,7 +347,7 @@ class SlurmClusterResolver(ClusterResolver):
 
       cluster_rank_offset_start = cluster_rank_offset_end
 
-    if self._auto_set_gpu is True:
+    if self._auto_set_gpu:
       os.environ['CUDA_VISIBLE_DEVICES'] = self._gpu_allocation[self._rank]
 
     return ClusterSpec(self._cluster_allocation)

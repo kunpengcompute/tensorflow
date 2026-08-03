@@ -1,4 +1,3 @@
-# Lint as: python3
 # Copyright 2020 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,19 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-r"""Script to generate inputs/outputs exclusion lists for GradientTape.
+"""Code to generate inputs/outputs exclusion lists for GradientTape."""
 
-To use this script:
-
-bazel run tensorflow/python/eager:gradient_input_output_exclusions -- \
-  $PWD/tensorflow/python/eager/pywrap_gradient_exclusions.cc
-"""
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
-import argparse
 import sys
 
 import gast
@@ -36,6 +24,7 @@ from tensorflow.python.autograph.pyct import qual_names
 from tensorflow.python.autograph.pyct import transformer
 from tensorflow.python.autograph.pyct.static_analysis import activity
 from tensorflow.python.autograph.pyct.static_analysis import liveness
+from tensorflow.python.autograph.pyct.static_analysis import reaching_fndefs
 from tensorflow.python.framework import op_def_registry
 from tensorflow.python.framework import ops
 
@@ -99,10 +88,19 @@ _EXCLUDED_OPS = [
     "While",
     "StatelessWhile",
     "Case",
-
     # TF Lite. These ops only appear in OSS.
     # TODO(srbs): Find a better way to filter these out.
     "AudioMicrofrontend",
+    # DTensor Ops with custom gradient functions.
+    # Note that these ops only appear in OSS, and fails the test in OSS.
+    "CopyToMesh",
+    "CopyToMeshGrad",
+    "Relayout",
+    "RelayoutLike",
+    # Debug ops that similarly only appear in OSS, and fails the test in OSS.
+    "DebugGradientIdentity",
+    "DebugGradientRefIdentity",
+    "DebugIdentityV2",
 ]
 
 
@@ -126,21 +124,20 @@ class _SubscriptUseTracker(transformer.Base):
 
   def visit_Subscript(self, node):
     """Visits nodes with subscript in the AST."""
+    s = node.slice
     if anno.hasanno(node, anno.Basic.QN):
       qn = anno.getanno(node, anno.Basic.QN)
       if isinstance(node.ctx, gast.Load):
         self.reads.add(qn)
-    elif not isinstance(node.slice, gast.Index):
-      if anno.hasanno(node, anno.Basic.QN):
-        self.complex_reads.add(anno.getanno(node, anno.Basic.QN))
-      elif anno.hasanno(node.value, anno.Basic.QN):
+    elif isinstance(s, (gast.Tuple, gast.Slice)):
+      if anno.hasanno(node.value, anno.Basic.QN):
         self.complex_reads.add(anno.getanno(node.value, anno.Basic.QN))
     value_qn = anno.getanno(node.value, anno.Basic.QN, None)
     if value_qn in self.exclude:
       node.value = self.generic_visit(node.value)
     else:
       node.value = self.visit(node.value)
-    node.slice = self.visit(node.slice)
+    node.slice = self.visit(s)
     return node
 
 
@@ -198,15 +195,17 @@ def _live_tensors(f, attr_name="inputs"):
   """
   node, _ = parser.parse_entity(f, ())
   entity_info = transformer.EntityInfo(
+      name=f.__name__,
       source_code=None,
       source_file=None,
       future_features=(),
       namespace=sys.modules[f.__module__].__dict__)
-  ctx = transformer.Context(entity_info)
+  ctx = transformer.Context(entity_info, None, None)
 
   graphs = cfg.build(node)
   node = qual_names.resolve(node)
   node = activity.resolve(node, ctx, None)
+  node = reaching_fndefs.resolve(node, ctx, graphs)
   node = liveness.resolve(node, ctx, graphs)
 
   op_arg_name = anno.getanno(node.args.args[0], anno.Basic.QN)
@@ -250,7 +249,8 @@ def _live_tensors(f, attr_name="inputs"):
       # Not a number, assuming it can be anything.
       return _ALL
     subscript_val, = subscript.qn
-    if not isinstance(subscript_val, qual_names.NumberLiteral):
+    if (not isinstance(subscript_val, qual_names.Literal) and
+        not isinstance(subscript_val.value, int)):
       # Not a number, assuming it can be anything.
       return _ALL
     input_output_indices.add(subscript_val.value)
@@ -365,15 +365,3 @@ def get_contents():
   contents += get_function("OpGradientUnusedOutputIndices",
                            get_entries("outputs"))
   return contents
-
-
-def main(output_file):
-  with open(output_file, "w") as fp:
-    fp.write(get_contents())
-
-
-if __name__ == "__main__":
-  arg_parser = argparse.ArgumentParser()
-  arg_parser.add_argument("output", metavar="O", type=str, help="Output file.")
-  args = arg_parser.parse_args()
-  main(args.output)

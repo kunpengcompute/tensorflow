@@ -15,9 +15,12 @@ limitations under the License.
 
 #include "tensorflow/lite/kernels/internal/reference/neg.h"
 
-#include "tensorflow/lite/c/common.h"
+#include <stdint.h>
+
+#include "tensorflow/lite/core/c/common.h"
 #include "tensorflow/lite/kernels/internal/optimized/optimized_ops.h"
 #include "tensorflow/lite/kernels/internal/tensor.h"
+#include "tensorflow/lite/kernels/internal/tensor_ctypes.h"
 #include "tensorflow/lite/kernels/kernel_util.h"
 
 namespace tflite {
@@ -31,8 +34,11 @@ constexpr int kOutputTensor = 0;
 TfLiteStatus Prepare(TfLiteContext* context, TfLiteNode* node) {
   TF_LITE_ENSURE_EQ(context, NumInputs(node), 1);
   TF_LITE_ENSURE_EQ(context, NumOutputs(node), 1);
-  const TfLiteTensor* input = GetInput(context, node, kInputTensor);
-  TfLiteTensor* output = GetOutput(context, node, kOutputTensor);
+  const TfLiteTensor* input;
+  TF_LITE_ENSURE_OK(context, GetInputSafe(context, node, kInputTensor, &input));
+  TfLiteTensor* output;
+  TF_LITE_ENSURE_OK(context,
+                    GetOutputSafe(context, node, kOutputTensor, &output));
 
   output->type = input->type;
   return context->ResizeTensor(context, output,
@@ -40,8 +46,11 @@ TfLiteStatus Prepare(TfLiteContext* context, TfLiteNode* node) {
 }
 
 TfLiteStatus Eval(TfLiteContext* context, TfLiteNode* node) {
-  const TfLiteTensor* input = GetInput(context, node, kInputTensor);
-  TfLiteTensor* output = GetOutput(context, node, kOutputTensor);
+  const TfLiteTensor* input;
+  TF_LITE_ENSURE_OK(context, GetInputSafe(context, node, kInputTensor, &input));
+  TfLiteTensor* output;
+  TF_LITE_ENSURE_OK(context,
+                    GetOutputSafe(context, node, kOutputTensor, &output));
   switch (input->type) {
     case kTfLiteInt64:
       reference_ops::Negate(
@@ -58,8 +67,28 @@ TfLiteStatus Eval(TfLiteContext* context, TfLiteNode* node) {
                             GetTensorShape(output),
                             GetTensorData<float>(output));
       break;
+    case kTfLiteInt8:
+      reference_ops::Negate(GetTensorShape(input), GetTensorData<int8_t>(input),
+                            GetTensorShape(output),
+                            GetTensorData<int8_t>(output));
+      break;
+    case kTfLiteInt16:
+      reference_ops::Negate(
+          GetTensorShape(input), GetTensorData<int16_t>(input),
+          GetTensorShape(output), GetTensorData<int16_t>(output));
+      break;
+    case kTfLiteFloat16:
+      reference_ops::Negate(
+          GetTensorShape(input), GetTensorData<Eigen::half>(input),
+          GetTensorShape(output), GetTensorData<Eigen::half>(output));
+      break;
+    case kTfLiteBFloat16:
+      reference_ops::Negate(
+          GetTensorShape(input), GetTensorData<Eigen::half>(input),
+          GetTensorShape(output), GetTensorData<Eigen::half>(output));
+      break;
     default:
-      context->ReportError(
+      TF_LITE_KERNEL_LOG(
           context,
           "Neg only currently supports int64, int32, and float32, got %d.",
           input->type);

@@ -1,8 +1,7 @@
-exports_files(
-    [
-        "LICENSE",
-        "ACKNOWLEDGEMENTS",
-        "configure",
-        "configure.py",
-    ],
-)
+exports_files(glob(["requirements*"]) + [
+    "configure",
+    "configure.py",
+    "ACKNOWLEDGEMENTS",
+    "AUTHORS",
+    "LICENSE",
+])

@@ -4,17 +4,19 @@ load(
 )
 
 package(
+    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     default_visibility = [
-        # tensorflow/core:lib effectively exposes all targets under tensorflow/core/lib/**
-        "//tensorflow/core:__pkg__",
+        "//tensorflow:__subpackages__",
     ],
-    licenses = ["notice"],  # Apache 2.0
+    licenses = ["notice"],
 )
 
 cc_library(
     name = "png_io",
     srcs = ["png_io.cc"],
     hdrs = ["png_io.h"],
+    features = ["-layering_check"],
+    visibility = ["//visibility:public"],
     deps = [
         "//tensorflow/core/platform:byte_order",
         "//tensorflow/core/platform:logging",
@@ -22,16 +24,16 @@ cc_library(
         "//tensorflow/core/platform:stringpiece",
         "//tensorflow/core/platform:types",
         "@com_google_absl//absl/base",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings:string_view",
+        "@png",
         "@zlib",
     ],
 )
 
-filegroup(
+alias(
     name = "testdata",
-    srcs = [
-        "testdata/lena_gray.png",
-        "testdata/lena_palette.png",
-        "testdata/lena_palette_trns.png",
-        "testdata/lena_rgba.png",
-    ],
+    actual = "//tensorflow/core/lib/png/testdata:png_testdata",
+    visibility = ["//tensorflow/core:__pkg__"],
 )

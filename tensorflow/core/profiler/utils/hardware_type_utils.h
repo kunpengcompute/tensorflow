@@ -16,16 +16,6 @@ limitations under the License.
 #ifndef TENSORFLOW_CORE_PROFILER_UTILS_HARDWARE_TYPE_UTILS_H_
 #define TENSORFLOW_CORE_PROFILER_UTILS_HARDWARE_TYPE_UTILS_H_
 
-#include "tensorflow/core/profiler/protobuf/hardware_types.pb.h"
-
-namespace tensorflow {
-namespace profiler {
-
-// Get peak single precision throughput of the GPU in GFLOPS per
-// streaming multiprocessor.
-double GetFlopMaxThroughputPerSM(const DeviceCapabilities& device_cap);
-
-}  // namespace profiler
-}  // namespace tensorflow
+#include "xprof/utils/hardware_type_utils.h"  // from @org_xprof  // IWYU pragma: export
 
 #endif  // TENSORFLOW_CORE_PROFILER_UTILS_HARDWARE_TYPE_UTILS_H_

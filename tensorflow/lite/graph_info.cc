@@ -15,54 +15,49 @@ limitations under the License.
 #include "tensorflow/lite/graph_info.h"
 
 #include <algorithm>
+#include <vector>
 
-#include "tensorflow/lite/c/common.h"
+#include "tensorflow/lite/context_util.h"
+#include "tensorflow/lite/core/c/common.h"
 
 namespace tflite {
-
 namespace {
 
-// Provide a range iterable wrapper for TfLiteIntArray* (C lists that TfLite
-// C api uses. Can't use the google array_view, since we can't depend on even
-// absl for embedded device reasons.
-// TODO(aselle): Move this into central utilities.
-class TfLiteIntArrayView {
- public:
-  // Construct a view of a TfLiteIntArray*. Note, `int_array` should be non-null
-  // and this view does not take ownership of it.
-  explicit TfLiteIntArrayView(const TfLiteIntArray* int_array)
-      : int_array_(int_array) {}
-
-  typedef const int* const_iterator;
-  const_iterator begin() const { return int_array_->data; }
-  const_iterator end() const { return &int_array_->data[int_array_->size]; }
-
-  TfLiteIntArrayView(const TfLiteIntArrayView&) = default;
-  TfLiteIntArrayView& operator=(const TfLiteIntArrayView& rhs) = default;
-
- private:
-  const TfLiteIntArray* int_array_;
-};
+template <class T>
+void Uniquefy(std::vector<T>* items) {
+  std::sort(items->begin(), items->end());
+  items->erase(std::unique(items->begin(), items->end()), items->end());
+}
 
 // Helper class that actually performs partitioning by node sub set.
 // Outputs to a provided `NodeSubset` structure.
 //
 // Example usage:
 // PartitionGraphIntoIndependentNodeSubsetsImpl partitioner(
-//     info, nodes_to_part, node_subsets);
+//     info, nodes_to_part, control_edges, node_subsets);
 // partitioner.Partition();
+//
+// NOTE: Changing the partitioning logic would require a change to
+// FP16GraphPartitionHelper.
+// LINT.IfChange
 class PartitionGraphIntoIndependentNodeSubsetsImpl {
  public:
   PartitionGraphIntoIndependentNodeSubsetsImpl(
       const GraphInfo* info, const TfLiteIntArray* nodes_to_partition,
-      std::vector<NodeSubset>* node_subsets)
+      std::vector<NodeSubset>* node_subsets, bool greedily,
+      const ControlEdges& control_edges, bool disable_node_fusion)
       : info_(info),
         node_subsets_(node_subsets),
-        node_type_(info->num_nodes(), NodeSubset::kTfNonPartition) {
+        node_type_(info_->num_total_nodes(), NodeSubset::kTfNonPartition),
+        greedily_(greedily),
+        control_edges_(control_edges),
+        num_incoming_control_edges_(info_->num_execution_nodes(), 0),
+        disable_node_fusion_(disable_node_fusion) {
     // Populate the node_type_ map.
     for (auto node_index : TfLiteIntArrayView(nodes_to_partition)) {
       node_type_[node_index] = NodeSubset::kTfPartition;
     }
+    Uniquefy(&control_edges_);
   }
 
   // Actually partition the graph.
@@ -72,12 +67,20 @@ class PartitionGraphIntoIndependentNodeSubsetsImpl {
     tensor_epochs_.clear();
     tensor_epochs_.resize(info_->num_tensors(), kEpochAlwaysReady);
     node_epochs_.clear();
-    node_epochs_.resize(info_->num_nodes(), kEpochNotReady);
+    node_epochs_.resize(info_->num_execution_nodes(), kEpochNotReady);
+    num_incoming_control_edges_.clear();
+    num_incoming_control_edges_.resize(info_->num_execution_nodes(), 0);
+    for (const auto& edge : control_edges_) {
+      ++num_incoming_control_edges_[edge.second];
+    }
+
     // Set computed tensors to be kEpochNotReady (initializer set everything to
     // AlwaysReady).
-    for (int node_index = 0; node_index < info_->num_nodes(); node_index++) {
+    for (int node_index = 0; node_index < info_->num_execution_nodes();
+         node_index++) {
       const TfLiteNode& node = info_->node(node_index);
       for (int output_tensor_index : TfLiteIntArrayView(node.outputs)) {
+        if (output_tensor_index == kTfLiteOptionalTensor) continue;
         tensor_epochs_[output_tensor_index] = kEpochNotReady;
       }
     }
@@ -104,18 +107,13 @@ class PartitionGraphIntoIndependentNodeSubsetsImpl {
       NodeSubset& output_subset = (*node_subsets_)[output_epoch];
       output_subset.output_tensors.push_back(output_index);
     }
-    // Make sure every node sub set's inputs and outputs are unique. Since the
+    // Make sure every node sub set's inputs and outputs are unique, since the
     // list of inputs and outputs is generated in a way that produces
     // duplicates.
     for (NodeSubset& node_subset : *node_subsets_) {
       // Sort and uniquefy using standard library algorithms.
-      auto uniquefy = [](std::vector<int>* items) {
-        std::sort(items->begin(), items->end());
-        auto last = std::unique(items->begin(), items->end());
-        items->erase(last, items->end());
-      };
-      uniquefy(&node_subset.input_tensors);
-      uniquefy(&node_subset.output_tensors);
+      Uniquefy(&node_subset.input_tensors);
+      Uniquefy(&node_subset.output_tensors);
     }
   }
 
@@ -130,13 +128,14 @@ class PartitionGraphIntoIndependentNodeSubsetsImpl {
     kEpochAlwaysReady = -2
   };
 
-  // Updates the  node `node_index` and returns true if it is assigned to an
-  // epoch. False is returned if the node is already set to an epoch, its inputs
-  // are not all assigned to epochs, or if it cannot be assigned to the current
-  // epoch since the epoch's node_type doesn't match.
+  // Updates the node at `node_index` in the execution plan and returns true if
+  // it is assigned to an epoch. False is returned if the node is already set to
+  // an epoch, its inputs are not all assigned to epochs, or if it cannot be
+  // assigned to the current epoch since the epoch's node_type doesn't match.
   bool UpdateNode(int node_index) {
     const TfLiteNode& node = info_->node(node_index);
     NodeSubset& current_subset = node_subsets_->back();
+    if (disable_node_fusion_ && !current_subset.nodes.empty()) return false;
     int current_epoch = node_subsets_->size() - 1;
     // Check if node is already done.
     if (node_epochs_[node_index] != kEpochNotReady) {
@@ -150,21 +149,29 @@ class PartitionGraphIntoIndependentNodeSubsetsImpl {
         return false;
       }
     }
+    // In order for the current node to be schedulable, all nodes on which it
+    // explicitly depends must have been scheduled.
+    if (num_incoming_control_edges_[node_index] != 0) {
+      return false;
+    }
+
+    int original_node_idx = info_->node_index(node_index);
     // When we are starting a new epoch, the first ready node defines
     // the type of that epoch.
     if (current_subset.type == NodeSubset::kTfUnexplored) {
-      current_subset.type = node_type_[node_index];
+      current_subset.type = node_type_[original_node_idx];
     }
     // The node gets assigned to this epoch if it is the same type as
     // the epoch's assigned type. Note, if this is the current ready
     // node encountered during this epoch, this condition will be
     // automatically true.
-    if (current_subset.type == node_type_[node_index]) {
+    if (current_subset.type == node_type_[original_node_idx]) {
       node_epochs_[node_index] = current_epoch;
-      current_subset.nodes.push_back(info_->node_index(node_index));
+      current_subset.nodes.push_back(original_node_idx);
       // All outputs of this node now are assigned to this epoch as
       // well.
       for (int output_tensor_index : TfLiteIntArrayView(node.outputs)) {
+        if (output_tensor_index == kTfLiteOptionalTensor) continue;
         tensor_epochs_[output_tensor_index] = current_epoch;
       }
       // Look at our inputs one more time to update that tensor's
@@ -186,6 +193,16 @@ class PartitionGraphIntoIndependentNodeSubsetsImpl {
           }
         }
       }
+
+      // Now that node_index is scheduled, remove it as a precondition from its
+      // dependent nodes.
+      for (auto edge_iter =
+               std::lower_bound(control_edges_.begin(), control_edges_.end(),
+                                ControlEdge(node_index, 0));
+           edge_iter != control_edges_.end() && edge_iter->first == node_index;
+           ++edge_iter) {
+        --num_incoming_control_edges_[edge_iter->second];
+      }
       return true;
     } else {
       return false;
@@ -198,9 +215,14 @@ class PartitionGraphIntoIndependentNodeSubsetsImpl {
     // loop until no more nodes can be updated.
     while (true) {
       bool did_something = false;
-      for (int node_index = 0; node_index < info_->num_nodes(); node_index++) {
+      for (int node_index = 0; node_index < info_->num_execution_nodes();
+           node_index++) {
         if (UpdateNode(node_index)) {
           did_something = true;
+        } else {
+          if (did_something && !greedily_) {
+            return;
+          }
         }
       }
       if (!did_something) return;
@@ -211,23 +233,63 @@ class PartitionGraphIntoIndependentNodeSubsetsImpl {
   const GraphInfo* info_;
   // List of node_subsets to populate
   std::vector<NodeSubset>* node_subsets_;
+  // NOTE: This vector contains a place-holder for *all* nodes in the graph, not
+  // just ones in the execution plan. This is because nodes_to_partition is
+  // passed in as a list of original node indices & not execution plan indices.
   std::vector<NodeSubset::Type> node_type_;
   // Maps from tensor index to the epoch in which it is assigned. Also special
-  // negative values of kEpochNotAssigned if not assigned, kEpochNotReady if it
-  // is an input or constant.
+  // negative values of kEpochNotReady if not assigned, kEpochAlwaysReady if it
+  // is an input to the whole model or a constant that has no dependencies.
   std::vector<int> tensor_epochs_;
   // Maps from tensor index to the epoch in which it is assigned. Also special
-  // negative values of kEpochNotAssigned if not assigned.
+  // negative values of kEpochNotReady if not assigned.
   std::vector<int> node_epochs_;
+  // If set, the Partition() behavior is greedy: Nodes that of the same
+  // node_type_[...]  are added to the same NodeSubset as long as long as they
+  // are schedulable (i.e., have all their data dependencies fulfilled), even if
+  // this means that nodes that precede them in the original execution order
+  // will be skipped.
+  //
+  // If unset, the NodeSubsets generated by Partition() will preserve the
+  // original execution order (while still generating NodeSubsets whose members
+  // have the same node_type_[...].
+  const bool greedily_;
+  // Must be cycle-free. Before calling Partition(), must be sorted
+  // lexicographically. Duplicate entries are harmless.
+  ControlEdges control_edges_;
+  // Number of incoming control edges for each node.
+  std::vector<int> num_incoming_control_edges_;
+  // Whether to disable node fusion.
+  const bool disable_node_fusion_;
 };
+// LINT.ThenChange(//tensorflow/lite/delegates/utils.h)
 
 }  // namespace
 
 TfLiteStatus PartitionGraphIntoIndependentNodeSubsets(
     const GraphInfo* info, const TfLiteIntArray* nodes_to_partition,
-    std::vector<NodeSubset>* node_subsets) {
-  PartitionGraphIntoIndependentNodeSubsetsImpl(info, nodes_to_partition,
-                                               node_subsets)
+    std::vector<NodeSubset>* node_subsets, bool greedily,
+    const ControlEdges* control_edges, bool disable_node_fusion) {
+  ControlEdges my_control_edges;
+  if (control_edges == nullptr) {
+    control_edges = &my_control_edges;
+    if (greedily) {
+      // Add a dependency chain between stateful ops.
+      for (int last_op_with_side_effect = -1, node_index = 0;
+           node_index < info->num_execution_nodes(); ++node_index) {
+        const auto& node = info->node(node_index);
+        if (node.might_have_side_effect) {
+          if (last_op_with_side_effect != -1) {
+            my_control_edges.emplace_back(last_op_with_side_effect, node_index);
+          }
+          last_op_with_side_effect = node_index;
+        }
+      }
+    }
+  }
+  PartitionGraphIntoIndependentNodeSubsetsImpl(
+      info, nodes_to_partition, node_subsets, greedily, *control_edges,
+      disable_node_fusion)
       .Partition();
   return kTfLiteOk;
 }
