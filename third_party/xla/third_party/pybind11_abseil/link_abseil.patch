@@ -1,0 +1,85 @@
+diff --git a/pybind11_abseil/BUILD b/pybind11_abseil/BUILD
+index ed9e4af..727c1ef 100644
+--- a/pybind11_abseil/BUILD
++++ b/pybind11_abseil/BUILD
+@@ -1,7 +1,7 @@
+ # Pybind11 bindings for the Abseil C++ Common Libraries
+
+ load("@pybind11_bazel//:build_defs.bzl", "pybind_extension", "pybind_library")
+-
++exports_files(["import_status_module.cc", "register_status_bindings.cc"])
+ package(default_visibility = ["//visibility:public"])
+
+ licenses(["notice"])
+@@ -65,11 +65,17 @@ pybind_library(
+     ],
+ )
+
+-pybind_library(
++cc_library(
+     name = "register_status_bindings",
+     srcs = ["register_status_bindings.cc"],
+     hdrs = ["register_status_bindings.h"],
+-    visibility = ["//visibility:private"],
++    visibility = [
++        "//visibility:public",
++    ],
++    alwayslink = 1,
++    copts = [
++        "-fvisibility=default",
++    ],
+     deps = [
+         ":absl_casters",
+         ":no_throw_status",
+@@ -86,10 +92,17 @@ pybind_extension(
+     deps = [":register_status_bindings"],
+ )
+
+-pybind_library(
++cc_library(
+     name = "import_status_module",
+     srcs = ["import_status_module.cc"],
+     hdrs = ["import_status_module.h"],
++    visibility = [
++        "//visibility:public",
++    ],
++    alwayslink = 1,
++    copts = [
++        "-fvisibility=default",
++    ],
+     deps = [
+         ":check_status_module_imported",
+         ":register_status_bindings",
+@@ -106,3 +119,4 @@ pybind_library(
+         ":statusor_caster",
+     ],
+ )
++
+diff --git a/pybind11_abseil/import_status_module.cc b/pybind11_abseil/import_status_module.cc
+index f5f092f..4f9f489 100644
+--- a/pybind11_abseil/import_status_module.cc
++++ b/pybind11_abseil/import_status_module.cc
+@@ -1,3 +1,4 @@
++#pragma GCC visibility push(default)
+ #include "pybind11_abseil/import_status_module.h"
+
+ #include <pybind11/pybind11.h>
+@@ -27,3 +28,4 @@ module_ ImportStatusModule(bool bypass_regular_import) {
+
+ }  // namespace google
+ }  // namespace pybind11
++#pragma GCC visibility pop
+diff --git a/pybind11_abseil/register_status_bindings.cc b/pybind11_abseil/register_status_bindings.cc
+index 3d1a71a..74bf0d6 100644
+--- a/pybind11_abseil/register_status_bindings.cc
++++ b/pybind11_abseil/register_status_bindings.cc
+@@ -1,3 +1,4 @@
++#pragma GCC visibility push(default)
+ #include "pybind11_abseil/register_status_bindings.h"
+
+ #include <pybind11/embed.h>
+@@ -217,3 +218,4 @@ void RegisterStatusBindings(module m) {
+ }  // namespace internal
+ }  // namespace google
+ }  // namespace pybind11
++#pragma GCC visibility pop

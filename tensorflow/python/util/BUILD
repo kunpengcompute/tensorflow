@@ -437,7 +437,11 @@ py_strict_library(
 
 tf_python_pybind_extension(
     name = "_tf_stack",
-    srcs = ["tf_stack.cc"],
+    srcs = [
+        "tf_stack.cc", 
+        "@pybind11_abseil//pybind11_abseil:import_status_module.cc", 
+        "@pybind11_abseil//pybind11_abseil:register_status_bindings.cc"
+    ],
     hdrs = [
         "//tensorflow/c:headers",
         "//tensorflow/c/eager:headers",
