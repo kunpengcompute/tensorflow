@@ -29,7 +29,10 @@ py_strict_library(
 
 tf_python_pybind_extension(
     name = "_pywrap_tf_session",
-    srcs = ["tf_session_wrapper.cc"],
+    srcs = [
+        "tf_session_wrapper.cc",
+        "@pybind11_protobuf//pybind11_protobuf:proto_cast_util.cc",
+    ],
     hdrs = if_pywrap(
         if_false = [
             "tf_session_helper.h",
