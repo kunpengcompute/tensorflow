@@ -13,5 +13,6 @@ def python_init_rules():
             Label("//third_party/py:rules_python1.patch"),
             Label("//third_party/py:rules_python2.patch"),
             Label("//third_party/py:rules_python3.patch"),
+            Label("//third_party/py:rules_python_no_isolated.patch"),
         ],
     )
