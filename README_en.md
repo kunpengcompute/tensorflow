@@ -3,14 +3,14 @@
 ## Latest Updates
 
 - [2026-09-30]: Added the KEmbedding custom operator library with EmbeddingTableLookup and added KDNN SparseMatmul multithreading optimization. Restructured patch releases into maintained common, KDNN, ANNC static graph fusion, and KEmbedding groups; and froze runtime, the old fused embedding implementation, and old XLA execution features in a standalone Legacy patch.
-- [2026-06-30]: Added the TensorFlow ANNC static graph fusion feature, adapted to the Kunpeng 950 7592C processor and supporting operators such as KPFusedGather and KPFusedSparseReshape. Added the constant folding optimization to TensorFlow ANNC for graph compilation, adapted to the Kunpeng 950 7592C processor.
+- [2026-06-30]: Added the TensorFlow ANNC static graph fusion feature, adapted to the Kunpeng 950 processor and supporting operators such as KPFusedGather and KPFusedSparseReshape. Added the constant folding optimization to TensorFlow ANNC for graph compilation, adapted to the Kunpeng 950 processor.
 - [2026-03-30]: Added the TensorFlow KDNN thread passthrough feature, supporting operators such as batchmatmul, concat, and softmax.
 - [2025-09-30]: Added the TensorFlow ANNC for graph compilation optimization feature, providing optimizations including computational graph optimization, and generation and integration of high-performance fused operators.
 - [2025-06-30]: Released the TensorFlow Serving thread scheduling optimization feature for the first time.
 
 ## Project Introduction
 
-Kunpeng TensorFlow is a high-performance inference acceleration extension based on open-source TensorFlow, focusing on efficient execution for search, recommendation, and dvertising inference workloads. 
+Kunpeng TensorFlow is a high-performance inference acceleration extension based on open-source TensorFlow, focusing on efficient execution for search, recommendation, and dvertising inference workloads.
 
 The maintained patch series covers shared build integration, KDNN kernel optimizations, ANNC static graph fusion, and the KEmbedding custom operator.
 
