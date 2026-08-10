@@ -88,10 +88,10 @@ tensorflow
 <td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p2091893722011"><a href="./docs/zh/release_notes.md">版本说明书</a></p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">提供鲲鹏TensorFlow每个发布版本的基础信息和特性更新信息。</p></td>
 </tr>
-<tr id="row179181137112015">
-<td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710208">文档</p></td>
+<tr id="row179181137112016">
+<td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1918123710209">文档</p></td>
 <td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p2091893722011"><a href="./docs/zh/feature_introduction.md">特性介绍</a></p></td>
-<td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">提供鲲鹏TensorFlow特性介绍。</p></td>
+<td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752011">提供鲲鹏TensorFlow特性介绍。</p></td>
 </tr>
 <tr id="row939116371143">
 <td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p1039163711413">文档</p></td>
@@ -103,9 +103,9 @@ tensorflow
 <td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p17918337172020"><a href="./docs/zh/installation_guide.md">安装指南</a></p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p15918183742018">提供鲲鹏TensorFlow编译安装方法指导。</p></td>
 </tr>
-<tr id="row2918153732017">
-<td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p598512211214">文档</p></td>
-<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p17918337172020"><a href="./docs/zh/api_reference.md">API参考</a></p></td>
+<tr id="row2918153732018">
+<td class="cellrowborder" valign="top" width="9.780978097809781%" headers="mcps1.1.4.1.1"><p id="p598512211215">文档</p></td>
+<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p17918337172021"><a href="./docs/zh/api_reference.md">API参考</a></p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p15918183742018">提供鲲鹏TensorFlow API使用参考。</p></td>
 </tr>
 </tbody>

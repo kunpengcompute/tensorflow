@@ -1,20 +1,19 @@
-# Feature Description
+# Feature Introduction
 
 ## TensorFlow ANNC for Graph Compilation Optimization
 
-### Overview
+### Introduction
 
 This section describes the basic concepts and implementation principles of the TensorFlow Accelerated Neural Network Compiler (ANNC) for graph compilation optimization.
 
-Kunpeng BoostKit provides this TensorFlow ANNC feature to enhance TensorFlow Serving (TF Serving) inference performance. ANNC is a compiler dedicated to accelerating neural network computing. It focuses on technologies including computational graph optimization, generation and integration of high-performance fused operators, and efficient code generation. These capabilities significantly improve inference performance in recommendation scenarios. ANNC is an extended acceleration suite. It is built on open-source Open Accelerated Linear Algebra (OpenXLA), and hosted in the ANNC repository maintained by the openEuler community. The suite includes optimizations tailored for the Kunpeng platform, such as TensorFlow graph fusion, Accelerated Linear Algebra (XLA) graph fusion, and operator optimization.
-
-The ANNC optimization feature integrates with the TensorFlow inference framework and XLA through compilation options and code patches. The following new features are introduced for TensorFlow Serving/TensorFlow 2.15:
+Kunpeng BoostKit provides this TensorFlow ANNC feature to enhance TensorFlow Serving (TF Serving) inference performance. ANNC is a compiler dedicated to accelerating neural network computing. It focuses on technologies including computational graph optimization, generation and integration of high-performance fused operators, and efficient code generation and optimization. These capabilities significantly improve inference performance in recommendation scenarios. As an extension kit based on open-source Open Accelerated Linear Algebra (OpenXLA), ANNC is released in the ANNC open-source repository of the openEuler community. It features Kunpeng-affinity optimization capabilities, and is integrated into the TensorFlow inference framework and Accelerated Linear Algebra (XLA) through compilation options and code patches. Based on TensorFlow Serving and TensorFlow 2.15, this feature introduces TensorFlow graph fusion, XLA graph fusion, operator optimization, and constant folding optimization.
 
 - TensorFlow graph fusion: fusion and rewriting of graphs at the TensorFlow model level.
 - XLA graph fusion: XLA graph fusion enhanced by ANNC.
 - Operator optimization: ANNC-driven operator optimization.
+- Constant folding optimization: ANNC constant folding optimization.
 
->![note](public_sys-resources/icon-note.gif) **Note:**
+>![](public_sys-resources/icon-note.gif) **NOTE:**
 >OpenXLA is an open ecosystem consisting of high-performance, portable, and scalable machine learning infrastructure components.
 >XLA is an open-source compiler for machine learning. It optimizes models from the TensorFlow framework, to enable efficient execution across various hardware platforms including GPUs, CPUs, and machine learning accelerators.
 
@@ -78,15 +77,15 @@ The ANNC optimization feature integrates with the TensorFlow inference framework
 </tbody>
 </table>
 
-### Application Scenarios<a name="ZH-CN_TOPIC_0000002550048255"></a>
+### Application Scenarios
 
 The TensorFlow Serving ANNC feature is mainly used in recommendation systems and advertising delivery. It can greatly improve inference performance for coarse-ranking models in high-concurrency scenarios, boosting throughput while significantly reducing latency.
 
-### Principles<a name="ZH-CN_TOPIC_0000002550048263"></a>
+### Principles
 
 This section describes the TensorFlow/XLA optimization features.
 
-**TensorFlow Graph Fusion<a name="section2050553619512"></a>**
+**TensorFlow Graph Fusion**
 
 Some subgraphs in TensorFlow models contain redundant computations. By identifying specific graph patterns, you can fuse multiple operators in the subgraphs into one fused operator. This avoids extra work, optimizes memory access, and improves model inference performance. For details, see [**Figure 1** TensorFlow graph fusion](#tensorflow-graph-fusion). This function enables graph fusion and rewriting at the TensorFlow model level on the frontend, and supports manual creation of custom fused operators on the backend.
 
@@ -94,7 +93,7 @@ Some subgraphs in TensorFlow models contain redundant computations. By identifyi
 
 ![tensorflow-graph-fusion](figures/tensorflow-graph-fusion.png "TensorFlow graph fusion diagram")
 
-**XLA Graph Fusion<a name="section1049725715115"></a>**
+**XLA Graph Fusion**
 
 XLA provides multiple hardware-agnostic graph fusion optimization policies. However, the resulting cluster (including the fused parts) may still contain redundant computations. For example, sub-expressions are repeated or can be merged across different fusion operations. For details, see [**Figure 2** XLA graph fusion](#xla-graph-fusion). This function aims to identify redundant computations after fusion, such as the F1 operations. Redundant computations can be eliminated using pre-fusion policies, such as the fusion of F4, F5, and F6 operations, to further improve the model inference efficiency.
 
@@ -102,15 +101,27 @@ XLA provides multiple hardware-agnostic graph fusion optimization policies. Howe
 
 ![xla-graph-fusion](figures/xla-graph-fusion.png "XLA graph fusion diagram")
 
-**Operator Optimization<a name="section287331525216"></a>**
+**Operator Optimization**
 
 This feature performs operator optimization across stages, including offloading the Matrix Multiplication (MatMul) operator to XLA, calling the General Matrix Multiplication (GEMM) operation interface provided by Open Basic Linear Algebra Subprograms (OpenBLAS), and replacing the Softmax function with a more efficient implementation. In addition, it identifies specific operation patterns to eliminate redundant computations and further improve the model inference performance. For example, in scenarios where multiple slices are concatenated, redundant slicing operations are removed.
+
+**Constant Folding Optimization**
+
+This function focuses on optimizing the packing overhead of constant operands in matrix multiplication operators. It applies to OpenBLAS call scenarios involving a matrix multiplication operator `C = A × B`, where at least one operand (such as weight `B` in an inference model) is a constant. The value and shape of such operands are known at compile time and remain unchanged at runtime. When this optimization is disabled, the ANNC compiler must pack and rearrange constant operands to meet hardware memory access alignment and cache locality requirements, as shown in [**Figure 3** Data packing](#data-packing). Since the valid layout of constant operands can be uniquely determined by the compiler, the packing operation in this scenario can be shifted forward to the compile phase. Once this optimization is enabled, an offline packing tool used during compilation and a dedicated rearrangement-free backend (kpgemm) can completely eliminate redundant runtime overhead, as shown in [**Figure 4** Constant folding workflow](#constant-folding-workflow).
+
+**Figure 3** Data packing<a name="fig836316691916"></a><a id="data-packing"></a>
+
+![](figures/data-packing.png "data-packing")
+
+**Figure 4** Constant folding workflow<a name="fig836316691917"></a><a id="constant-folding-workflow"></a>
+
+![](figures/constant-folding-workflow.png)
 
 For details about function configuration, see <a href="./quick_start.md">Quick Start</a>.
 
 ## TensorFlow Serving Thread Scheduling
 
-### Overview
+### Introduction
 
 This section describes the basic concepts and implementation principles of the thread scheduling optimization feature for TensorFlow Serving.
 
@@ -120,19 +131,20 @@ Implemented as patches integrated into openEuler's `sra_tensorflow_adapter` repo
 
 - Batch operator scheduling (`--batch_op_scheduling`): Enables the operator scheduling optimization and XLA thread pool management optimization features. When single-core inference latency meets requirements, this option can be used to enhance concurrent processing capability and overall throughput.
 - Thread affinity isolation (`--task_affinity_isolation`): Provides the following isolation methods: When the TensorFlow scheduling mode is used, sequential core binding is recommended. When this option is enabled together with the `--batch_op_scheduling` option, and hyper-threading is enabled, interleaved core binding is recommended.
+
   - Sequential core binding allocates TensorFlow computing threads to the first K cores and TF Serving communication threads to remaining cores.
   - Interleaved core binding (applicable when hyper-threading is enabled) assigns TensorFlow threads to physical cores and TF Serving communication threads to virtual cores.
 
->![note](public_sys-resources/icon-note.gif) **Note:**
+>![](public_sys-resources/icon-note.gif) **NOTE:**
 >XLA serves as TensorFlow's optimizing compiler, specifically designed to enhance the execution speed of linear algebra operations. By transforming TensorFlow computational graphs into highly efficient, hardware-specific instructions, XLA delivers significant performance improvements.
 
 ### Software Architecture
 
-[**Figure 1** TF Serving software architecture](#tf-serving-software-architecture-1) shows the TF Serving software architecture. [**Table 1** TF Serving component functions](#tf-serving-component-functions) describes the functions of each module.
+[**Figure 1** TF Serving software architecture](#tf-serving-software-architecture-1) shows the TF Serving software architecture. [**Table 1** TF Serving component functions](#tf-serving-component-functions) describes the functions of each component.
 
-**Figure 1** TF Serving software architecture<a name="fig2460131971612"></a><a id="tf-serving-software-architecture-1"></a>
+**Figure 1** TF Serving software architecture<a name="fig9660112419318"></a><a id="tf-serving-software-architecture-1"></a>
 
-![tf-serving-software-architecture-1](figures/tf-serving-software-architecture-1.png "TF-Serving software architecture")
+![](figures/tf-serving-software-architecture-0.png "TF-Serving software architecture-0")
 
 **Table 1** TF Serving component functions<a id="tf-serving-component-functions"></a>
 
@@ -161,14 +173,14 @@ Implemented as patches integrated into openEuler's `sra_tensorflow_adapter` repo
 </tbody>
 </table>
 
-### Application scenarios
+### Application Scenarios
 
 The TF Serving thread scheduling optimization feature delivers adaptable solutions for diverse inference workloads:
 
-- It can greatly improve inference performance for coarse-ranking models in high-concurrency scenarios, boosting throughput while significantly reducing latency.
+- Dramatically improves performance in high-concurrency coarse ranking model scenarios, boosting throughput while significantly reducing latency
 - Effectively optimizes latency-sensitive, low-concurrency scenarios through proper thread management parameter configuration.
 
-### Principles<a name="ZH-CN_TOPIC_0000002518448414"></a>
+### Principles
 
 This section details TF Serving's thread pool architecture for inference, clarifying the principles of the feature to guide optimal configuration decisions.
 
@@ -217,3 +229,364 @@ The thread scheduling feature enables:
 - Configurable thread affinity isolation (via `--task_affinity_isolation`) for binding communication and computing threads to different CPU cores
 
 For details about function configuration, see <a href="./quick_start.md">Quick Start</a>.
+
+## TensorFlow KDNN Thread Passthrough
+
+### Introduction
+
+This section describes the basic concepts and implementation principles of the TensorFlow KDNN thread passthrough optimization feature, and provides guidance for installing and using the feature in the openEuler 24.03 LTS SP3 based on the new Kunpeng 920 processor model.
+
+To improve the TensorFlow inference performance, Kunpeng BoostKit introduces the TensorFlow KDNN thread passthrough optimization solution. KDNN provides high-performance implementation of inference core operators based on the Kunpeng CPU hardware. At the original kernel implementation layer, a dispatch component distributes KDNN-supported operators to the KDNN backend. The KDNN thread passthrough feature submits computing tasks to the framework thread pool for unified scheduling through KDNN. This reuses the framework thread pool and reduces the overhead of thread creation and destruction.
+
+The optimization feature is integrated into TensorFlow through compilation options and code patches. TensorFlow 2.15 introduces a KDNN feature flag.
+
+**KDNN thread passthrough**: When the KDNN optimization feature is enabled and the operator input and output meet the constraints, the KDNN library is invoked. KDNN submits computing tasks to the framework thread pool for unified scheduling and reuses the framework thread pool.
+
+### Software Architecture
+
+[Figure 1](#fig4919356464) shows the software architecture of KDNN integrated with TensorFlow.
+
+Figure 1 Software architecture of KDNN integrated with TensorFlow<a name="fig4919356464"></a>
+
+![](figures/software-architecture-of-kdnn-integrated-with-tensorflow.png "software-architecture-of-kdnn-integrated-with-tensorflow")
+
+### Specifications
+
+This section describes the operators that support the KDNN thread passthrough feature and the specifications.
+
+[Table 1](#table8731173784819) lists the operators that support the KDNN thread passthrough feature.
+
+**Table 1** Operators that support KDNN thread passthrough
+
+<a name="table8731173784819"></a>
+<table><thead align="left"><tr id="row573183720488"><th class="cellrowborder" colspan="2" valign="top" id="mcps1.2.9.1.1"><p id="p06021725181316"><a name="p06021725181316"></a><a name="p06021725181316"></a>Operator</p>
+</th>
+<th class="cellrowborder" colspan="4" valign="top" id="mcps1.2.9.1.2"><p id="p106022025191315"><a name="p106022025191315"></a><a name="p106022025191315"></a>Data Type Constraint</p>
+</th>
+<th class="cellrowborder" valign="top" id="mcps1.2.9.1.3"><p id="p16011255131"><a name="p16011255131"></a><a name="p16011255131"></a>Dimension Constraint</p>
+</th>
+<th class="cellrowborder" valign="top" id="mcps1.2.9.1.4"><p id="p55991325131312"><a name="p55991325131312"></a><a name="p55991325131312"></a> Other Constraints</p>
+</th>
+</tr>
+</thead>
+<tbody><tr id="row273812420184"><td class="cellrowborder" colspan="2" valign="top" headers="mcps1.2.9.1.1 "><p id="p1902143641316"><a name="p1902143641316"></a><a name="p1902143641316"></a>ConcatV2</p>
+</td>
+<td class="cellrowborder" colspan="4" valign="top" headers="mcps1.2.9.1.2 "><p id="p89021636161316"><a name="p89021636161316"></a><a name="p89021636161316"></a>fp32, fp16, bf16, int32, int8, or uint8</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.3 "><p id="p109011236121313"><a name="p109011236121313"></a><a name="p109011236121313"></a>None</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.4 "><p id="p76311158114918"><a name="p76311158114918"></a><a name="p76311158114918"></a>None</p>
+</td>
+</tr>
+<tr id="row19133202192018"><td class="cellrowborder" colspan="2" valign="top" headers="mcps1.2.9.1.1 "><p id="p1033714554132"><a name="p1033714554132"></a><a name="p1033714554132"></a>BatchMatMul</p>
+</td>
+<td class="cellrowborder" colspan="4" valign="top" headers="mcps1.2.9.1.2 "><p id="p15337165511132"><a name="p15337165511132"></a><a name="p15337165511132"></a>fp32</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.3 "><p id="p1833785511316"><a name="p1833785511316"></a><a name="p1833785511316"></a><span>2D-5D</span></p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.4 "><p id="p26461358164910"><a name="p26461358164910"></a><a name="p26461358164910"></a>None</p>
+</td>
+</tr>
+<tr id="row171941117162015"><td class="cellrowborder" colspan="2" valign="top" headers="mcps1.2.9.1.1 "><p id="p5431181116145"><a name="p5431181116145"></a><a name="p5431181116145"></a>Einsum</p>
+</td>
+<td class="cellrowborder" colspan="4" valign="top" headers="mcps1.2.9.1.2 "><p id="p1943016119149"><a name="p1943016119149"></a><a name="p1943016119149"></a>fp32</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.3 "><p id="p1043051115143"><a name="p1043051115143"></a><a name="p1043051115143"></a>None</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.4 "><p id="p3659558154917"><a name="p3659558154917"></a><a name="p3659558154917"></a>None</p>
+</td>
+</tr>
+<tr id="row4303415132016"><td class="cellrowborder" colspan="2" valign="top" headers="mcps1.2.9.1.1 "><p id="p5429101117142"><a name="p5429101117142"></a><a name="p5429101117142"></a>Sigmoid</p>
+</td>
+<td class="cellrowborder" colspan="4" valign="top" headers="mcps1.2.9.1.2 "><p id="p84291211151415"><a name="p84291211151415"></a><a name="p84291211151415"></a>fp32</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.3 "><p id="p1342841171412"><a name="p1342841171412"></a><a name="p1342841171412"></a>Any non-empty dimension</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.4 "><p id="p1260874031514"><a name="p1260874031514"></a><a name="p1260874031514"></a>None</p>
+</td>
+</tr>
+<tr id="row1235520136201"><td class="cellrowborder" colspan="2" valign="top" headers="mcps1.2.9.1.1 "><p id="p4427171131419"><a name="p4427171131419"></a><a name="p4427171131419"></a>FloorMod</p>
+</td>
+<td class="cellrowborder" colspan="4" valign="top" headers="mcps1.2.9.1.2 "><p id="p1042761151418"><a name="p1042761151418"></a><a name="p1042761151418"></a>int64 or fp32</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.3 "><p id="p154271711181411"><a name="p154271711181411"></a><a name="p154271711181411"></a>Any non-empty dimension</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.4 "><p id="p74261611151414"><a name="p74261611151414"></a><a name="p74261611151414"></a>None</p>
+</td>
+</tr>
+<tr id="row204255116209"><td class="cellrowborder" colspan="2" valign="top" headers="mcps1.2.9.1.1 "><p id="p16426141116147"><a name="p16426141116147"></a><a name="p16426141116147"></a>Softmax</p>
+</td>
+<td class="cellrowborder" colspan="4" valign="top" headers="mcps1.2.9.1.2 "><p id="p14425141171412"><a name="p14425141171412"></a><a name="p14425141171412"></a>fp32</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.3 "><p id="p9425101111146"><a name="p9425101111146"></a><a name="p9425101111146"></a>2D</p>
+</td>
+<td class="cellrowborder" valign="top" headers="mcps1.2.9.1.4 "><p id="p144231611121419"><a name="p144231611121419"></a><a name="p144231611121419"></a>Supports only the softmax operation along the second dimension (row).</p>
+</td>
+</tr>
+</tbody>
+</table>
+
+>![](public_sys-resources/icon-note.gif) **NOTE:**
+>When the KDNN optimization feature is enabled, KDNN is invoked if the operator input and output meet the constraints; otherwise, the native TensorFlow APIs are used.
+
+### Application Scenarios
+
+The TensorFlow KDNN thread passthrough optimization feature is mainly used in high-concurrency inference scenarios, improving throughput and reducing inference latency.
+
+### Principles
+
+This section describes the KDNN thread passthrough optimization feature to help users better understand and apply it.
+
+**Figure 1** OMP parallelism<a name="fig19954351104320"></a>
+
+![](figures/omp-parallelism.png)
+
+In the OMP version of KDNN, each operator creates _N_ OMP threads for computation. For _M_ concurrent kernels, `M × N` OMP threads are created.
+
+**Figure 2** Passthrough to the threadpool<a name="fig1203165984517"></a>
+
+![](figures/passthrough-to-the-threadpool.png)
+
+When thread passthrough is enabled, the framework thread pool is reused. KDNN submits computing tasks to the framework thread pool for unified scheduling, reducing the overhead of thread creation and avoiding the uncontrolled thread growth.
+
+## TensorFlow ANNC Static Graph Fusion
+
+### Introduction
+
+This section describes the basic concepts and implementation principles of the TensorFlow ANNC static graph fusion feature, and provides guidance for installing and using the feature in the openEuler 24.03 LTS SP3 based on the Kunpeng 950 processor.
+
+To enhance TensorFlow inference performance, Kunpeng BoostKit proposes the TensorFlow ANNC static graph fusion solution. Kunpeng BoostKit provides multiple custom operators. During graph compilation, the remapper mechanism replaces subgraphs that meet specific patterns with custom operators. Static graph fusion reduces intermediate memory overhead and optimizes memory access, delivering end-to-end performance improvements. Currently, the following operators are supported:
+
+* KPFusedEmbeddingActionIdGather
+* KPFusedGather
+* KPFusedEmbeddingPadding
+* KPFusedEmbeddingPaddingFast
+* KPFusedSparseDynamicStitch
+* KPFusedSparseReshape
+* KPFusedSparseSegmentReduce
+* KPFusedSparseSegmentReduceNonzero
+* KPFusedSparseSelect
+
+The ANNC static graph fusion feature is integrated into TensorFlow 2.15 through a code patch.
+
+When the ANNC static graph fusion feature is enabled, if a subgraph in the computational graph matches specific structures and its inputs and outputs meet the constraints, the subgraph will be replaced with the corresponding custom operator during graph compilation.
+
+### Software Architecture
+
+[Figure 1](#fig4919356463) shows the software architecture of the ANNC static graph fusion feature.
+
+**Figure 1** Software architecture of the ANNC static graph fusion<a name="fig4919356463"></a>
+![](./figures/software-architecture-of-the-annc-static-graph-fusion.png)
+
+### Specifications
+
+This section describes the supported custom operators and their usage restrictions.
+
+#### KPFusedEmbeddingActionIdGather
+
+**Native subgraph structure**
+
+![](figures/1KPFusedEmbeddingActionIdGather.png)
+
+**Input and Output Constraints**
+
+| Input Name | Data Type | Shape |
+| --- | --- | --- |
+| Input 1 | int32/int64 | 2-dimensional tensor |
+| Input 2 | float | 2-dimensional tensor |
+| Input 3 | int32/int64 | 2-dimensional tensor |
+| Input 4 | int32 | Scalar |
+| Input 5 | int32 | Scalar |
+
+| Output Name | Data Type |
+| --- | --- |
+| Output 1 | float |
+
+#### KPFusedGather
+
+**Native subgraph structure**
+
+![](figures/2KPFusedGather.png)
+
+**Input and Output Constraints**
+
+| Input Name| Data Type| Shape|
+| --- | --- | --- |
+| Input 1| float | 2-dimensional tensor|
+| Input 2| int64 | 2-dimensional tensor|
+| Input 3| int32 | [2] |
+
+| Output Name| Data Type|
+| --- | --- |
+| Output 1| int64 |
+| Output 2| int32 |
+| Output 3| float |
+
+#### KPFusedEmbeddingPadding
+
+**Native subgraph structure**
+
+![](figures/3KPFusedEmbeddingPadding.png)
+
+**Input and Output Constraints**
+
+| Input Name| Data Type| Shape|
+| --- | --- | --- |
+| Input 1| int64 | [2] |
+| Input 2| float | 2-dimensional tensor|
+| Input 3| int32 | Scalar|
+| Input 4| int32 | [2] |
+| Input 5| int32 | Scalar|
+
+| Output Name| Data Type|
+| --- | --- |
+| Output 1| int32 |
+| Output 2| float |
+
+#### KPFusedEmbeddingPaddingFast
+
+**Native subgraph structure**
+
+![](figures/4KPFusedEmbeddingPaddingFast.png "native-subgraph-of-kpfusedembeddingpaddingfast")
+
+**Input and Output Constraints**
+
+| Input Name| Data Type| Shape|
+| --- | --- | --- |
+| Input 1| int64 | [2] |
+| Input 2| float | 2-dimensional tensor|
+| Input 3| int32 | Scalar|
+| Input 4| int32 | [2] |
+| Input 5| int32 | Scalar|
+
+| Output Name| Data Type|
+| --- | --- |
+| Output 1| int32 |
+| Output 2| int32 |
+
+#### KPFusedSparseDynamicStitch
+
+**Native subgraph structure**
+
+![](figures/5KPFusedSparseDynamicStitch.png "native-subgraph-of-kpfusedsparsedynamicstitch")
+
+**Input and Output Constraints**
+
+| Input Name| Data Type| Shape|
+| --- | --- | --- |
+| Input 1| int64 | Tensor|
+| Input 2| float | A list of non-empty 2D tensors|
+
+| Output Name| Data Type|
+| --- | --- |
+| Output 1| float |
+
+#### KPFusedSparseReshape
+
+**Native subgraph structure**
+
+![](figures/6KPFusedSparseReshape.png "native-subgraph-of-kpfusedsparsereshape")
+
+**Input and Output Constraints**
+
+| Input Name| Data Type| Shape|
+| --- | --- | --- |
+| Input 1| int64 | 2-dimensional tensor|
+| Input 2| int32 | [2] |
+| Input 3| int64 | [2] |
+| Input 4| int32/int64 | Scalar|
+
+| Output Name| Data Type|
+| --- | --- |
+| Output 1| int64 |
+| Output 2| int64 |
+
+#### KPFusedSparseSegmentReduce
+
+**Native subgraph structure**
+
+![](figures/7KPFusedSparseSegmentReduce.png "native-subgraph-of-KPFusedSparseSegmentReduce")
+
+**Input and Output Constraints**
+
+| Input Name| Data Type| Shape|
+| --- | --- | --- |
+| Input 1| float | 2-dimensional tensor|
+| Input 2| int32/int64 | 1-dimensional tensor|
+| Input 3| int64 | 2-dimensional tensor|
+| Input 4| int32 | [2] |
+| Input 5| int32 | Scalar|
+
+| Output Name| Data Type|
+| --- | --- |
+| Output 1| float |
+| Output 2| int32 |
+
+#### KPFusedSparseSegmentReduceNonzero
+
+**Native subgraph structure**
+
+![](figures/8KPFusedSparseSegmentReduceNonzero.png "native-subgraph-of-kpfusedsparsesegmentreducenonzero")
+
+**Input and Output Constraints**
+
+| Input Name| Data Type| Shape|
+| --- | --- | --- |
+| Input 1| float | 1-dimensional tensor|
+| Input 2| int32/int64 | 1-dimensional tensor|
+| Input 3| int64 | 2-dimensional tensor|
+| Input 4| int32 | [2] |
+
+| Output Name| Data Type|
+| --- | --- |
+| Output 1| int32 |
+| Output 2| int32 |
+| Output 3| float |
+
+#### KPFusedSparseSelect
+
+**Native subgraph structure**
+
+![](figures/9KPFusedSparseSelect.png "native-subgraph-of-KPFusedSparseSelect")
+
+**Input and Output Constraints**
+
+| Input Name| Data Type| Shape|
+| --- | --- | --- |
+| Input 1| int32 | Tensor|
+| Input 2| int32 | Tensor|
+| Input 3| int32 | Tensor|
+| Input 4| int32 | Scalar|
+| Input 5| int32 | Scalar|
+| Input 6| int32 | Scalar|
+| Input 7| int32 | Scalar|
+
+| Output Name| Data Type|
+| --- | --- |
+| Output 1| int32 |
+| Output 2| float |
+| Output 3| float |
+
+>![](public_sys-resources/icon-note.gif) **NOTE:**
+>When the embedding operator fusion is enabled, if a subgraph meets the required conditions, it will be replaced with the corresponding custom operator during graph compilation. Otherwise, the native TensorFlow APIs are used.
+
+### Application Scenarios
+
+The TensorFlow ANNC static graph fusion feature is mainly applied in high-concurrency inference scenarios, where it improves throughput and reduces inference latency.
+
+### Principles
+
+This section explains the ANNC static graph fusion optimization feature to help users make better use of it.
+
+When ANNC static graph fusion is enabled, eligible subgraphs are replaced with the corresponding custom operators during graph compilation. This reduces intermediate memory overhead and optimizes memory access, resulting in end-to-end performance improvements.
+
+**Figure 2** Operator fusion principle<a name="fig4919356474"></a>
+
+![](figures/operator-fusion-principle.png "operator-fusion-principle")
+
+## Description
+
+| Release Date| Change History|
+| ---- | ---- |
+| 2026-06-30 | This is the second official release. <ul><li>Added the description for constant folding optimization to the TensorFlow ANNC for graph compilation documentation. </li><li>Added the TensorFlow ANNC static graph fusion feature, including feature description and software architecture. </li></ul> |
+| 2026-03-30 | This is the first official release. <ul><li>Added the TensorFlow KDNN thread passthrough feature, including feature description and software architecture.</li></ul>|

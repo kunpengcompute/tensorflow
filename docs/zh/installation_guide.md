@@ -487,13 +487,12 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 
 ### 已验证环境
 
-**硬件要求<a name="section230mcpsimp"></a>**
+**硬件要求**
 
 已验证的硬件环境如[表1 硬件要求](#硬件要求_2)所示。
 
 **表 1** 硬件要求<a id="硬件要求_2"></a>
 
-<a name="_table38928044"></a>
 <table><thead align="left"><tr id="row239mcpsimp"><th class="cellrowborder" valign="top" width="25%" id="mcps1.2.3.1.1"><p id="p241mcpsimp"><a name="p241mcpsimp"></a><a name="p241mcpsimp"></a>项目</p>
 </th>
 <th class="cellrowborder" valign="top" width="75%" id="mcps1.2.3.1.2"><p id="p243mcpsimp"><a name="p243mcpsimp"></a><a name="p243mcpsimp"></a>说明</p>
@@ -508,13 +507,12 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 </tbody>
 </table>
 
-**操作系统要求<a name="section250mcpsimp"></a>**
+**操作系统要求**
 
 已验证的操作系统如[表2 操作系统要求](#操作系统要求_2)所示。
 
 **表 2** 操作系统要求<a id="操作系统要求_2"></a>
 
-<a name="_d0e164"></a>
 <table><thead align="left"><tr id="row261mcpsimp"><th class="cellrowborder" valign="top" width="15%" id="mcps1.2.5.1.1"><p id="p263mcpsimp"><a name="p263mcpsimp"></a><a name="p263mcpsimp"></a>项目</p>
 </th>
 <th class="cellrowborder" valign="top" width="16%" id="mcps1.2.5.1.2"><p id="p265mcpsimp"><a name="p265mcpsimp"></a><a name="p265mcpsimp"></a>版本</p>
@@ -546,13 +544,12 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 </tbody>
 </table>
 
-**软件要求<a name="section290mcpsimp"></a>**
+**软件要求**
 
 已验证的软件依赖环境如[表3 软件要求](#软件要求_2)所示。
 
 **表 3** 软件要求<a id="软件要求_2"></a>
 
-<a name="_table237115053311"></a>
 <table><thead align="left"><tr id="row301mcpsimp"><th class="cellrowborder" valign="top" width="15%" id="mcps1.2.5.1.1"><p id="p303mcpsimp"><a name="p303mcpsimp"></a><a name="p303mcpsimp"></a>项目</p>
 </th>
 <th class="cellrowborder" valign="top" width="15.98%" id="mcps1.2.5.1.2"><p id="p305mcpsimp"><a name="p305mcpsimp"></a><a name="p305mcpsimp"></a>版本</p>
@@ -638,7 +635,7 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 
 2. 将获取到的KDNN软件包，解压，解压后得到二进制RPM包。
 
-3. 装KDNN的RPM包。
+3. 安装KDNN的RPM包。
 
     ```shell
     rpm -ivh boostcore-kdnn-xxxx.aarch64.rpm
