@@ -124,6 +124,24 @@ cc_library(
 )
 
 tf_kernel_library(
+    name = "flash_attn_op",
+    srcs = ["flash_attn_op.cc"],
+    hdrs = ["flash_attn_op.h"],
+    gpu_srcs = [
+        "flash_attn_op.h",
+        "flash_attn_op_gpu.cu.cc",
+    ],
+    deps = [
+        "//tensorflow/core:framework",
+        "//tensorflow/core:lib",
+        "//tensorflow/core/ops:ops",
+        #"//tensorflow/core/util:gpu_kernel_helper",
+    ],
+    alwayslink = 1,
+    visibility = ["//visibility:public"],
+)
+
+tf_kernel_library(
     name = "strided_slice_op",
     srcs = [
         "strided_slice_op.cc",

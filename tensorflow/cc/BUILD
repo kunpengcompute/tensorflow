@@ -161,7 +161,24 @@ cc_library(
         ":math_grad",
         ":nn_grad",
         ":resource_variable_grad",
+        ":flash_attn_grad",	# --- Flash Attention ADD
     ],
+)
+
+# --- Flash Attention C++ gradient ---
+cc_library(
+    name = "flash_attn_grad",
+    srcs = ["gradients/flash_attn_grad.cc"],
+    deps = [
+        "//tensorflow/cc:cc_ops",
+	    "//tensorflow/cc:flash_attn_ops",
+        "//tensorflow/cc:grad_op_registry",
+        "//tensorflow/cc:gradients",
+        "//tensorflow/cc:scope",
+        "//tensorflow/core:framework",
+        "//tensorflow/core:graph",
+    ],
+    alwayslink = 1,
 )
 
 cc_library(
@@ -681,6 +698,15 @@ tf_cc_test(
 )
 
 # Generates separate libraries for array_ops and math_ops to reduce the dependency count of targets that depend on only these
+tf_gen_op_wrappers_cc(
+    name = "flash_attn_ops",
+    api_def_srcs = ["//tensorflow/core/api_def:base_api_def"],
+    op_lib_names = [
+        "flash_attn_ops",
+    ],
+    pkg = "//tensorflow/core",
+)
+
 tf_gen_op_wrappers_cc(
     name = "math_ops",
     api_def_srcs = ["//tensorflow/core/api_def:base_api_def"],

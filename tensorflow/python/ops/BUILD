@@ -239,6 +239,14 @@ tf_gen_op_strict_wrapper_private_py(
 )
 
 tf_gen_op_strict_wrapper_private_py(
+    name = "flash_attn_ops_gen",
+    visibility = ["//tensorflow:internal"],
+    deps = [
+        "//tensorflow/core:flash_attn_ops_op_lib",
+    ],
+)
+
+tf_gen_op_strict_wrapper_private_py(
     name = "control_flow_ops_gen",
     visibility = [
         "//learning/brain/python/ops:__pkg__",

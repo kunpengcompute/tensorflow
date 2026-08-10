@@ -9,6 +9,8 @@ load(
 load("//tensorflow:pytype.default.bzl", "pytype_strict_library")
 load("//tensorflow:strict.default.bzl", "py_strict_library")
 
+load("@local_config_cuda//cuda:build_defs.bzl", "if_cuda")
+
 # Placeholder: load py_proto_library
 load(
     "//tensorflow:tensorflow.bzl",
@@ -337,7 +339,7 @@ py_strict_library(
         "//tensorflow/python/util:tf_decorator_export",
         "//tensorflow/python/util:tf_export",
         "//third_party/py/numpy",
-    ],
+    ] + if_cuda(["//tensorflow/python/ops:flash_attn_ops_gen"]),
 )
 
 py_strict_library(
@@ -482,7 +484,7 @@ py_strict_library(
         "//tensorflow/python/util:tf_decorator_py",
         "//tensorflow/python/util:tf_export",
         "//tensorflow/python/util:tf_inspect",
-    ],
+    ] + if_cuda(["//tensorflow/python/ops:flash_attn_ops_gen"]),
 )
 
 tf_python_pybind_extension(

@@ -51,6 +51,7 @@ limitations under the License.
 
 #if GOOGLE_CUDA
 #include "third_party/gpus/cudnn/cudnn.h"
+#include "tensorflow/core/grappler/optimizers/graph_optimizer/flash_attn_graph_opt.h"
 #endif  // GOOGLE_CUDA
 
 namespace tensorflow {
@@ -5398,6 +5399,19 @@ absl::Status Remapper::Optimize(Cluster* cluster, const GrapplerItem& item,
     }
   }
   TF_RETURN_IF_ERROR(mutation->Apply());
+
+  #if GOOGLE_CUDA
+   // ======== infer shape ============
+   tensorflow::grappler::GraphProperties graph_props(mutable_item);
+   bool assume_valid_feeds = (opt_level_ == RewriterConfig::AGGRESSIVE);
+   TF_RETURN_IF_ERROR(graph_props.InferStatically(
+      assume_valid_feeds,
+      /*agressive_shape_inference=*/false,
+      /*include_input_tensor_values=*/true,
+      /*include_output_tensor_values=*/true)); 
+
+   fago::run_flash_attn_optimization(&mutable_item.graph);
+  #endif  // GOOGLE_CUDA
 
   *optimized_graph = std::move(mutable_item.graph);
 
