@@ -19,7 +19,7 @@
 3. 创建完整默认特性的TensorFlow源码。
 
    ```bash
-   python3 patches/prepare_source.py \
+   python3 patches/2.15.0/prepare_source.py \
      --feature-set full-default \
      --output-dir ../tensorflow-full-default
    cd ../tensorflow-full-default
@@ -29,7 +29,7 @@
 
    `output/`用于复用Bazel构建缓存，手动下载的构建依赖统一放入`distdir/`，pip包输出到`output-release/`。
 
-   其他可用组合及独立Legacy补丁的使用指导，请参见《[补丁发布说明](../../patches/README.md)》。
+   其他可用组合及独立Legacy补丁的使用指导，请参见《[补丁发布说明](../../../patches/2.15.0/README.md)》。
 
 4. 根据实际使用场景选择需要的构建目标，无需同时构建全部目标。以下提供两种常用构建目标的参考命令。
 

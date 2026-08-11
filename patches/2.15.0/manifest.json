@@ -109,7 +109,7 @@
     }
   ],
   "tooling_patterns": [
-    "patches/**"
+    "patches/2.15.0/**"
   ],
   "generated_files": [
     {

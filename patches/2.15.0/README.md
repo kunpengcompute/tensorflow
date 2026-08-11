@@ -35,7 +35,7 @@ cd kunpeng-tensorflow
 git remote add tensorflow-upstream https://github.com/tensorflow/tensorflow.git
 git fetch tensorflow-upstream refs/tags/v2.15.0:refs/tags/v2.15.0
 
-python3 patches/prepare_source.py \
+python3 patches/2.15.0/prepare_source.py \
   --feature-set kdnn-core \
   --output-dir ../tensorflow-kdnn-core
 ```
@@ -57,8 +57,8 @@ Legacy 补丁：
 ```bash
 git clone -b v2.15.0 https://github.com/tensorflow/tensorflow.git tensorflow-legacy
 cd tensorflow-legacy
-git apply --check ../kunpeng-tensorflow/patches/frozen_feature/tensorflow_2.15.0-legacy.patch
-git apply ../kunpeng-tensorflow/patches/frozen_feature/tensorflow_2.15.0-legacy.patch
+git apply --check ../kunpeng-tensorflow/patches/2.15.0/frozen_feature/tensorflow_2.15.0-legacy.patch
+git apply ../kunpeng-tensorflow/patches/2.15.0/frozen_feature/tensorflow_2.15.0-legacy.patch
 
 mkdir -p output distdir output-release
 bazel --output_base="$PWD/output" build \
@@ -71,7 +71,7 @@ bazel --output_base="$PWD/output" build \
 ## 完整性检查
 
 ```bash
-cd patches
+cd patches/2.15.0
 sha256sum -c SHA256SUMS
 ```
 

@@ -31,10 +31,10 @@ TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请
 
 | 特性组合 | 包含内容 | 对应补丁（按应用顺序） | 适用场景 |
 | --- | --- | --- | --- |
-| `common-only` | 公共构建集成（common）与兼容性改动 | `patches/feature/0001-tensorflow_2.15.0-common.patch` | 检查公共改动，不启用加速特性。 |
-| `kdnn-core` | 公共构建集成（common）、KDNN算子优化 | `patches/feature/0001-tensorflow_2.15.0-common.patch`<br>`patches/feature/0002-tensorflow_2.15.0-kdnn.patch` | 使用KDNN算子优化。 |
-| `kdnn-annc` | 公共构建集成（common）、KDNN算子优化、ANNC静态图融合 | `patches/feature/0001-tensorflow_2.15.0-common.patch`<br>`patches/feature/0002-tensorflow_2.15.0-kdnn.patch`<br>`patches/feature/0003-tensorflow_2.15.0-annc.patch` | 使用KDNN和ANNC静态图融合。 |
-| `full-default` | 公共构建集成（common）、KDNN算子优化、ANNC静态图融合、KEmbedding自定义算子 | `patches/feature/0001-tensorflow_2.15.0-common.patch`<br>`patches/feature/0002-tensorflow_2.15.0-kdnn.patch`<br>`patches/feature/0003-tensorflow_2.15.0-annc.patch`<br>`patches/feature/0004-tensorflow_2.15.0-kembedding.patch` | 使用当前维护的全部特性。 |
+| `common-only` | 公共构建集成（common）与兼容性改动 | `patches/2.15.0/feature/0001-tensorflow_2.15.0-common.patch` | 检查公共改动，不启用加速特性。 |
+| `kdnn-core` | 公共构建集成（common）、KDNN算子优化 | `patches/2.15.0/feature/0001-tensorflow_2.15.0-common.patch`<br>`patches/2.15.0/feature/0002-tensorflow_2.15.0-kdnn.patch` | 使用KDNN算子优化。 |
+| `kdnn-annc` | 公共构建集成（common）、KDNN算子优化、ANNC静态图融合 | `patches/2.15.0/feature/0001-tensorflow_2.15.0-common.patch`<br>`patches/2.15.0/feature/0002-tensorflow_2.15.0-kdnn.patch`<br>`patches/2.15.0/feature/0003-tensorflow_2.15.0-annc.patch` | 使用KDNN和ANNC静态图融合。 |
+| `full-default` | 公共构建集成（common）、KDNN算子优化、ANNC静态图融合、KEmbedding自定义算子 | `patches/2.15.0/feature/0001-tensorflow_2.15.0-common.patch`<br>`patches/2.15.0/feature/0002-tensorflow_2.15.0-kdnn.patch`<br>`patches/2.15.0/feature/0003-tensorflow_2.15.0-annc.patch`<br>`patches/2.15.0/feature/0004-tensorflow_2.15.0-kembedding.patch` | 使用当前维护的全部特性。 |
 
 ### 生成完整源码
 
@@ -50,7 +50,7 @@ TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请
 2. 根据需要创建TensorFlow完整源码。以下以完整默认特性为例。
 
    ```bash
-   python3 patches/prepare_source.py \
+   python3 patches/2.15.0/prepare_source.py \
      --feature-set full-default \
      --output-dir /path/to/tensorflow
    ```
@@ -223,9 +223,9 @@ Legacy补丁包含历史Runtime调度、旧融合Embedding、ANNC图编译和旧
 git clone -b v2.15.0 https://github.com/tensorflow/tensorflow.git tensorflow-legacy
 cd tensorflow-legacy
 git apply --check \
-  /path/to/sra-tensorflow/patches/frozen_feature/tensorflow_2.15.0-legacy.patch
+  /path/to/sra-tensorflow/patches/2.15.0/frozen_feature/tensorflow_2.15.0-legacy.patch
 git apply \
-  /path/to/sra-tensorflow/patches/frozen_feature/tensorflow_2.15.0-legacy.patch
+  /path/to/sra-tensorflow/patches/2.15.0/frozen_feature/tensorflow_2.15.0-legacy.patch
 
 mkdir -p output distdir output-release
 bazel --output_base="$PWD/output" build \

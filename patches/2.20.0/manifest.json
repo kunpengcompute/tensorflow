@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "tensorflow_version": "2.20.0",
+  "base_repository": "https://github.com/tensorflow/tensorflow.git",
+  "base_tag": "v2.20.0",
+  "base_ref": "bf5899deaf70fa45173c5c7b8dc9ace8824dc980",
+  "groups": [
+    {
+      "name": "common",
+      "output": "0001-tensorflow_2.20.0-common.patch",
+      "description": "Shared build integration and repository-level tooling required by the feature patches.",
+      "patterns": [      
+        "tensorflow/dtensor/mlir/shape_utils.cc",
+        "tensorflow/dtensor/mlir/spmd_expansion.cc",
+        "tensorflow/python/client/BUILD",
+        "tensorflow/python/util/BUILD",
+        "tensorflow/workspace2.bzl",
+        "third_party/pybind11_protobuf/link_protobuf.patch",
+        "third_party/xla/third_party/pybind11_abseil/link_abseil.patch",
+        "third_party/xla/third_party/pybind11_abseil/workspace.bzl",
+        "third_party/xla/xla/tsl/profiler/utils/group_events.cc"
+      ]
+    },
+    {
+      "name": "fago",
+      "output": "0002-tensorflow_2.20.0-fago.patch",
+      "description": "FlashAttention fused optimization",
+      "patterns": [
+        "tensorflow/cc/BUILD",
+        "tensorflow/cc/gradients/flash_attn_grad.cc",
+        "tensorflow/core/BUILD",
+        "tensorflow/core/api_def/base_api/api_def_FlashAttentionBackward.pbtxt",
+        "tensorflow/core/api_def/base_api/api_def_FlashAttentionForward.pbtxt",
+        "tensorflow/core/api_def/python_api/api_def_FlashAttentionBackward.pbtxt",
+        "tensorflow/core/api_def/python_api/api_def_FlashAttentionForward.pbtxt",
+        "tensorflow/core/grappler/optimizers/BUILD",
+        "tensorflow/core/grappler/optimizers/graph_optimizer/BUILD",
+        "tensorflow/core/grappler/optimizers/graph_optimizer/flash_attn_graph_opt.cc",
+        "tensorflow/core/grappler/optimizers/graph_optimizer/flash_attn_graph_opt.h",
+        "tensorflow/core/grappler/optimizers/remapper.cc",
+        "tensorflow/core/kernels/BUILD",
+        "tensorflow/core/kernels/flash_attn_op.cc",
+        "tensorflow/core/kernels/flash_attn_op.h",
+        "tensorflow/core/kernels/flash_attn_op_gpu.cu.cc",
+        "tensorflow/core/ops/BUILD",
+        "tensorflow/core/ops/flash_attn_ops.cc",
+        "tensorflow/python/BUILD",
+        "tensorflow/python/grappler/flash_attn_opt_test/framework/runner.py",
+        "tensorflow/python/grappler/flash_attn_opt_test/main.py",
+        "tensorflow/python/grappler/flash_attn_opt_test/ops/FlashAttn_op.py",
+        "tensorflow/python/ops/BUILD"
+      ]
+    }
+  ],
+  "profiles": [
+    {
+      "name": "common-only",
+      "groups": ["common"]
+    },
+    {
+      "name": "fago-core",
+      "groups": ["common", "fago"]
+    },
+    {
+      "name": "full-default",
+      "groups": ["common", "fago"],
+      "full_source": true
+    }
+  ],
+  "tooling_patterns": [
+    "patches/2.20.0/**"
+  ]
+}

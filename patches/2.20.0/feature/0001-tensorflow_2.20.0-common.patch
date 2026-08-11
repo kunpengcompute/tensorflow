@@ -1,0 +1,287 @@
+diff --git a/tensorflow/dtensor/mlir/shape_utils.cc b/tensorflow/dtensor/mlir/shape_utils.cc
+index 27f9fc5f7f0..6ab20453985 100644
+--- a/tensorflow/dtensor/mlir/shape_utils.cc
++++ b/tensorflow/dtensor/mlir/shape_utils.cc
+@@ -73,7 +73,7 @@ StatusOr<llvm::ArrayRef<int64_t>> ExtractGlobalInputShape(
+         return errors::Internal("global_shape does not have static rank");
+       return *global_shape;
+     }
+-    return ExtractGlobalOutputShape(cast<mlir::OpResult>(input_value.get()));
++    return ExtractGlobalOutputShape(mlir::cast<mlir::OpResult>(input_value.get()));
+   }
+ 
+   // If we reach this point, we're working with a function argument.
+diff --git a/tensorflow/dtensor/mlir/spmd_expansion.cc b/tensorflow/dtensor/mlir/spmd_expansion.cc
+index 434bf869a4e..ebf00189fae 100644
+--- a/tensorflow/dtensor/mlir/spmd_expansion.cc
++++ b/tensorflow/dtensor/mlir/spmd_expansion.cc
+@@ -188,7 +188,7 @@ bool GetResourceArgIndexIfUsedInAssignmentOp(
+           GetForwardedDTensorLayoutInput(assign_variable_op.getResource());
+       if (llvm::isa<mlir::BlockArgument>(resource)) {
+         *resource_argument_index_for_assign_variable =
+-            cast<mlir::BlockArgument>(resource).getArgNumber();
++            mlir::cast<mlir::BlockArgument>(resource).getArgNumber();
+         return true;
+       }
+     }
+@@ -221,7 +221,7 @@ mlir::LogicalResult UpdateFunctionArgsUsingLayout(mlir::func::FuncOp function) {
+ 
+     // If argument is a resource type update the subtype shape information
+     // to reflect local shape of resources.
+-    if (isa<mlir::TF::ResourceType>(arg_type)) {
++    if (llvm::isa<mlir::TF::ResourceType>(arg_type)) {
+       if (mlir::failed(UpdateResourceArgumentType(argument_index, function)))
+         return mlir::failure();
+       continue;
+diff --git a/tensorflow/python/client/BUILD b/tensorflow/python/client/BUILD
+index 807a94def6a..7d4d1dbc595 100644
+--- a/tensorflow/python/client/BUILD
++++ b/tensorflow/python/client/BUILD
+@@ -29,7 +29,10 @@ py_strict_library(
+ 
+ tf_python_pybind_extension(
+     name = "_pywrap_tf_session",
+-    srcs = ["tf_session_wrapper.cc"],
++    srcs = [
++        "tf_session_wrapper.cc",
++        "@pybind11_protobuf//pybind11_protobuf:proto_cast_util.cc",
++    ],
+     hdrs = if_pywrap(
+         if_false = [
+             "tf_session_helper.h",
+diff --git a/tensorflow/python/util/BUILD b/tensorflow/python/util/BUILD
+index 26de739df06..01e4ea77410 100644
+--- a/tensorflow/python/util/BUILD
++++ b/tensorflow/python/util/BUILD
+@@ -437,7 +437,11 @@ py_strict_library(
+ 
+ tf_python_pybind_extension(
+     name = "_tf_stack",
+-    srcs = ["tf_stack.cc"],
++    srcs = [
++        "tf_stack.cc", 
++        "@pybind11_abseil//pybind11_abseil:import_status_module.cc", 
++        "@pybind11_abseil//pybind11_abseil:register_status_bindings.cc"
++    ],
+     hdrs = [
+         "//tensorflow/c:headers",
+         "//tensorflow/c/eager:headers",
+diff --git a/tensorflow/workspace2.bzl b/tensorflow/workspace2.bzl
+index 9e49ab40b25..dcab09daf6c 100644
+--- a/tensorflow/workspace2.bzl
++++ b/tensorflow/workspace2.bzl
+@@ -788,6 +788,9 @@ def _tf_repositories():
+         urls = tf_mirror_urls("https://github.com/pybind/pybind11_protobuf/archive/f02a2b7653bc50eb5119d125842a3870db95d251.zip"),
+         sha256 = "3cf7bf0f23954c5ce6c37f0a215f506efa3035ca06e3b390d67f4cbe684dce23",
+         strip_prefix = "pybind11_protobuf-f02a2b7653bc50eb5119d125842a3870db95d251",
++        patch_file = [
++            "//third_party/pybind11_protobuf:link_protobuf.patch",
++        ],
+     )
+ 
+     tf_http_archive(
+diff --git a/third_party/pybind11_protobuf/link_protobuf.patch b/third_party/pybind11_protobuf/link_protobuf.patch
+new file mode 100644
+index 00000000000..8cb6dd4eaa6
+--- /dev/null
++++ b/third_party/pybind11_protobuf/link_protobuf.patch
+@@ -0,0 +1,82 @@
++diff --git a/pybind11_protobuf/BUILD b/pybind11_protobuf/BUILD
++index d9abcaa..e7ee8cd 100755
++--- a/pybind11_protobuf/BUILD
+++++ b/pybind11_protobuf/BUILD
++@@ -1,7 +1,7 @@
++ # Pybind11 bindings for Google's Protocol Buffers
++
++ load("@pybind11_bazel//:build_defs.bzl", "pybind_library")
++-
+++exports_files(["proto_cast_util.cc"])
++ licenses(["notice"])
++
++ pybind_library(
++@@ -29,15 +29,48 @@ pybind_library(
++         "@com_google_protobuf//:protobuf",
++     ],
++ )
+++'''
+++cc_library(
+++    name = "proto_cast_util_cc",
+++    srcs = ["proto_cast_util.cc"],
+++    hdrs = [
+++        "proto_cast_util.h",
+++        "proto_caster_impl.h",
+++    ],
+++    alwayslink = 1,
+++    visibility = ["//visibility:public"],
+++    copts = ["-fvisibility=default"],
+++    deps = [
+++        "@pybind11",
+++        ":check_unknown_fields",
+++        "@com_google_absl//absl/container:flat_hash_map",
+++        "@com_google_absl//absl/log",
+++        "@com_google_absl//absl/log:check",
+++        "@com_google_absl//absl/memory",
+++        "@com_google_absl//absl/strings",
+++        "@com_google_absl//absl/types:optional",
+++        "@com_google_protobuf//:protobuf",
+++        "@com_google_protobuf//python:proto_api",
+++    ],
+++)
+++'''
++
++-pybind_library(
+++cc_library(
++     name = "proto_cast_util",
++     srcs = ["proto_cast_util.cc"],
+++    visibility = [
+++        "//visibility:public",
+++    ],
++     hdrs = [
++         "proto_cast_util.h",
++         "proto_caster_impl.h",
++     ],
+++    alwayslink = 1,
+++    copts = [
+++        "-fvisibility=default",
+++    ],
++     deps = [
+++        "@pybind11",
++         ":check_unknown_fields",
++         "@com_google_absl//absl/container:flat_hash_map",
++         "@com_google_absl//absl/log",
++@@ -90,3 +123,4 @@ cc_library(
++     ],
++     alwayslink = 1,
++ )
+++
++diff --git a/pybind11_protobuf/proto_cast_util.cc b/pybind11_protobuf/proto_cast_util.cc
++index 5ca857b..96c915c 100755
++--- a/pybind11_protobuf/proto_cast_util.cc
+++++ b/pybind11_protobuf/proto_cast_util.cc
++@@ -1,3 +1,4 @@
+++#pragma GCC visibility push(default)
++ #include "pybind11_protobuf/proto_cast_util.h"
++
++ #include <Python.h>
++@@ -624,3 +625,4 @@ py::handle GenericProtoCast(Message* src, py::return_value_policy policy,
++ }
++
++ }  // namespace pybind11_protobuf
+++#pragma GCC visibility pop
+diff --git a/third_party/xla/third_party/pybind11_abseil/link_abseil.patch b/third_party/xla/third_party/pybind11_abseil/link_abseil.patch
+new file mode 100644
+index 00000000000..fe0f9580bdc
+--- /dev/null
++++ b/third_party/xla/third_party/pybind11_abseil/link_abseil.patch
+@@ -0,0 +1,85 @@
++diff --git a/pybind11_abseil/BUILD b/pybind11_abseil/BUILD
++index ed9e4af..727c1ef 100644
++--- a/pybind11_abseil/BUILD
+++++ b/pybind11_abseil/BUILD
++@@ -1,7 +1,7 @@
++ # Pybind11 bindings for the Abseil C++ Common Libraries
++
++ load("@pybind11_bazel//:build_defs.bzl", "pybind_extension", "pybind_library")
++-
+++exports_files(["import_status_module.cc", "register_status_bindings.cc"])
++ package(default_visibility = ["//visibility:public"])
++
++ licenses(["notice"])
++@@ -65,11 +65,17 @@ pybind_library(
++     ],
++ )
++
++-pybind_library(
+++cc_library(
++     name = "register_status_bindings",
++     srcs = ["register_status_bindings.cc"],
++     hdrs = ["register_status_bindings.h"],
++-    visibility = ["//visibility:private"],
+++    visibility = [
+++        "//visibility:public",
+++    ],
+++    alwayslink = 1,
+++    copts = [
+++        "-fvisibility=default",
+++    ],
++     deps = [
++         ":absl_casters",
++         ":no_throw_status",
++@@ -86,10 +92,17 @@ pybind_extension(
++     deps = [":register_status_bindings"],
++ )
++
++-pybind_library(
+++cc_library(
++     name = "import_status_module",
++     srcs = ["import_status_module.cc"],
++     hdrs = ["import_status_module.h"],
+++    visibility = [
+++        "//visibility:public",
+++    ],
+++    alwayslink = 1,
+++    copts = [
+++        "-fvisibility=default",
+++    ],
++     deps = [
++         ":check_status_module_imported",
++         ":register_status_bindings",
++@@ -106,3 +119,4 @@ pybind_library(
++         ":statusor_caster",
++     ],
++ )
+++
++diff --git a/pybind11_abseil/import_status_module.cc b/pybind11_abseil/import_status_module.cc
++index f5f092f..4f9f489 100644
++--- a/pybind11_abseil/import_status_module.cc
+++++ b/pybind11_abseil/import_status_module.cc
++@@ -1,3 +1,4 @@
+++#pragma GCC visibility push(default)
++ #include "pybind11_abseil/import_status_module.h"
++
++ #include <pybind11/pybind11.h>
++@@ -27,3 +28,4 @@ module_ ImportStatusModule(bool bypass_regular_import) {
++
++ }  // namespace google
++ }  // namespace pybind11
+++#pragma GCC visibility pop
++diff --git a/pybind11_abseil/register_status_bindings.cc b/pybind11_abseil/register_status_bindings.cc
++index 3d1a71a..74bf0d6 100644
++--- a/pybind11_abseil/register_status_bindings.cc
+++++ b/pybind11_abseil/register_status_bindings.cc
++@@ -1,3 +1,4 @@
+++#pragma GCC visibility push(default)
++ #include "pybind11_abseil/register_status_bindings.h"
++
++ #include <pybind11/embed.h>
++@@ -217,3 +218,4 @@ void RegisterStatusBindings(module m) {
++ }  // namespace internal
++ }  // namespace google
++ }  // namespace pybind11
+++#pragma GCC visibility pop
+diff --git a/third_party/xla/third_party/pybind11_abseil/workspace.bzl b/third_party/xla/third_party/pybind11_abseil/workspace.bzl
+index c12f0ba77f8..5117c0af60d 100644
+--- a/third_party/xla/third_party/pybind11_abseil/workspace.bzl
++++ b/third_party/xla/third_party/pybind11_abseil/workspace.bzl
+@@ -16,5 +16,5 @@ def repo():
+         strip_prefix = "pybind11_abseil-{commit}".format(commit = PA_COMMIT),
+         urls = tf_mirror_urls("https://github.com/pybind/pybind11_abseil/archive/{commit}.tar.gz".format(commit = PA_COMMIT)),
+         build_file = "//third_party/pybind11_abseil:BUILD.bazel",
+-        patch_file = ["//third_party/pybind11_abseil:remove_license.patch"],
++        patch_file = ["//third_party/pybind11_abseil:remove_license.patch", "//third_party/pybind11_abseil:link_abseil.patch"],
+     )
+diff --git a/third_party/xla/xla/tsl/profiler/utils/group_events.cc b/third_party/xla/xla/tsl/profiler/utils/group_events.cc
+index fc8c041c640..159484e0949 100644
+--- a/third_party/xla/xla/tsl/profiler/utils/group_events.cc
++++ b/third_party/xla/xla/tsl/profiler/utils/group_events.cc
+@@ -167,8 +167,9 @@ void ConnectContextGroups(const ContextGroupMap& context_groups) {
+ }
+ 
+ bool IsImplicitRootEvent(const XEventVisitor& event) {
++  using SetType = absl::flat_hash_set<int64_t>;
+   static const absl::NoDestructor<absl::flat_hash_set<int64_t>>
+-      kImplicitRootEvents({
++      kImplicitRootEvents(SetType{
+           HostEventType::kFunctionRun,
+           HostEventType::kSessionRun,
+           HostEventType::kRunGraph,
