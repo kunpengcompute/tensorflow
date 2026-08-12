@@ -1,10 +1,9 @@
-// Flash Attention 融合pass替换
 #include "flash_attn_graph_opt.h"
 
 using namespace tensorflow;
 using namespace tensorflow::grappler;
 
-namespace fago{
+namespace annc {
 
 constexpr const char* kFwdSuffix = "_flash_attn_fwd";
 
@@ -227,11 +226,11 @@ void ApplyFwd(GraphDef* graph, const FwdCandidate& c) {
 
 void run_flash_attn_optimization(GraphDef* graph) {
 
-  const char* fago_fused_all = getenv("FAGO_FUSED_ALL");
-  const char* fago_fused_flashattn_fwd = getenv("FAGO_FUSED_FLASHATTN_FWD");
+  const char* annc_fused_all = getenv("ANNC_FUSED_ALL");
+  const char* annc_fused_flashattn_fwd = getenv("ANNC_FUSED_FLASHATTN_FWD");
 
-  bool enable_all = (fago_fused_all != nullptr) && strcmp(fago_fused_all, "1") == 0;
-  bool enable_flashattn_fwd = (fago_fused_flashattn_fwd != nullptr) && strcmp(fago_fused_flashattn_fwd, "1") == 0;
+  bool enable_all = (annc_fused_all != nullptr) && strcmp(annc_fused_all, "1") == 0;
+  bool enable_flashattn_fwd = (annc_fused_flashattn_fwd != nullptr) && strcmp(annc_fused_flashattn_fwd, "1") == 0;
 
   if (graph == nullptr) return;
 
@@ -256,4 +255,4 @@ void run_flash_attn_optimization(GraphDef* graph) {
   }
 }
 
-}  // namespace FlashAttnGraphOpt
+}  // namespace annc

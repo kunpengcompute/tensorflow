@@ -14,8 +14,6 @@ limitations under the License.
 ==============================================================================*/
 
 // =============================================================================
-// flash_attn_grad.cc
-//
 // C++ symbolic-gradient registration for FlashAttentionForward.
 // This is consumed by tensorflow::AddSymbolicGradients (cc/framework/gradients).
 // Python (tf.GradientTape / tf.gradients) goes through a separate registry and
@@ -64,9 +62,8 @@ Status FlashAttentionForwardGrad(const Scope& scope, const Operation& op,
   }
 
   // ==== Build the backward op ====
-  // Inputs:        q,            k,            v,            mask,
-  //                O,            dO,           L
-  // Outputs:       dQ, dK, dV
+  // Inputs:  q, k, v, mask, O, dO, L
+  // Outputs: dQ, dK, dV
   //
   // grad_inputs[1] (dL) is intentionally ignored: L is an internal scratch
   // output and any user that backprops through it has misused the API.

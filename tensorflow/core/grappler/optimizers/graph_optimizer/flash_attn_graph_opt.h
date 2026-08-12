@@ -12,7 +12,7 @@
 #include "tensorflow/core/grappler/graph_view.h"
 #include "tensorflow/core/grappler/grappler_item.h"
 
-namespace fago{
+namespace annc {
 
 // =============================================================================
 // Perform Flash Attention forward fusion on GraphDef.
@@ -27,6 +27,6 @@ namespace fago{
 // =============================================================================
 void run_flash_attn_optimization(tensorflow::GraphDef* graph);
 
-}  // namespace FlashAttnGraphOpt
+}  // namespace annc
 
 #endif  // FAGO_TF_FLASH_ATTN_GRAPH_OPT_H_

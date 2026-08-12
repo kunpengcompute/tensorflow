@@ -135,7 +135,6 @@ tf_kernel_library(
         "//tensorflow/core:framework",
         "//tensorflow/core:lib",
         "//tensorflow/core/ops:ops",
-        #"//tensorflow/core/util:gpu_kernel_helper",
     ],
     alwayslink = 1,
     visibility = ["//visibility:public"],

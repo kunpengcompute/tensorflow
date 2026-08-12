@@ -216,8 +216,7 @@ def build_input(meta):
 def get_test_cases():
     SEQ_LEN = 4096
     NUM_HEADS = 8
-    # DK_LIST = [4, 8, 16, 32, 64]
-    DK_LIST = [4, 64]
+    DK_LIST = [4, 8, 16, 32, 64]
 
     cases = []
 

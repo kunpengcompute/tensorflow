@@ -1050,6 +1050,8 @@ flash_attn_bwd_dq_wmma(
     }
     __syncthreads();
 
+    if (num_kd_tiles > MAX_KD_TILES) return;
+
     /* ---- dQ 累加 ---- */
     wmma::fragment<wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, float>
         dq_acc[MAX_KD_TILES];
