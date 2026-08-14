@@ -269,9 +269,20 @@ tf_gen_op_libs(
     ],
 )
 
+# --- Flash Attention Op registration ---
+cc_library(
+    name = "flash_attn_ops_op_lib",
+    srcs = ["flash_attn_ops.cc",],
+    deps = [
+        "//tensorflow/core:framework",
+    ],
+    alwayslink = 1,
+)
+
 cc_library(
     name = "ops",
     deps = [
+        ":flash_attn_ops_op_lib",
         ":array_ops_op_lib",
         ":audio_ops_op_lib",
         ":batch_ops_op_lib",

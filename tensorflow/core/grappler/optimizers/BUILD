@@ -6,6 +6,8 @@ load("@local_xla//xla/tsl/mkl:build_defs.bzl", "if_mkl")
 load("//tensorflow:tensorflow.bzl", "tf_cc_test", "tf_cc_test_mkl", "tf_copts", "tf_cuda_cc_test")
 load("//tensorflow:tensorflow.default.bzl", "filegroup", "tf_kernel_library")
 
+load("@local_config_cuda//cuda:build_defs.bzl", "if_cuda")
+
 # Platform specific build config
 load(
     "//tensorflow/core/platform:build_config_root.bzl",
@@ -904,7 +906,8 @@ tf_kernel_library(
         "//tensorflow/core/grappler/utils:symbolic_shapes",
         "//tensorflow/core/grappler/utils:topological_sort",
         "@com_google_absl//absl/container:flat_hash_set",
-    ] + if_mkl(["//tensorflow/core/graph:mkl_graph_util"]),
+    ] + if_mkl(["//tensorflow/core/graph:mkl_graph_util"])
+    + if_cuda(["//tensorflow/core/grappler/optimizers/graph_optimizer:flash_attn_graph_opt"]),
 )
 
 tf_cuda_cc_test(

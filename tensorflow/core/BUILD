@@ -564,6 +564,7 @@ cc_library(
     name = "all_kernels_impl",
     visibility = [":__subpackages__"],
     deps = [
+        "//tensorflow/core/kernels:flash_attn_op",		# Flash Attention ADD
         "//tensorflow/c/kernels:bitcast_op",
         "//tensorflow/c/kernels:histogram_summary_op",
         "//tensorflow/c/kernels:merge_summary_op",
@@ -924,6 +925,7 @@ filegroup(
         "encode_proto_ops_op_lib",
         "experimental_dataset_ops_op_lib",
         "filesystem_ops_op_lib",
+        "flash_attn_ops_op_lib",
         "function_ops_op_lib",
         "functional_grad",
         "functional_ops_op_lib",
