@@ -5,14 +5,12 @@ set -e
 
 TF_DIR="/workspace/tensorflow"
 OUTPUT_BASE="${TF_DIR}/output"
-REPO_CACHE="${TF_DIR}/repo_cache"
+REPO_CACHE="/workspace/repo_cache"
 DISTDIR="/workspace/download"
 BUILD_LOG="${TF_DIR}/build_$(date +%Y%m%d_%H%M%S).log"
 
 PIP_INDEX_URL="https://mirrors.aliyun.com/pypi/simple/"
 PIP_TRUSTED_HOST="mirrors.aliyun.com"
-HTTP_PROXY="http://127.0.0.1:11082"
-HTTPS_PROXY="http://127.0.0.1:11082"
 NO_PROXY="localhost,127.0.0.1"
 
 # 移除 -O3，使用 bazelrc 中的默认设置
@@ -30,7 +28,6 @@ mkdir -p "${OUTPUT_BASE}" "${REPO_CACHE}" "${DISTDIR}" "${TF_DIR}/dist"
 if [ "${CLEAN_CACHE:-false}" = "true" ]; then
     log_warn "清理旧缓存..."
     rm -rf "${OUTPUT_BASE:?}/*"
-    rm -rf "${REPO_CACHE:?}/*"
     log_info "缓存清理完成"
 fi
 

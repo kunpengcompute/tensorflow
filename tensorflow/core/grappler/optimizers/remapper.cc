@@ -5404,11 +5404,11 @@ absl::Status Remapper::Optimize(Cluster* cluster, const GrapplerItem& item,
    // ======== infer shape ============
    tensorflow::grappler::GraphProperties graph_props(mutable_item);
    bool assume_valid_feeds = (opt_level_ == RewriterConfig::AGGRESSIVE);
-   if(!graph_props.InferStatically(
+   if (!graph_props.InferStatically(
       assume_valid_feeds,
       /*agressive_shape_inference=*/false,
       /*include_input_tensor_values=*/true,
-      /*include_output_tensor_values=*/true).ok()){
+      /*include_output_tensor_values=*/true).ok()) {
         LOG(WARNING) << "Infer Shape Failed";
       }
 
