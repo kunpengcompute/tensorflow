@@ -1,6 +1,6 @@
 # TensorFlow 2.15.0 补丁发布说明
 
-本目录发布鲲鹏 TensorFlow 基于官方 TensorFlow `v2.15.0` 的补丁。固定基线为：
+本文档介绍鲲鹏 TensorFlow 基于官方 TensorFlow `v2.15.0` 的补丁。固定基线为。
 
 ```text
 6887368d6d46223f460358323c4b76d61d1558a8
@@ -35,7 +35,7 @@ cd kunpeng-tensorflow
 git remote add tensorflow-upstream https://github.com/tensorflow/tensorflow.git
 git fetch tensorflow-upstream refs/tags/v2.15.0:refs/tags/v2.15.0
 
-python3 patches/2.15.0/prepare_source.py \
+python3 patches/V2.15.0/prepare_source.py \
   --feature-set kdnn-core \
   --output-dir ../tensorflow-kdnn-core
 ```
@@ -70,8 +70,10 @@ bazel --output_base="$PWD/output" build \
 
 ## 完整性检查
 
+执行以下命令检查补丁完整性。
+
 ```bash
-cd patches/2.15.0
+cd patches/V2.15.0
 sha256sum -c SHA256SUMS
 ```
 

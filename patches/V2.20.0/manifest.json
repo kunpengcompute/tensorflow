@@ -68,6 +68,6 @@
     }
   ],
   "tooling_patterns": [
-    "patches/2.20.0/**"
+    "patches/V2.20.0/**"
   ]
 }

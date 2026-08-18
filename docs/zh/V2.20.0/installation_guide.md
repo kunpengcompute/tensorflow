@@ -26,7 +26,7 @@ TensorFlow使用Bazel 7.4.1构建。Bazel安装方法请参见《TensorFlow 移�
 
 | 特性组合 | 包含内容 | 对应补丁（按应用顺序） | 适用场景 |
 | --- | --- | --- | --- |
-| `common-fago` | 公共构建集成（common）、FAGO静态图融合 | `patches/2.20.0/feature/0001-tensorflow_2.20.0-common.patch`<br>`patches/2.20.0/feature/0002-tensorflow_2.20.0-fago.patch` | 使用FAGO静态图融合。 |
+| `common-fago` | 公共构建集成（common）、FAGO静态图融合 | `patches/V2.20.0/feature/0001-tensorflow_2.20.0-common.patch`<br>`patches/V2.20.0/feature/0002-tensorflow_2.20.0-fago.patch` | 使用FAGO静态图融合。 |
 
 ### 生成完整源码
 
@@ -42,7 +42,7 @@ TensorFlow使用Bazel 7.4.1构建。Bazel安装方法请参见《TensorFlow 移�
 2. 根据需要创建TensorFlow完整源码。以下以完整默认特性为例。
 
    ```bash
-   python3 patches/2.20.0/prepare_source.py \
+   python3 patches/V2.20.0/prepare_source.py \
      --feature-set full-default \
      --output-dir ../tensorflow-full-default
    ```
@@ -53,9 +53,9 @@ TensorFlow使用Bazel 7.4.1构建。Bazel安装方法请参见《TensorFlow 移�
 
 不使用推理服务时，也可以直接在生成的源码中按需构建TensorFlow目标。
 
-### 构建TensorFlow pip包
+### 1. 构建TensorFlow pip包
 
-- 配置bazel：
+- 1.1 配置bazel。
 
   ```bash
   cd ../tensorflow-full-default
@@ -122,7 +122,7 @@ TensorFlow使用Bazel 7.4.1构建。Bazel安装方法请参见《TensorFlow 移�
   Configuration finished
   ```
   
-- 打开.tf_configure.bazelrc，复制以下内容并替换：
+- 1.2 打开.tf_configure.bazelrc，复制以下内容并替换。
 
   ```bash
   build --action_env PYTHON_BIN_PATH="/usr/bin/python3"
@@ -148,7 +148,7 @@ TensorFlow使用Bazel 7.4.1构建。Bazel安装方法请参见《TensorFlow 移�
   test:v2 --build_tag_filters=-benchmark-test,-no_oss,-oss_excluded,-no_gpu,-v1only
   ```
 
-- 构建TensorFlow pip包：
+- 1.3 构建TensorFlow pip包。
 
   ```bash
   bazel build \
@@ -169,7 +169,7 @@ TensorFlow使用Bazel 7.4.1构建。Bazel安装方法请参见《TensorFlow 移�
     //tensorflow/tools/pip_package:wheel
   ```
 
-### 安装tensorflow pip包
+### 2. 安装tensorflow pip包
 
 ```bash
 pip install bazel-bin/tensorflow/tools/pip_package/wheel_house/tensorflow-2.20.0.dev0+selfbuilt-cp311-cp311-linux_aarch64.whl
@@ -191,13 +191,13 @@ FAGO静态图融合只对满足特定结构和输入约束的子图生效。
 
 ## 常见问题
 
-编译TensorFlow时，可参考以下故障处理指导：
+编译TensorFlow时，可参考以下故障处理指导。
 
-### 1. libnvrtc-builtins.so.12.5文件找不到报错
+### 提示找不到libnvrtc-builtins.so.12.5文件报错
 
 #### 问题现象描述
 
-Tensorflow编译安装后，python import tensorflow报错，提示“libnvrtc-builtins.so.12.5: cannot open shared object file: No such file or directory”。详细信息如下所示：
+Tensorflow编译安装后，python import tensorflow报错，提示“libnvrtc-builtins.so.12.5: cannot open shared object file: No such file or directory”。详细信息如下所示。
 
 ```bash
 Traceback (most recent call last):
@@ -220,17 +220,19 @@ TensorFlow 构建脚本中硬编码了 libnvrtc-builtins.so.12.5 作为依赖版
 
 NVIDIA 保证 CUDA 同大版本（12.x）内的 nvrtc-builtins 库二进制向下兼容，直接创建版本软链接即可正常运行，不影响功能与性能。
 
-```bash
-cd /usr/local/cuda-12.8/lib64
-ln -sf libnvrtc-builtins.so.12.8 libnvrtc-builtins.so.12.5
-ldconfig
-```
+1. 执行以下命令进行修复。
 
-验证修复：
+    ```bash
+    cd /usr/local/cuda-12.8/lib64
+    ln -sf libnvrtc-builtins.so.12.8 libnvrtc-builtins.so.12.5
+    ldconfig
+    ```
 
-```bash
-python3 -c "import tensorflow; print(tensorflow.sysconfig.get_lib())"
-```
+2. 验证修复。
+
+    ```bash
+    python3 -c "import tensorflow; print(tensorflow.sysconfig.get_lib())"
+    ```
 
 执行上述命令后，不会再报错，可以正常输出tensorflow系统路径。
 

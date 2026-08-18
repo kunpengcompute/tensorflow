@@ -19,16 +19,16 @@
 3. 创建完整默认特性的TensorFlow源码。
 
    ```bash
-   python3 patches/2.20.0/prepare_source.py \
+   python3 patches/V2.20.0/prepare_source.py \
      --feature-set full-default \
      --output-dir ../tensorflow-full-default
    ```
 
-   其他可用组合的使用指导，请参见《[补丁发布说明](../../../patches/2.20.0/README.md)》。
+   其他可用组合的使用指导，请参见《[补丁发布说明](../../../patches/V2.20.0/README.md)》。
 
 4. 根据实际使用场景选择需要的构建目标，无需同时构建全部目标。以下提供pip构建目标的参考命令。
 
-  - 配置bazel：
+  - 4.1 配置bazel。
 
       ```bash
       cd ../tensorflow-full-default
@@ -95,7 +95,7 @@
       Configuration finished
       ```
 
-  - 打开.tf_configure.bazelrc，复制以下内容并替换：
+  - 4.2 打开.tf_configure.bazelrc，复制以下内容并替换。
 
       ```bash
       build --action_env PYTHON_BIN_PATH="/usr/bin/python3"
@@ -121,7 +121,7 @@
       test:v2 --build_tag_filters=-benchmark-test,-no_oss,-oss_excluded,-no_gpu,-v1only
       ```
 
-  - 构建TensorFlow pip包：
+  - 4.3 构建TensorFlow pip包。
 
      ```bash
      bazel build \
@@ -142,7 +142,7 @@
       //tensorflow/tools/pip_package:wheel
      ```
 
-  - 安装TensorFlow pip包：
+  - 4.4 安装TensorFlow pip包。
   
      ```bash
      pip install bazel-bin/tensorflow/tools/pip_package/wheel_house/tensorflow-2.20.0.dev0+selfbuilt-cp311-cp311-linux_aarch64.whl

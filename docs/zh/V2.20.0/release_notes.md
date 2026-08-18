@@ -23,7 +23,7 @@
 </tr>
 <tr id="row19308111718"><th class="firstcol" valign="top" width="42.17%" id="mcps1.1.3.3.1"><p id="p2030912172097"><a name="p2030912172097"></a><a name="p2030912172097"></a>软件版本</p>
 </th>
-<td class="cellrowborder" valign="top" width="57.830000000000005%" headers="mcps1.1.3.3.1 "><p id="p1730912179911"><a name="p1730912179911"></a><a name="p1730912179911"></a><span id="text17191017111119"><a name="text17191017111119"></a><a name="text17191017111119"></a>v1.2.0</span></p>
+<td class="cellrowborder" valign="top" width="57.830000000000005%" headers="mcps1.1.3.3.1 "><p id="p1730912179911"><a name="p1730912179911"></a><a name="p1730912179911"></a><span id="text17191017111119"><a name="text17191017111119"></a><a name="text17191017111119"></a>V1.2.0</span></p>
 </td>
 </tr>
 </tbody>
@@ -77,11 +77,9 @@
 
 ## 版本使用注意事项
 
-### 使用注意事项
+版本详细使用注意事项请参见《[安装指南](./installation_guide.md)》。
 
-请参见《[安装指南](./installation_guide.md)》。
-
-## v1.2.0
+## V1.2.0
 
 ### 更新说明
 

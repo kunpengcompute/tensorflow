@@ -1,6 +1,6 @@
 # TensorFlow 2.20.0 补丁发布说明
 
-本目录发布鲲鹏 TensorFlow 基于官方 TensorFlow `v2.20.0` 的补丁。固定基线为：
+本文档介绍鲲鹏 TensorFlow 基于官方 TensorFlow `v2.20.0` 的补丁。固定基线为。
 
 ```text
 bf5899deaf70fa45173c5c7b8dc9ace8824dc980
@@ -31,7 +31,7 @@ cd kunpeng-tensorflow
 git remote add tensorflow-upstream https://github.com/tensorflow/tensorflow.git
 git fetch tensorflow-upstream refs/tags/v2.20.0:refs/tags/v2.20.0
 
-python3 patches/2.20.0/prepare_source.py \
+python3 patches/V2.20.0/prepare_source.py \
   --feature-set fago-core \
   --output-dir ../tensorflow-fago-core
 ```
@@ -40,8 +40,10 @@ python3 patches/2.20.0/prepare_source.py \
 
 ## 完整性检查
 
+执行以下命令检查补丁完整性。
+
 ```bash
-cd patches/2.20.0
+cd patches/V2.20.0
 sha256sum -c SHA256SUMS
 ```
 
