@@ -33,10 +33,10 @@ Both TensorFlow and TensorFlow Serving are built using Bazel 6.5.0. For the Baze
 
 | Feature Combination | Contents | Corresponding Patches (in App Order) | Applicable Scenario |
 | --- | --- | --- | --- |
-| `common-only` | Public build integration (common) and compatibility changes | `patches/feature/0001-tensorflow_2.15.0-common.patch` | Check public changes without enabling acceleration features. |
-| `kdnn-core` | Public build integration (common), KDNN operator optimization | `patches/feature/0001-tensorflow_2.15.0-common.patch`<br>`patches/feature/0002-tensorflow_2.15.0-kdnn.patch` | Use KDNN operator optimization. |
-| `kdnn-annc` | Public build integration (common), KDNN operator optimization, ANNC static graph fusion | `patches/feature/0001-tensorflow_2.15.0-common.patch`<br>`patches/feature/0002-tensorflow_2.15.0-kdnn.patch`<br>`patches/feature/0003-tensorflow_2.15.0-annc.patch` | Use KDNN and ANNC static graph fusion. |
-| `full-default` | Public build integration (common), KDNN operator optimization, ANNC static graph fusion, KEmbedding custom operator | `patches/feature/0001-tensorflow_2.15.0-common.patch`<br>`patches/feature/0002-tensorflow_2.15.0-kdnn.patch`<br>`patches/feature/0003-tensorflow_2.15.0-annc.patch`<br>`patches/feature/0004-tensorflow_2.15.0-kembedding.patch` | Use all currently maintained features. |
+| `common-only` | Shared build and compatibility changes | `patches/V2.15.0/feature/0001-tensorflow_2.15.0-common.patch` | Inspect shared changes without acceleration features |
+| `kdnn-core` | common + KDNN | `patches/V2.15.0/feature/0001-tensorflow_2.15.0-common.patch`<br>`patches/V2.15.0/feature/0002-tensorflow_2.15.0-kdnn.patch` | Use KDNN kernel optimizations |
+| `kdnn-annc` | common + KDNN + ANNC | `patches/V2.15.0/feature/0001-tensorflow_2.15.0-common.patch`<br>`patches/V2.15.0/feature/0002-tensorflow_2.15.0-kdnn.patch`<br>`patches/V2.15.0/feature/0003-tensorflow_2.15.0-annc.patch` | Use KDNN and ANNC static graph fusion |
+| `full-default` | common + KDNN + ANNC + KEmbedding | `patches/V2.15.0/feature/0001-tensorflow_2.15.0-common.patch`<br>`patches/V2.15.0/feature/0002-tensorflow_2.15.0-kdnn.patch`<br>`patches/V2.15.0/feature/0003-tensorflow_2.15.0-annc.patch`<br>`patches/V2.15.0/feature/0004-tensorflow_2.15.0-kembedding.patch` | Use all currently maintained features |
 
 ### Generating Complete Source Code
 
@@ -52,7 +52,7 @@ Both TensorFlow and TensorFlow Serving are built using Bazel 6.5.0. For the Baze
 2. Create the complete TensorFlow source code as needed. The following example uses the full default feature set.
 
    ```bash
-   python3 patches/prepare_source.py \
+   python3 patches/V2.15.0/prepare_source.py \
      --feature-set full-default \
      --output-dir /path/to/tensorflow
    ```
@@ -225,9 +225,9 @@ The Legacy patch contains features such as historical Runtime scheduling, legacy
 git clone -b v2.15.0 https://github.com/tensorflow/tensorflow.git tensorflow-legacy
 cd tensorflow-legacy
 git apply --check \
-  /path/to/sra-tensorflow/patches/frozen_feature/tensorflow_2.15.0-legacy.patch
+  /path/to/sra-tensorflow/patches/V2.15.0/frozen_feature/tensorflow_2.15.0-legacy.patch
 git apply \
-  /path/to/sra-tensorflow/patches/frozen_feature/tensorflow_2.15.0-legacy.patch
+  /path/to/sra-tensorflow/patches/V2.15.0/frozen_feature/tensorflow_2.15.0-legacy.patch
 
 mkdir -p output distdir output-release
 bazel --output_base="$PWD/output" build \

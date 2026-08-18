@@ -21,7 +21,7 @@
 3. Create the complete TensorFlow source code with default features.
 
    ```bash
-   python3 patches/prepare_source.py \
+   python3 patches/V2.15.0/prepare_source.py \
      --feature-set full-default \
      --output-dir ../tensorflow-full-default
    cd ../tensorflow-full-default
@@ -29,9 +29,13 @@
    export TF_PYTHON_VERSION=3.11
    ```  
 
-   `output/` is used to reuse the Bazel build cache. Manually downloaded build dependencies are placed in `distdir/`, and the pip package is output to `output-release/`.
+   For other profiles and the standalone Legacy patch, see the
+   [Patch Release](../../../patches/V2.15.0/README_en.md) document.
+   The `output/` directory preserves the reusable Bazel build cache, manually
+   downloaded build dependencies go in `distdir/`, and pip packages are written
+   to `output-release/`.
 
-   For guidance on other available combinations and standalone Legacy patches, see [Patch Release Notes](../../patches/README.md).
+   For guidance on other available combinations and standalone Legacy patches, see [Patch Release Notes](../../../patches/V2.15.0/README.md).
 
 4. Select the required build target based on your actual use scenario. You do not need to build all targets at the same time. The following provides reference commands for two common build targets.
 
