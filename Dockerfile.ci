@@ -1,0 +1,57 @@
+FROM openeuler/openeuler:24.03-lts-sp3
+
+ARG TARGETARCH
+ARG HTTP_PROXY=
+ARG HTTPS_PROXY=
+ARG NO_PROXY=localhost,127.0.0.1
+
+ENV HTTP_PROXY=${HTTP_PROXY}
+ENV HTTPS_PROXY=${HTTPS_PROXY}
+ENV http_proxy=${HTTP_PROXY}
+ENV https_proxy=${HTTPS_PROXY}
+ENV NO_PROXY=${NO_PROXY}
+ENV no_proxy=${NO_PROXY}
+
+RUN dnf update -y &&     dnf install -y         gcc-c++       java-11-openjdk-devel         wget         unzip         zip         git         git-lfs         which         findutils         python         python3         python3-pip    python3-devel       patchelf         openssl-devel         snappy-devel         ca-certificates     && dnf clean all
+
+ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk
+ENV TF_PYTHON_VERSION=3.11
+ENV PYTHON_BIN_PATH=/usr/bin/python3
+
+RUN gcc --version && g++ --version && java -version &&     ln -sf /usr/bin/gcc /usr/bin/aarch64-linux-gnu-gcc
+
+ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple
+ARG PIP_TRUSTED_HOST=mirrors.aliyun.com
+
+RUN python3 -m pip config set global.index-url ${PIP_INDEX_URL} &&     python3 -m pip config set global.trusted-host ${PIP_TRUSTED_HOST}
+
+RUN python3 -m pip install --no-cache-dir --upgrade setuptools wheel &&     python3 -m pip install --no-cache-dir --prefer-binary         atomgit         protobuf==4.23.4
+
+ARG BAZEL_VERSION=6.5.0
+
+RUN case "${TARGETARCH:-$(uname -m)}" in         amd64|x86_64) bazel_arch=x86_64 ;;         arm64|aarch64) bazel_arch=arm64 ;;         *) echo "Unsupported architecture: ${TARGETARCH:-$(uname -m)}" >&2; exit 1 ;;     esac &&     wget https://mirrors.huaweicloud.com/bazel/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-${bazel_arch}         -O /usr/local/bin/bazel &&     chmod +x /usr/local/bin/bazel
+
+RUN bazel --version
+
+WORKDIR /workspace/tensorflow
+COPY . .
+
+RUN mkdir -p /workspace/download
+
+# 构建 TensorFlow wheel
+RUN bazel         --output_user_root=./output         build         --experimental_repo_remote_exec         --repository_cache=/workspace/repo_cache         --distdir=/workspace/download         --cxxopt=-std=c++17         --host_cxxopt=-std=c++17         --copt=-march=armv8.5-a         --host_copt=-march=armv8.5-a         --linkopt=-Wl,--stub-group-size=0x2000000         --action_env=http_proxy=http://127.0.0.1:11082        --action_env=https_proxy=http://127.0.0.1:11082         --action_env=no_proxy=localhost,127.0.0.1         --repo_env=http_proxy=http://127.0.0.1:11082         --repo_env=https_proxy=http://127.0.0.1:11082         --repo_env=PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/         --repo_env=PIP_TRUSTED_HOST=mirrors.aliyun.com         --check_direct_dependencies=off         -c opt         //tensorflow/tools/pip_package:build_pip_package
+
+# 复制 wheel 到输出目录
+RUN ./bazel-bin/tensorflow/tools/pip_package/build_pip_package /workspace/dist
+
+# 清除整个 tensorflow 目录（保留 repo_cache 在 /workspace）
+RUN rm -rf /workspace/tensorflow &&     echo "清理完成，repo_cache 已保存在 /workspace/repo_cache"
+
+ENV HTTP_PROXY=
+ENV HTTPS_PROXY=
+ENV http_proxy=
+ENV https_proxy=
+ENV NO_PROXY=
+ENV no_proxy=
+
+WORKDIR /workspace
