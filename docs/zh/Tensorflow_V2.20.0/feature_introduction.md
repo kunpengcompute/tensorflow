@@ -30,9 +30,9 @@ flowchart TD
 
 #### FlashAttentionForward算子
 
-**原生子图结构**
+**开源子图结构**
 
-![FlashAttentionForward](figures/FlashAttentionForward.png "FlashAttentionForward 原生算子子图")
+![FlashAttentionForward](figures/FlashAttentionForward.png "FlashAttentionForward 开源算子子图")
 
 **输入输出约束**
 
@@ -49,7 +49,7 @@ flowchart TD
 | 输出2    | float    | 2维张量 |
 
 > ![icon note](public_sys-resources/icon-note.gif) **说明：**
-> 开启FlashAttentionForward算子融合条件下，如果存在符合要求的子图则会在图优化阶段替换为对应的自定义算子，否则使用TensorFlow原生接口。
+> 开启FlashAttentionForward算子融合条件下，如果存在符合要求的子图则会在图优化阶段替换为对应的自定义算子，否则使用TensorFlow开源接口。
 
 ### 应用场景
 

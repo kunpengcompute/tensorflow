@@ -26,7 +26,7 @@ TensorFlow使用Bazel 7.4.1构建。Bazel安装方法请参见《TensorFlow 移�
 
 | 特性组合 | 包含内容 | 对应补丁（按应用顺序） | 适用场景 |
 | --- | --- | --- | --- |
-| `common-fago` | 公共构建集成（common）、FAGO静态图融合 | `patches/V2.20.0/feature/0001-tensorflow_2.20.0-common.patch`<br>`patches/V2.20.0/feature/0002-tensorflow_2.20.0-fago.patch` | 使用FAGO静态图融合。 |
+| `common-fago` | 公共构建集成（common）、FAGO静态图融合 | `patches/Tensorflow_V2.20.0/feature/0001-tensorflow_2.20.0-common.patch`<br>`patches/Tensorflow_V2.20.0/feature/0002-tensorflow_2.20.0-fago.patch` | 使用FAGO静态图融合。 |
 
 ### 生成完整源码
 
@@ -42,7 +42,7 @@ TensorFlow使用Bazel 7.4.1构建。Bazel安装方法请参见《TensorFlow 移�
 2. 根据需要创建TensorFlow完整源码。以下以完整默认特性为例。
 
    ```bash
-   python3 patches/V2.20.0/prepare_source.py \
+   python3 patches/Tensorflow_V2.20.0/prepare_source.py \
      --feature-set full-default \
      --output-dir ../tensorflow-full-default
    ```

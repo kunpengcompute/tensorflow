@@ -37,7 +37,7 @@ cd kunpeng-tensorflow
 git remote add tensorflow-upstream https://github.com/tensorflow/tensorflow.git
 git fetch tensorflow-upstream refs/tags/v2.15.0:refs/tags/v2.15.0
 
-python3 patches/2.15.0/prepare_source.py \
+python3 patches/Tensorflow_V2.15.0/prepare_source.py \
   --feature-set kdnn-core \
   --output-dir ../tensorflow-kdnn-core
 ```
@@ -74,7 +74,7 @@ bazel --output_base="$PWD/output" build \
 ## Integrity Check
 
 ```bash
-cd patches/2.15.0
+cd patches/Tensorflow_V2.15.0
 sha256sum -c SHA256SUMS
 ```
 

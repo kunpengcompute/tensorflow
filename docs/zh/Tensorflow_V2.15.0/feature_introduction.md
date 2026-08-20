@@ -8,7 +8,7 @@
 
 为提升TensorFlow推理性能，鲲鹏BoostKit提出了TensorFlow KDNN线程直通优化方案。KDNN提供了推理核心算子基于鲲鹏处理器硬件的高性能实现，在原有的Kernels实现层使用dispatch组件将支持KDNN的算子分发到KDNN后端。KDNN线程直通是通过KDNN将计算任务提交到框架线程池统一调度方式，复用框架线程池，减少线程创建销毁的时间损耗。
 
-**KDNN线程直通**：开启KDNN优化特性条件下，如果算子输入输出满足约束则会调用KDNN库，否则使用TensorFlow原生接口。KDNN将计算任务提交到框架线程池统一调度，复用框架线程池。KDNN优化特性通过编译选项和代码补丁的方式接入TensorFlow，基于TensorFlow 2.15版本增加KDNN特性开关。
+**KDNN线程直通**：开启KDNN优化特性条件下，如果算子输入输出满足约束则会调用KDNN库，否则使用TensorFlow开源接口。KDNN将计算任务提交到框架线程池统一调度，复用框架线程池。KDNN优化特性通过编译选项和代码补丁的方式接入TensorFlow，基于TensorFlow 2.15版本增加KDNN特性开关。
 
 ### 软件架构
 
@@ -267,9 +267,9 @@ ANNC静态图融合软件架构图如[图4](#fig4919356463)所示。
 
 #### KPFusedEmbeddingActionIdGather算子
 
-**原生子图结构**
+**开源子图结构**
 
-![KPFusedEmbeddingActionIdGather](figures/KPFusedEmbeddingActionIdGather.png "KPFusedEmbeddingActionIdGather 原生算子子图")
+![KPFusedEmbeddingActionIdGather](figures/KPFusedEmbeddingActionIdGather.png "KPFusedEmbeddingActionIdGather 开源算子子图")
 
 **输入输出约束**
 
@@ -287,9 +287,9 @@ ANNC静态图融合软件架构图如[图4](#fig4919356463)所示。
 
 #### KPFusedGather算子
 
-**原生子图结构**
+**开源子图结构**
 
-![KPFusedGather](figures/KPFusedGather.png "KPFusedGather 原生算子子图")
+![KPFusedGather](figures/KPFusedGather.png "KPFusedGather 开源算子子图")
 
 **输入输出约束**
 
@@ -307,9 +307,9 @@ ANNC静态图融合软件架构图如[图4](#fig4919356463)所示。
 
 #### KPFusedEmbeddingPadding算子
 
-**原生子图结构**
+**开源子图结构**
 
-![KPFusedEmbeddingPadding](figures/KPFusedEmbeddingPadding.png "KPFusedEmbeddingPadding 原生算子子图")
+![KPFusedEmbeddingPadding](figures/KPFusedEmbeddingPadding.png "KPFusedEmbeddingPadding 开源算子子图")
 
 **输入输出约束**
 
@@ -328,9 +328,9 @@ ANNC静态图融合软件架构图如[图4](#fig4919356463)所示。
 
 #### KPFusedEmbeddingPaddingFast算子
 
-**原生子图结构**
+**开源子图结构**
 
-![KPFusedEmbeddingPaddingFast](figures/KPFusedEmbeddingPaddingFast.png "KPFusedEmbeddingPaddingFast 原生算子子图")
+![KPFusedEmbeddingPaddingFast](figures/KPFusedEmbeddingPaddingFast.png "KPFusedEmbeddingPaddingFast 开源算子子图")
 
 **输入输出约束**
 
@@ -349,9 +349,9 @@ ANNC静态图融合软件架构图如[图4](#fig4919356463)所示。
 
 #### KPFusedSparseDynamicStitch算子
 
-**原生子图结构**
+**开源子图结构**
 
-![KPFusedSparseDynamicStitch](figures/KPFusedSparseDynamicStitch.png "KPFusedSparseDynamicStitch 原生算子子图")
+![KPFusedSparseDynamicStitch](figures/KPFusedSparseDynamicStitch.png "KPFusedSparseDynamicStitch 开源算子子图")
 
 **输入输出约束**
 
@@ -366,9 +366,9 @@ ANNC静态图融合软件架构图如[图4](#fig4919356463)所示。
 
 #### KPFusedSparseReshape算子
 
-**原生子图结构**
+**开源子图结构**
 
-![KPFusedSparseReshape](figures/KPFusedSparseReshape.png "KPFusedSparseReshape 原生算子子图")
+![KPFusedSparseReshape](figures/KPFusedSparseReshape.png "KPFusedSparseReshape 开源算子子图")
 
 **输入输出约束**
 
@@ -386,9 +386,9 @@ ANNC静态图融合软件架构图如[图4](#fig4919356463)所示。
 
 #### KPFusedSparseSegmentReduce算子
 
-**原生子图结构**
+**开源子图结构**
 
-![KPFusedSparseSegmentReduce](figures/KPFusedSparseSegmentReduce.png "KPFusedSparseSegmentReduce 原生算子子图")
+![KPFusedSparseSegmentReduce](figures/KPFusedSparseSegmentReduce.png "KPFusedSparseSegmentReduce 开源算子子图")
 
 **输入输出约束**
 
@@ -407,9 +407,9 @@ ANNC静态图融合软件架构图如[图4](#fig4919356463)所示。
 
 #### KPFusedSparseSegmentReduceNonzero算子
 
-**原生子图结构**
+**开源子图结构**
 
-![KPFusedSparseSegmentReduceNonzero](figures/KPFusedSparseSegmentReduceNonzero.png "KPFusedSparseSegmentReduceNonzero 原生算子子图")
+![KPFusedSparseSegmentReduceNonzero](figures/KPFusedSparseSegmentReduceNonzero.png "KPFusedSparseSegmentReduceNonzero 开源算子子图")
 
 **输入输出约束**
 
@@ -428,9 +428,9 @@ ANNC静态图融合软件架构图如[图4](#fig4919356463)所示。
 
 #### KPFusedSparseSelect算子
 
-**原生子图结构**
+**开源子图结构**
 
-![KPFusedSparseSelect](figures/KPFusedSparseSelect.png "KPFusedSparseSelect原生算子子图")
+![KPFusedSparseSelect](figures/KPFusedSparseSelect.png "KPFusedSparseSelect开源算子子图")
 
 **输入输出约束**
 
@@ -451,7 +451,7 @@ ANNC静态图融合软件架构图如[图4](#fig4919356463)所示。
 | 输出3    | float    |
 
 > ![icon note](public_sys-resources/icon-note.gif) **说明：**
-> 开启Embedding算子融合条件下，如果存在符合要求的子图则会在图优化阶段替换为对应的自定义算子，否则使用TensorFlow原生接口。
+> 开启Embedding算子融合条件下，如果存在符合要求的子图则会在图优化阶段替换为对应的自定义算子，否则使用TensorFlow开源接口。
 
 ### 应用场景
 
