@@ -68,6 +68,6 @@
     }
   ],
   "tooling_patterns": [
-    "patches/V2.20.0/**"
+    "patches/Tensorflow_V2.20.0/**"
   ]
 }
