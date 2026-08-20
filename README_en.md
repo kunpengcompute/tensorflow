@@ -27,7 +27,7 @@ default profiles and are not guaranteed to work with the maintained patches.
 | KEmbedding custom operator | Maintained | Provides EmbeddingTableLookup for recommendation inference workloads. |
 | Runtime, old fused embedding, and old XLA execution | Legacy | Published as a standalone frozen patch outside the default profiles. |
 
-For details about Kunpeng TensorFlow features, see [Feature Introduction](./docs/en/V2.15.0/feature_introduction.md).
+For details about Kunpeng TensorFlow features, see [Feature Introduction](./docs/en/Tensorflow_V2.15.0/feature_introduction.md).
 
 ## Patch Release
 
@@ -40,9 +40,9 @@ All patches use the pinned official TensorFlow `v2.15.0` commit `6887368d6d46223
 | `kdnn-annc` | common + kdnn + annc | KDNN plus ANNC static graph fusion. |
 | `full-default` | common + kdnn + annc + kembedding | All currently maintained features, including KEmbedding. |
 
-The maintained series generates `tensorflow/feature_copts.bzl` for each feature set. Use [`patches/prepare_source.py`](./patches/V2.15.0/README_en.md) to create a buildable source tree.
+The maintained series generates `tensorflow/feature_copts.bzl` for each feature set. Use [`patches/prepare_source.py`](./patches/Tensorflow_V2.15.0/README_en.md) to create a buildable source tree.
 
-The Legacy patch applies independently to the official baseline. It does not depend on `common` and is not guaranteed to work with other patches. See the [Patch Release](./patches/V2.15.0/README_en.md) document for details.
+The Legacy patch applies independently to the official baseline. It does not depend on `common` and is not guaranteed to work with other patches. See the [Patch Release](./patches/Tensorflow_V2.15.0/README_en.md) document for details.
 
 ## Directory Structure
 
@@ -69,7 +69,7 @@ tensorflow
 
 ## Version Description
 
-For details about the updates of the Kunpeng TensorFlow version, see [Release Notes](./docs/en/V2.15.0/release_notes.md).
+For details about the updates of the Kunpeng TensorFlow version, see [Release Notes](./docs/en/Tensorflow_V2.15.0/release_notes.md).
 
 ## Documents
 
@@ -82,23 +82,23 @@ For details about the updates of the Kunpeng TensorFlow version, see [Release No
 </thead>
 <tbody>
 <tr id="row179181137112015">
-<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p2091893722011"><a href="./docs/en/V2.15.0/release_notes.md">Release Notes</a></p></td>
+<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p2091893722011"><a href="./docs/en/Tensorflow_V2.15.0/release_notes.md">Release Notes</a></p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">Provides basic information and feature updates of each Kunpeng TensorFlow release.</p></td>
 </tr>
 <tr id="row179181137112015">
-<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p2091893722011"><a href="./docs/en/V2.15.0/feature_introduction.md">Feature Introduction</a></p></td>
+<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p2091893722011"><a href="./docs/en/Tensorflow_V2.15.0/feature_introduction.md">Feature Introduction</a></p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p491893752010">Describes the Kunpeng TensorFlow features.</p></td>
 </tr>
 <tr id="row939116371143">
-<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p03913372046"><a href="./docs/en/V2.15.0/quick_start.md">Quick Start</a></p></td>
+<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p03913372046"><a href="./docs/en/Tensorflow_V2.15.0/quick_start.md">Quick Start</a></p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p1139217371746">Provides guidance for getting started with Kunpeng TensorFlow.</p></td>
 </tr>
 <tr id="row2918153732017">
-<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p17918337172020"><a href="./docs/en/V2.15.0/installation_guide.md">Installation Guide</a></p></td>
+<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p17918337172020"><a href="./docs/en/Tensorflow_V2.15.0/installation_guide.md">Installation Guide</a></p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p15918183742018">Describes how to compile and install Kunpeng TensorFlow.</p></td>
 </tr>
 <tr id="row2918153732017">
-<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p17918337172020"><a href="./docs/en/V2.15.0/api_reference.md">API Reference</a></p></td>
+<td class="cellrowborder" valign="top" width="17.64176417641764%" headers="mcps1.1.4.1.2"><p id="p17918337172020"><a href="./docs/en/Tensorflow_V2.15.0/api_reference.md">API Reference</a></p></td>
 <td class="cellrowborder" valign="top" width="72.57725772577258%" headers="mcps1.1.4.1.3"><p id="p15918183742018">Describes how to use Kunpeng TensorFlow APIs.</p></td>
 </tr>
 </tbody>

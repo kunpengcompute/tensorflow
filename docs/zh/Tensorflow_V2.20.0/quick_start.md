@@ -19,12 +19,12 @@
 3. 创建完整默认特性的TensorFlow源码。
 
    ```bash
-   python3 patches/V2.20.0/prepare_source.py \
+   python3 patches/Tensorflow_V2.20.0/prepare_source.py \
      --feature-set full-default \
      --output-dir ../tensorflow-full-default
    ```
 
-   其他可用组合的使用指导，请参见《[补丁发布说明](../../../patches/V2.20.0/README.md)》。
+   其他可用组合的使用指导，请参见《[补丁发布说明](../../../patches/Tensorflow_V2.20.0/README.md)》。
 
 4. 根据实际使用场景选择需要的构建目标，无需同时构建全部目标。以下提供pip构建目标的参考命令。
 

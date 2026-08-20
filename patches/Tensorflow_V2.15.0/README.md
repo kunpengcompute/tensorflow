@@ -35,7 +35,7 @@ cd kunpeng-tensorflow
 git remote add tensorflow-upstream https://github.com/tensorflow/tensorflow.git
 git fetch tensorflow-upstream refs/tags/v2.15.0:refs/tags/v2.15.0
 
-python3 patches/V2.15.0/prepare_source.py \
+python3 patches/Tensorflow_V2.15.0/prepare_source.py \
   --feature-set kdnn-core \
   --output-dir ../tensorflow-kdnn-core
 ```
@@ -73,7 +73,7 @@ bazel --output_base="$PWD/output" build \
 执行以下命令检查补丁完整性。
 
 ```bash
-cd patches/V2.15.0
+cd patches/Tensorflow_V2.15.0
 sha256sum -c SHA256SUMS
 ```
 
