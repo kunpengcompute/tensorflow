@@ -1,5 +1,7 @@
 # Introduction to Kunpeng TensorFlow
 
+English|[简体中文](./README.md)
+
 ## Latest Updates
 
 - [2026-09-30]: Added the KEmbedding custom operator library with EmbeddingTableLookup and added KDNN SparseMatmul multithreading optimization. Restructured patch releases into maintained common, KDNN, ANNC static graph fusion, and KEmbedding groups; and froze runtime, the old fused embedding implementation, and old XLA execution features in a standalone Legacy patch.
