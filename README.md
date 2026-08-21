@@ -1,18 +1,14 @@
 # 鲲鹏TensorFlow介绍
 
+简体中文|[English](./README_en.md)
+
 ## 最新消息
 
-### V2.15.0
-
-- \[2026.09.30\]：新增KEmbedding自定义算子库，提供EmbeddingTableLookup算子；新增KDNN SparseMatmul多线程优化；重构补丁发布方式，按公共构建集成（common）、KDNN算子优化、ANNC静态图融合和KEmbedding自定义算子四个维度进行拆分和补丁维护，将Runtime、旧融合Embedding及旧XLA执行能力冻结为独立Legacy补丁。
-- \[2026.06.30\]：新增TensorFlow ANNC静态图融合特性, 适配鲲鹏950 7592C处理器，支持KPFusedGather、KPFusedSparseReshape等算子；TensorFlow ANNC图编译优化特性新增常量折叠优化，适配鲲鹏950 7592C处理器。
-- \[2026.03.30\]：新增TensorFlow KDNN线程直通特性, 支持batchmatmul、concat、softmax等算子对接KDNN。
-- \[2025.09.30\]：新增TensorFlow ANNC图编译优化特性，提供计算图优化，高性能融合算子生成与对接等优化技术。
+- \[2026.09.30\]：Tensorflow V2.20.0新增FlashAttentionGraphOptimization(FAGO)静态图融合特性，支持FlashAttentionForward算子。Tensorflow V2.15.0新增KEmbedding自定义算子库，提供EmbeddingTableLookup算子；新增KDNN SparseMatmul多线程优化；重构补丁发布方式，按公共构建集成（common）、KDNN算子优化、ANNC静态图融合和KEmbedding自定义算子四个维度进行拆分和补丁维护，将Runtime、旧融合Embedding及旧XLA执行能力冻结为独立Legacy补丁。
+- \[2026.06.30\]：Tensorflow V2.15.0新增TensorFlow ANNC静态图融合特性, 适配鲲鹏950 7592C处理器，支持KPFusedGather、KPFusedSparseReshape等算子；TensorFlow ANNC图编译优化特性新增常量折叠优化，适配鲲鹏950 7592C处理器。
+- \[2026.03.30\]：Tensorflow V2.15.0新增TensorFlow KDNN线程直通特性, 支持batchmatmul、concat、softmax等算子对接KDNN。
+- \[2025.09.30\]：Tensorflow V2.15.0新增TensorFlow ANNC图编译优化特性，提供计算图优化，高性能融合算子生成与对接等优化技术。
 - \[2025.06.30\]：TensorFlow Serving线程调度优化特性首次发布。
-
-### V2.20.0
-
-- \[2026.09.30\]：新增FlashAttentionGraphOptimization(FAGO)静态图融合特性，支持FlashAttentionForward算子。
 
 ## 项目介绍
 
@@ -21,52 +17,6 @@
 当前维护的补丁系列覆盖公共构建集成（common）、KDNN算子优化、ANNC静态图融合，以及KEmbedding自定义算子。
 
 历史Runtime调度、旧融合Embedding和旧XLA执行等功能已冻结为独立Legacy补丁。Legacy补丁不属于当前维护的默认特性组合，也不保证与其他特性补丁兼容。
-
-## Tensorflow V2.15.0特性介绍
-
-| 特性 | 状态 | 简介 |
-| --- | --- | --- |
-| KDNN线程直通 | 维护中 | 将TensorFlow线程池透传到KDNN算子库，减少线程调度开销。 |
-| KDNN SparseMatmul多线程优化 | 维护中 | 通过数据并行、无锁设计和负载均衡降低稀疏矩阵乘法耗时。 |
-| ANNC静态图融合 | 维护中 | 通过remapper机制将符合固定结构的Embedding子图替换为融合算子。 |
-| KEmbedding自定义算子 | 维护中 | 提供面向推荐推理场景的EmbeddingTableLookup算子。 |
-| Runtime、旧融合Embedding及旧XLA执行优化 | Legacy | 作为独立冻结补丁提供，不进入当前默认组合。 |
-
-关于鲲鹏TensorFlow V2.15.0的特性详细介绍请参见《[特性介绍](./docs/zh/Tensorflow_V2.15.0/feature_introduction.md)》。
-
-## Tensorflow V2.20.0特性介绍
-
-| 特性 | 状态 | 简介 |
-| --- | --- | --- |
-| FlashAttentionGraphOptimization(FAGO)静态图融合 | 维护中 | 提供面向推荐推理场景的FlashAttentionForward算子。 |
-
-关于鲲鹏TensorFlow V2.20.0的特性详细介绍请参见《[特性介绍](./docs/zh/Tensorflow_V2.20.0/feature_introduction.md)》。
-
-## Tensorflow V2.15.0补丁发布说明
-
-所有补丁均基于官方TensorFlow `v2.15.0`固定提交`6887368d6d46223f460358323c4b76d61d1558a8`。
-
-| 配置 | 包含的补丁 | 适用场景 |
-| --- | --- | --- |
-| `common-only` | common | 只包含构建和兼容性改动，不启用加速特性。 |
-| `kdnn-core` | common + KDNN | 启用KDNN算子优化，推荐作为基础版本。 |
-| `kdnn-annc` | common + KDNN + ANNC | 在KDNN基础上增加ANNC静态图融合。 |
-| `full-default` | common + KDNN + ANNC + KEmbedding | 启用当前维护的全部特性，包括KEmbedding自定义算子。 |
-
-当前维护的补丁系列需要按特性组合生成 `tensorflow/feature_copts.bzl`，请参见`patches`目录下的《[README](./patches/Tensorflow_V2.15.0/README.md)》构建源码。
-
-Legacy补丁只允许独立应用到官方基线，不依赖公共构建集成（common），也不保证与其他补丁兼容。详细说明请参见《[README](./patches/Tensorflow_V2.15.0/README.md)》。
-
-## Tensorflow V2.20.0.补丁发布说明
-
-所有补丁均基于官方TensorFlow `v2.20.0`固定提交`bf5899deaf70fa45173c5c7b8dc9ace8824dc980`。
-
-| 配置 | 包含的补丁 | 适用场景 |
-| --- | --- | --- |
-| `common-only` | common | 只包含构建和兼容性改动，不启用加速特性。|
-| `fago` | common+FAGO | 启用FlashAttention融合算子优化。 |
-
-当前维护的补丁系列需要按特性组合生成 `tensorflow/feature_copts.bzl`，请参见`patches`目录下的《[README](./patches/Tensorflow_V2.20.0/README.md)》构建源码。
 
 ## 目录结构
 
@@ -121,6 +71,56 @@ tensorflow
             ├── installation_guide.md                   # 安装指导
             └── feature_introduction.md                 # 特性介绍    
 ```
+
+## Tensorflow V2.15.0
+
+### Tensorflow V2.15.0特性介绍
+
+| 特性 | 状态 | 简介 |
+| --- | --- | --- |
+| KDNN线程直通 | 维护中 | 将TensorFlow线程池透传到KDNN算子库，减少线程调度开销。 |
+| KDNN SparseMatmul多线程优化 | 维护中 | 通过数据并行、无锁设计和负载均衡降低稀疏矩阵乘法耗时。 |
+| ANNC静态图融合 | 维护中 | 通过remapper机制将符合固定结构的Embedding子图替换为融合算子。 |
+| KEmbedding自定义算子 | 维护中 | 提供面向推荐推理场景的EmbeddingTableLookup算子。 |
+| Runtime、旧融合Embedding及旧XLA执行优化 | Legacy | 作为独立冻结补丁提供，不进入当前默认组合。 |
+
+关于鲲鹏TensorFlow V2.15.0的特性详细介绍请参见《[特性介绍](./docs/zh/Tensorflow_V2.15.0/feature_introduction.md)》。
+
+### Tensorflow V2.15.0补丁发布说明
+
+所有补丁均基于官方TensorFlow `v2.15.0`固定提交`6887368d6d46223f460358323c4b76d61d1558a8`。
+
+| 配置 | 包含的补丁 | 适用场景 |
+| --- | --- | --- |
+| `common-only` | common | 只包含构建和兼容性改动，不启用加速特性。 |
+| `kdnn-core` | common + KDNN | 启用KDNN算子优化，推荐作为基础版本。 |
+| `kdnn-annc` | common + KDNN + ANNC | 在KDNN基础上增加ANNC静态图融合。 |
+| `full-default` | common + KDNN + ANNC + KEmbedding | 启用当前维护的全部特性，包括KEmbedding自定义算子。 |
+
+当前维护的补丁系列需要按特性组合生成 `tensorflow/feature_copts.bzl`，请参见`patches`目录下的《[README](./patches/Tensorflow_V2.15.0/README.md)》构建源码。
+
+Legacy补丁只允许独立应用到官方基线，不依赖公共构建集成（common），也不保证与其他补丁兼容。详细说明请参见《[README](./patches/Tensorflow_V2.15.0/README.md)》。
+
+## Tensorflow V2.20.0
+
+### Tensorflow V2.20.0特性介绍
+
+| 特性 | 状态 | 简介 |
+| --- | --- | --- |
+| FlashAttentionGraphOptimization(FAGO)静态图融合 | 维护中 | 提供面向推荐推理场景的FlashAttentionForward算子。 |
+
+关于鲲鹏TensorFlow V2.20.0的特性详细介绍请参见《[特性介绍](./docs/zh/Tensorflow_V2.20.0/feature_introduction.md)》。
+
+### Tensorflow V2.20.0.补丁发布说明
+
+所有补丁均基于官方TensorFlow `v2.20.0`固定提交`bf5899deaf70fa45173c5c7b8dc9ace8824dc980`。
+
+| 配置 | 包含的补丁 | 适用场景 |
+| --- | --- | --- |
+| `common-only` | common | 只包含构建和兼容性改动，不启用加速特性。|
+| `fago` | common+FAGO | 启用FlashAttention融合算子优化。 |
+
+当前维护的补丁系列需要按特性组合生成 `tensorflow/feature_copts.bzl`，请参见`patches`目录下的《[README](./patches/Tensorflow_V2.20.0/README.md)》构建源码。
 
 ## 版本说明
 
