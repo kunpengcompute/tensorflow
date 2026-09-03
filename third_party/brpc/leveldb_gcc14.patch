@@ -1,0 +1,12 @@
+diff --git a/util/status.cc b/util/status.cc
+index e9c2d99..4e16671 100644
+--- a/util/status.cc
++++ b/util/status.cc
+@@ -5,6 +5,7 @@
+ #include "leveldb/status.h"
+ 
+ #include <cstdio>
++#include <cstdint>
+ 
+ #include "port/port.h"
+ 
