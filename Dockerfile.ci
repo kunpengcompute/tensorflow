@@ -36,13 +36,15 @@ RUN bazel --version
 WORKDIR /workspace/tensorflow
 COPY . .
 
+ARG BAZEL_JOBS=64
+
 RUN mkdir -p /workspace/download
 
-# 构建 TensorFlow wheel
-RUN bazel         --output_user_root=./output         build         --experimental_repo_remote_exec         --repository_cache=/workspace/repo_cache         --distdir=/workspace/download         --cxxopt=-std=c++17         --host_cxxopt=-std=c++17         --copt=-march=armv8.5-a         --host_copt=-march=armv8.5-a         --linkopt=-Wl,--stub-group-size=0x2000000         --action_env=http_proxy=http://127.0.0.1:11082         --action_env=https_proxy=http://127.0.0.1:11082         --action_env=no_proxy=localhost,127.0.0.1         --repo_env=PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/         --repo_env=PIP_TRUSTED_HOST=mirrors.aliyun.com         --check_direct_dependencies=off         -c opt         //tensorflow/tools/pip_package:wheel
+# 构建 TensorFlow wheel 和 predictor_server 测试框架
+RUN bazel         --output_user_root=./output         build         --jobs=${BAZEL_JOBS}         --experimental_repo_remote_exec         --repository_cache=/workspace/repo_cache         --distdir=/workspace/download         --cxxopt=-std=c++17         --host_cxxopt=-std=c++17         --copt=-march=armv8.5-a         --host_copt=-march=armv8.5-a         --linkopt=-Wl,--stub-group-size=0x2000000         --linkopt=-lssl         --linkopt=-lcrypto         --linkopt=-lsnappy         --action_env=http_proxy=http://127.0.0.1:11082         --action_env=https_proxy=http://127.0.0.1:11082         --action_env=no_proxy=localhost,127.0.0.1         --action_env=TF_SYSTEM_LIBS=boringssl,snappy         --define=use_system_libs=openssl         --repo_env=PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/         --repo_env=PIP_TRUSTED_HOST=mirrors.aliyun.com         --check_direct_dependencies=off         -c opt         //tensorflow/tools/pip_package:wheel         //:predictor_server         //:brpc_client
 
-# 复制 wheel 到输出目录
-RUN mkdir -p /workspace/dist &&     find ./output -name "tensorflow-*.whl" -exec cp {} /workspace/dist/ \;
+# 复制 wheel 和测试框架二进制到输出目录
+RUN mkdir -p /workspace/dist &&     find ./output -name "tensorflow-*.whl" -exec cp {} /workspace/dist/ \; &&     cp -L bazel-bin/predictor_server bazel-bin/brpc_client /workspace/dist/
 
 # 清除整个 tensorflow 目录（保留 repo_cache 在 /workspace）
 RUN rm -rf /workspace/tensorflow &&     echo "清理完成，repo_cache 已保存在 /workspace/repo_cache"
