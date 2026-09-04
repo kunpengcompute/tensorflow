@@ -38,6 +38,8 @@
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/platform/types.h"
 
+#include "dummy_tf_utils.h"
+
 using tensorflow::Flag;
 using tensorflow::string;
 using tensorflow::Tensor;
@@ -51,9 +53,6 @@ DECLARE_int32(trace_timing_max_requests);
 static const size_t kLoadSessionThreadPoolIndex = 0;
 static const size_t kRunSessionThreadPoolIndex = 1;
 
-// Default batch size for dynamic dimensions (marked as -1 in TensorShape)
-static const int64_t kDefaultBatchSize = 1;
-
 using Clock = std::chrono::steady_clock;
 
 int64_t MicrosSince(const Clock::time_point& start) {
@@ -61,59 +60,51 @@ int64_t MicrosSince(const Clock::time_point& start) {
       Clock::now() - start).count();
 }
 
-// convert TensorShapeProto to TensorShape
-TensorShape ConvertToTensorShape(const tensorflow::TensorShapeProto& shape_proto) {
-  std::vector<int64_t> dims;
-  for (const auto& dim : shape_proto.dim()) {
-    int64_t size = dim.size();
-    // Replace dynamic dimension (-1) with default batch size
-    if (size <= 0) {
-      size = kDefaultBatchSize;
-    }
-    dims.push_back(size);
+template <typename T>
+using UniformRealDistribution = std::uniform_real_distribution<T>;
+
+template <typename T>
+using UniformIntDistribution = std::uniform_int_distribution<T>;
+
+inline std::mt19937& MockTensorRandomGenerator() {
+  static std::random_device random_device;
+  static std::mt19937 random_generator(random_device());
+  return random_generator;
+}
+
+template <typename TensorType, typename Distribution, typename Boundary>
+void FillRandomTensor(Tensor* tensor, Boundary minimum, Boundary maximum) {
+  Distribution distribution(minimum, maximum);
+  auto values = tensor->flat<TensorType>();
+  for (int64_t index = 0; index < values.size(); ++index) {
+    values(index) = static_cast<TensorType>(
+        distribution(MockTensorRandomGenerator()));
   }
-  return TensorShape(dims);
 }
 
 // create a mock tensor with the given dtype and shape
 Tensor CreateMockTensor(DataType dtype, const TensorShape& shape) {
   Tensor tensor(dtype, shape);
 
-  // Initialize random generator
-  static std::random_device rd;
-  static std::mt19937 gen(rd());
-
   switch (dtype) {
     case tensorflow::DT_FLOAT: {
-      std::uniform_real_distribution<float> dist(0.0f, 1.0f);
-      auto flat = tensor.flat<float>();
-      for (int64_t i = 0; i < flat.size(); ++i) {
-        flat(i) = dist(gen);
-      }
+      FillRandomTensor<float, UniformRealDistribution<float>>(
+          &tensor, 0.0f, 1.0f);
       break;
     }
     case tensorflow::DT_DOUBLE: {
-      std::uniform_real_distribution<double> dist(0.0, 1.0);
-      auto flat = tensor.flat<double>();
-      for (int64_t i = 0; i < flat.size(); ++i) {
-        flat(i) = dist(gen);
-      }
+      FillRandomTensor<double, UniformRealDistribution<double>>(
+          &tensor, 0.0, 1.0);
       break;
     }
     case tensorflow::DT_INT32: {
-      std::uniform_int_distribution<int32_t> dist(0, 100);
-      auto flat = tensor.flat<int32_t>();
-      for (int64_t i = 0; i < flat.size(); ++i) {
-        flat(i) = dist(gen);
-      }
+      FillRandomTensor<int32_t, UniformIntDistribution<int32_t>>(
+          &tensor, 0, 100);
       break;
     }
     case tensorflow::DT_INT64: {
-      std::uniform_int_distribution<int64_t> dist(0, 100);
-      auto flat = tensor.flat<int64_t>();
-      for (int64_t i = 0; i < flat.size(); ++i) {
-        flat(i) = dist(gen);
-      }
+      FillRandomTensor<int64_t, UniformIntDistribution<int64_t>>(
+          &tensor, 0, 100);
       break;
     }
     case tensorflow::DT_STRING: {
@@ -124,59 +115,37 @@ Tensor CreateMockTensor(DataType dtype, const TensorShape& shape) {
       break;
     }
     case tensorflow::DT_BOOL: {
-      std::uniform_int_distribution<int> dist(0, 1);
-      auto flat = tensor.flat<bool>();
-      for (int64_t i = 0; i < flat.size(); ++i) {
-        flat(i) = dist(gen) == 1;
-      }
+      FillRandomTensor<bool, UniformIntDistribution<int>>(&tensor, 0, 1);
       break;
     }
     case tensorflow::DT_INT8: {
-      std::uniform_int_distribution<int> dist(-128, 127);
-      auto flat = tensor.flat<int8_t>();
-      for (int64_t i = 0; i < flat.size(); ++i) {
-        flat(i) = static_cast<int8_t>(dist(gen));
-      }
+      FillRandomTensor<int8_t, UniformIntDistribution<int>>(
+          &tensor, -128, 127);
       break;
     }
     case tensorflow::DT_UINT8: {
-      std::uniform_int_distribution<int> dist(0, 255);
-      auto flat = tensor.flat<uint8_t>();
-      for (int64_t i = 0; i < flat.size(); ++i) {
-        flat(i) = static_cast<uint8_t>(dist(gen));
-      }
+      FillRandomTensor<uint8_t, UniformIntDistribution<int>>(
+          &tensor, 0, 255);
       break;
     }
     case tensorflow::DT_INT16: {
-      std::uniform_int_distribution<int16_t> dist(-1000, 1000);
-      auto flat = tensor.flat<int16_t>();
-      for (int64_t i = 0; i < flat.size(); ++i) {
-        flat(i) = dist(gen);
-      }
+      FillRandomTensor<int16_t, UniformIntDistribution<int16_t>>(
+          &tensor, -1000, 1000);
       break;
     }
     case tensorflow::DT_UINT16: {
-      std::uniform_int_distribution<uint16_t> dist(0, 1000);
-      auto flat = tensor.flat<uint16_t>();
-      for (int64_t i = 0; i < flat.size(); ++i) {
-        flat(i) = dist(gen);
-      }
+      FillRandomTensor<uint16_t, UniformIntDistribution<uint16_t>>(
+          &tensor, 0, 1000);
       break;
     }
     case tensorflow::DT_UINT32: {
-      std::uniform_int_distribution<uint32_t> dist(0, 100);
-      auto flat = tensor.flat<uint32_t>();
-      for (int64_t i = 0; i < flat.size(); ++i) {
-        flat(i) = dist(gen);
-      }
+      FillRandomTensor<uint32_t, UniformIntDistribution<uint32_t>>(
+          &tensor, 0, 100);
       break;
     }
     case tensorflow::DT_UINT64: {
-      std::uniform_int_distribution<uint64_t> dist(0, 100);
-      auto flat = tensor.flat<uint64_t>();
-      for (int64_t i = 0; i < flat.size(); ++i) {
-        flat(i) = dist(gen);
-      }
+      FillRandomTensor<uint64_t, UniformIntDistribution<uint64_t>>(
+          &tensor, 0, 100);
       break;
     }
     default: {
@@ -188,34 +157,6 @@ Tensor CreateMockTensor(DataType dtype, const TensorShape& shape) {
     }
   }
 
-  return tensor;
-}
-
-std::vector<string> SplitBatchModelInput(const string& request_message) {
-  std::vector<string> batch;
-  std::stringstream ss(request_message);
-  string line;
-  while (std::getline(ss, line)) {
-    if (!line.empty() && line.back() == '\r') {
-      line.pop_back();
-    }
-    if (!line.empty()) {
-      batch.emplace_back(std::move(line));
-    }
-  }
-  if (batch.empty()) {
-    batch.emplace_back(request_message);
-  }
-  return batch;
-}
-
-Tensor CreateStringBatchTensor(const std::vector<string>& values) {
-  const int64_t batch_size = std::max<int64_t>(1, values.size());
-  Tensor tensor(tensorflow::DT_STRING, TensorShape({batch_size}));
-  auto flat = tensor.flat<tensorflow::tstring>();
-  for (int64_t i = 0; i < flat.size(); ++i) {
-    flat(i) = values[static_cast<size_t>(i)];
-  }
   return tensor;
 }
 

@@ -34,7 +34,20 @@
 #include <thread>
 #include <utility>
 #include <vector>
+
+#include "brpc_client_utils.h"
 #include "dummy.pb.h"
+
+using predictor::BenchmarkSummary;
+using predictor::BuildBenchmarkSummary;
+using predictor::BuildRequestMessage;
+using predictor::CalculateP99;
+using predictor::RealtimeStats;
+using predictor::RecordDropped;
+using predictor::ResolveMaxInflight;
+using predictor::ThreadStats;
+using predictor::TrimCarriageReturn;
+using predictor::TryReserveInflight;
 
 DEFINE_string(attachment, "", "Carry this along with requests");
 DEFINE_string(protocol, "baidu_std", "Protocol type. Defined in src/brpc/options.proto");
@@ -56,38 +69,6 @@ DEFINE_int32(max_inflight, 0,
              "Maximum in-flight RPC requests. 0 means derive from max_qps and timeout_ms, "
              "or thread_num when max_qps is unlimited");
 DEFINE_bool(log_each_latency, false, "Log every completed RPC latency");
-
-struct ThreadStats {
-    std::atomic<uint64_t> total{0};
-    std::atomic<uint64_t> success{0};
-    std::atomic<uint64_t> failure{0};
-    std::atomic<uint64_t> dropped{0};
-    std::vector<int64_t> latencies_us;
-    mutable std::mutex latencies_mutex;  // 保护 latencies_us 的并发访问
-
-    // 禁用拷贝，允许移动
-    ThreadStats() = default;
-    ThreadStats(const ThreadStats&) = delete;
-    ThreadStats& operator=(const ThreadStats&) = delete;
-    ThreadStats(ThreadStats&&) = default;
-    ThreadStats& operator=(ThreadStats&&) = default;
-};
-
-// Real-time stats for monitoring (updated periodically by workers)
-struct RealtimeStats {
-    std::atomic<uint64_t> total{0};
-    std::atomic<uint64_t> success{0};
-    std::atomic<uint64_t> failure{0};
-    std::atomic<uint64_t> dropped{0};
-    std::atomic<uint64_t> latency_sum_us{0};  // For calculating avg latency
-};
-
-std::string TrimCarriageReturn(std::string value) {
-    if (!value.empty() && value.back() == '\r') {
-        value.pop_back();
-    }
-    return value;
-}
 
 std::vector<std::string> LoadBenchmarkInputs(const std::string& path,
                                              bool has_header) {
@@ -137,80 +118,6 @@ std::vector<std::string> LoadBenchmarkInputs(const std::string& path,
     return inputs;
 }
 
-std::string BuildRequestMessage(const std::vector<std::string>& messages,
-                                std::atomic<uint64_t>* next_message_index,
-                                int batch_size) {
-    std::string request_message;
-    for (int i = 0; i < batch_size; ++i) {
-        const uint64_t message_index =
-            next_message_index->fetch_add(1, std::memory_order_relaxed);
-        if (!request_message.empty()) {
-            request_message.push_back('\n');
-        }
-        request_message.append(messages[message_index % messages.size()]);
-    }
-    return request_message;
-}
-
-// Helper to calculate P99 from thread stats
-int64_t CalculateP99(const std::vector<ThreadStats>& stats) {
-    std::vector<int64_t> all_latencies;
-    for (const auto& stat : stats) {
-        std::lock_guard<std::mutex> lock(stat.latencies_mutex);
-        all_latencies.insert(all_latencies.end(),
-                             stat.latencies_us.begin(),
-                             stat.latencies_us.end());
-    }
-    if (all_latencies.empty()) {
-        return 0;
-    }
-    std::sort(all_latencies.begin(), all_latencies.end());
-    const size_t p99_index = static_cast<size_t>(
-        std::ceil(all_latencies.size() * 0.99)) - 1;
-    return all_latencies[std::min(p99_index, all_latencies.size() - 1)];
-}
-
-// Benchmark report
-struct BenchmarkSummary {
-    uint64_t total_requests = 0;
-    uint64_t total_success = 0;
-    uint64_t total_failure = 0;
-    uint64_t total_dropped = 0;
-    double avg_latency_us = 0.0;
-    int64_t p99_latency_us = 0;
-};
-
-BenchmarkSummary BuildBenchmarkSummary(const std::vector<ThreadStats>& stats) {
-    BenchmarkSummary summary;
-    std::vector<int64_t> all_latencies;
-
-    for (const auto& stat : stats) {
-        summary.total_requests += stat.total.load(std::memory_order_relaxed);
-        summary.total_success += stat.success.load(std::memory_order_relaxed);
-        summary.total_failure += stat.failure.load(std::memory_order_relaxed);
-        summary.total_dropped += stat.dropped.load(std::memory_order_relaxed);
-        std::lock_guard<std::mutex> lock(stat.latencies_mutex);
-        all_latencies.insert(all_latencies.end(),
-                             stat.latencies_us.begin(),
-                             stat.latencies_us.end());
-    }
-
-    if (all_latencies.empty()) {
-        return summary;
-    }
-
-    const int64_t total_latency = std::accumulate(
-        all_latencies.begin(), all_latencies.end(), static_cast<int64_t>(0));
-    summary.avg_latency_us = static_cast<double>(total_latency) /
-                             static_cast<double>(all_latencies.size());
-
-    std::sort(all_latencies.begin(), all_latencies.end());
-    const size_t p99_index = static_cast<size_t>(
-        std::ceil(all_latencies.size() * 0.99)) - 1;
-    summary.p99_latency_us = all_latencies[std::min(p99_index, all_latencies.size() - 1)];
-    return summary;
-}
-
 void ReportBenchmarkStats(const std::vector<ThreadStats>& stats,
                           std::chrono::steady_clock::time_point start_time,
                           double target_duration_s) {
@@ -244,42 +151,6 @@ void ReportBenchmarkStats(const std::vector<ThreadStats>& stats,
               << "----------------------------";
 }
 
-
-int ResolveMaxInflight(double max_qps, int thread_num) {
-    if (FLAGS_max_inflight > 0) {
-        return FLAGS_max_inflight;
-    }
-    if (max_qps > 0 && FLAGS_timeout_ms > 0) {
-        return std::max(1, static_cast<int>(
-            std::ceil(max_qps * static_cast<double>(FLAGS_timeout_ms) / 1000.0)));
-    }
-    return std::max(1, thread_num);
-}
-
-bool TryReserveInflight(std::atomic<int>* inflight, int max_inflight) {
-    int current = inflight->load(std::memory_order_relaxed);
-    while (current < max_inflight) {
-        if (inflight->compare_exchange_weak(
-                current, current + 1, std::memory_order_acquire,
-                std::memory_order_relaxed)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-void RecordDropped(ThreadStats* stat, RealtimeStats* rt_stats) {
-    if (rt_stats != nullptr) {
-        rt_stats->total.fetch_add(1, std::memory_order_relaxed);
-        rt_stats->failure.fetch_add(1, std::memory_order_relaxed);
-        rt_stats->dropped.fetch_add(1, std::memory_order_relaxed);
-    }
-    if (stat != nullptr) {
-        stat->total.fetch_add(1, std::memory_order_relaxed);
-        stat->failure.fetch_add(1, std::memory_order_relaxed);
-        stat->dropped.fetch_add(1, std::memory_order_relaxed);
-    }
-}
 
 void HandleEchoResponse(brpc::Controller* cntl,
                         example::EchoRequest* request,
@@ -373,7 +244,8 @@ void RunEchoPhase(example::EchoService_Stub* stub,
 
     const auto start_time = std::chrono::steady_clock::now();
     const auto end_time = start_time + std::chrono::seconds(duration_s);
-    const int max_inflight = ResolveMaxInflight(max_qps, thread_num);
+    const int max_inflight = ResolveMaxInflight(
+        max_qps, thread_num, FLAGS_max_inflight, FLAGS_timeout_ms);
     LOG(INFO) << (record_stats ? "Load test" : "Warmup")
               << " RPC schedule: max_qps=" << max_qps
               << ", max_inflight=" << max_inflight

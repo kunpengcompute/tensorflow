@@ -353,15 +353,12 @@ run_mode() {
     kill "${mpid}" 2>/dev/null || true
     wait "${mpid}" 2>/dev/null || true
 
-    local avg_cpu_raw max_cpu_raw core_avg core_max avg_cpu max_cpu
+    local avg_cpu_raw core_avg avg_cpu
     avg_cpu_raw=$(awk -F, 'NR>1 {sum+=$2; n++} END {if(n) printf "%.2f", sum/n; else printf "0.00"}' "${prefix}.cpu.csv")
-    max_cpu_raw=$(awk -F, 'NR>1 {if($2>max) max=$2} END {printf "%.2f", max}' "${prefix}.cpu.csv")
     core_avg=$(awk -v c="${avg_cpu_raw}" 'BEGIN {printf "%.2f", c/100.0}')
-    core_max=$(awk -v c="${max_cpu_raw}" 'BEGIN {printf "%.2f", c/100.0}')
     avg_cpu=$(awk -v c="${avg_cpu_raw}" -v cores="${CPU_QUOTA_CORES}" 'BEGIN {if (cores > 0) printf "%.2f", c / cores; else printf "0.00"}')
-    max_cpu=$(awk -v c="${max_cpu_raw}" -v cores="${CPU_QUOTA_CORES}" 'BEGIN {if (cores > 0) printf "%.2f", c / cores; else printf "0.00"}')
 
-    local actual_qps total success failure dropped avg_lat p99
+    local actual_qps total success failure p99
     actual_qps=$(summary_field actual_success_qps "${prefix}.client.log")
     if [[ -z "${actual_qps}" ]]; then
       actual_qps=$(summary_field qps "${prefix}.client.log")
@@ -372,14 +369,11 @@ run_mode() {
     total=$(summary_field total "${prefix}.client.log")
     success=$(summary_field success "${prefix}.client.log")
     failure=$(summary_field failure "${prefix}.client.log")
-    dropped=$(summary_field dropped "${prefix}.client.log")
-    avg_lat=$(summary_field avg_latency_us "${prefix}.client.log")
     p99=$(summary_field p99_latency_us "${prefix}.client.log")
 
-    printf "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n" \
+    printf "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n" \
       "${mode}" "${dnn}" "${qps}" "${actual_qps}" "${total}" "${success}" \
-      "${failure}" "${dropped}" "${avg_lat}" "${p99}" "${avg_cpu}" \
-      "${max_cpu}" "${core_avg}" "${core_max}" | tee -a "${OUT_DIR}/results.csv"
+      "${failure}" "${p99}" "${avg_cpu}" "${core_avg}" | tee -a "${OUT_DIR}/results.csv"
   done
 
   kill "${spid}" 2>/dev/null || true
@@ -403,15 +397,15 @@ write_markdown() {
       return sprintf("%.2f%%", (base - opt) / base * 100.0)
     }
     BEGIN {
-      print "| Mode | DNN | Target QPS | Actual QPS | Success | Failure | Dropped | P99 latency (us) | Server CPU avg (% quota) | Server CPU max (% quota) | Server CPU avg cores | Server CPU max cores | P99 reduction vs baseline | Avg CPU reduction vs baseline |"
-      print "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
+      print "| Mode | DNN | Target QPS | Actual QPS | Success | Failure | P99 latency (us) | Server CPU avg (% quota) | Server CPU avg cores | P99 reduction vs baseline | Avg CPU reduction vs baseline |"
+      print "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
     }
     END {
       for (i = 1; i <= n; i++) {
         qps=order[i]
         split(rows["baseline", qps], b, ",")
         if (b[1] != "") {
-          print "| " b[1] " | " b[2] " | " b[3] " | " b[4] " | " b[6] " | " b[7] " | " b[8] " | " b[10] " | " b[11] " | " b[12] " | " b[13] " | " b[14] " | - | - |"
+          print "| " b[1] " | " b[2] " | " b[3] " | " b[4] " | " b[6] " | " b[7] " | " b[8] " | " b[9] " | " b[10] " | - | - |"
         }
       }
       for (i = 1; i <= n; i++) {
@@ -419,7 +413,7 @@ write_markdown() {
         split(rows["baseline", qps], b, ",")
         split(rows["dnn", qps], k, ",")
         if (k[1] != "") {
-          print "| " k[1] " | " k[2] " | " k[3] " | " k[4] " | " k[6] " | " k[7] " | " k[8] " | " k[10] " | " k[11] " | " k[12] " | " k[13] " | " k[14] " | " pct_reduction(b[10], k[10]) " | " pct_reduction(b[11], k[11]) " |"
+          print "| " k[1] " | " k[2] " | " k[3] " | " k[4] " | " k[6] " | " k[7] " | " k[8] " | " k[9] " | " k[10] " | " pct_reduction(b[8], k[8]) " | " pct_reduction(b[9], k[9]) " |"
         }
       }
       for (i = 1; i <= n; i++) {
@@ -427,7 +421,7 @@ write_markdown() {
         split(rows["baseline", qps], b, ",")
         split(rows["opt", qps], k, ",")
         if (k[1] != "") {
-          print "| " k[1] " | " k[2] " | " k[3] " | " k[4] " | " k[6] " | " k[7] " | " k[8] " | " k[10] " | " k[11] " | " k[12] " | " k[13] " | " k[14] " | " pct_reduction(b[10], k[10]) " | " pct_reduction(b[11], k[11]) " |"
+          print "| " k[1] " | " k[2] " | " k[3] " | " k[4] " | " k[6] " | " k[7] " | " k[8] " | " k[9] " | " k[10] " | " pct_reduction(b[8], k[8]) " | " pct_reduction(b[9], k[9]) " |"
         }
       }
     }
@@ -455,7 +449,7 @@ main() {
     echo "MODE ${normalized_mode} gflags=\"$(mode_gflags "${normalized_mode}")\" env=\"$(mode_env "${normalized_mode}")\"" | tee -a "${OUT_DIR}/run.log"
   done
 
-  echo "mode,dnn,target_qps,actual_qps,total,success,failure,dropped,avg_latency_us,p99_latency_us,server_cpu_pct_avg,server_cpu_pct_max,server_cpu_cores_avg,server_cpu_cores_max" > "${OUT_DIR}/results.csv"
+  echo "mode,dnn,target_qps,actual_qps,total,success,failure,p99_latency_us,server_cpu_pct_avg,server_cpu_cores_avg" > "${OUT_DIR}/results.csv"
 
   for mode in ${RUN_MODES}; do
     normalized_mode=$(normalize_mode "${mode}")

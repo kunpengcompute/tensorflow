@@ -68,22 +68,21 @@ bazel --output_user_root="${OUTPUT_BASE}" build \
 
 BUILD_STATUS=${PIPESTATUS[0]}
 
-if [ $BUILD_STATUS -eq 0 ]; then
-    log_info "构建成功！"
-    WHEEL_FILE=$(find "${OUTPUT_BASE}" -name "tensorflow-*.whl" -type f 2>/dev/null | head -1)
-    if [ -n "${WHEEL_FILE}" ]; then
-        log_info "Wheel 包位置: ${WHEEL_FILE}"
-        cp "${WHEEL_FILE}" "${TF_DIR}/dist/"
-        log_info "已复制到: ${TF_DIR}/dist/"
-    fi
-    cp -L \
-        "${TF_DIR}/bazel-bin/predictor_server" \
-        "${TF_DIR}/bazel-bin/brpc_client" \
-        "${TF_DIR}/dist/"
-    log_info "已保存 predictor_server 和 brpc_client 构建产物"
-    ls -lh "${TF_DIR}/dist/"
-    exit 0
-else
+if [ $BUILD_STATUS -ne 0 ]; then
     log_error "构建失败，状态码: $BUILD_STATUS"
     exit 1
 fi
+
+log_info "构建成功！"
+WHEEL_FILE=$(find "${OUTPUT_BASE}" -name "tensorflow-*.whl" -type f 2>/dev/null | head -1)
+if [ -n "${WHEEL_FILE}" ]; then
+    log_info "Wheel 包位置: ${WHEEL_FILE}"
+    cp "${WHEEL_FILE}" "${TF_DIR}/dist/"
+    log_info "已复制到: ${TF_DIR}/dist/"
+fi
+cp -L \
+    "${TF_DIR}/bazel-bin/predictor_server" \
+    "${TF_DIR}/bazel-bin/brpc_client" \
+    "${TF_DIR}/dist/"
+log_info "已保存 predictor_server 和 brpc_client 构建产物"
+ls -lh "${TF_DIR}/dist/"

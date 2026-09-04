@@ -22,7 +22,7 @@ exports_files(glob(["requirements*"]) + [
 ])
 
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
 load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("//tensorflow:tensorflow.bzl", "tf_cc_binary")
 package(default_visibility = ["//visibility:public"],)
@@ -53,9 +53,19 @@ cc_library(
     'dummy_tf_func.h',
   ],
   deps = [
+    ':dummy_tf_utils',
     ':tensorflow_lib',
   ],
   alwayslink = True,
+)
+
+cc_library(
+    name = "dummy_tf_utils",
+    srcs = ["dummy_tf_utils.cc"],
+    hdrs = ["dummy_tf_utils.h"],
+    deps = [
+        "//tensorflow/core:framework",
+    ],
 )
 
 COPTS = [
@@ -113,7 +123,14 @@ cc_binary(
     ],
     copts = COPTS,
     deps = [
+        ":brpc_client_utils",
         ":cc_dummy_proto",
         "@brpc//:brpc",
     ],
+)
+
+cc_library(
+    name = "brpc_client_utils",
+    srcs = ["brpc_client_utils.cc"],
+    hdrs = ["brpc_client_utils.h"],
 )
