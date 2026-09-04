@@ -122,8 +122,4 @@ We welcome your contributions to the community. If you have any questions/sugges
 
 ## Acknowledgments
 
-Kunpeng TensorFlow is jointly developed by the following Huawei department:
-
-- Kunpeng Computing BoostKit Development Dept
-
 Thank you for every PR from the community. We welcome your contributions to Kunpeng TensorFlow!
