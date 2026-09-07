@@ -16,9 +16,62 @@
 | CUDA  | 12.8.0 |
 | CuDNN | 9.5.0 |
 
-安装基础依赖并启用CUDA，CUDA安装路径建议为/usr/local/cuda-12.8
+安装基础依赖并启用CUDA，CUDA安装路径建议为/usr/local/cuda-12.8。
 
-TensorFlow使用Bazel 7.4.1构建。Bazel安装方法请参见《TensorFlow 移植指南》的“[安装Bazel](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0008.html)”章节。
+TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请参见《TensorFlow 移植指南》的“[安装Bazel](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0008.html)”章节。
+
+### CUDA安装指导
+
+#### 1. 检查硬件与系统
+
+  - 1.1 检查显卡是否存在
+
+    ```bash
+    lspci | grep -i nvidia
+    ```
+
+  - 2.2 安装依赖
+
+    ```bash
+    yum install -y gcc make dkms
+    yum install -y kernel-devel-$(uname -r) kernel-headers-$(uname -r)
+    ```
+
+  - 3.3 确认GPU支持CUDA：访问“[NVIDIA CUDA-GPU列表](https://developer.nvidia.com/cuda-gpus)”确认你的GPU支持CUDA。
+
+#### 2. 安装CUDA
+
+  - 2.1 禁用nouveau驱动
+  
+    检查系统是否加载nouveau驱动，若有输出则代表启用了nouveau驱动，需要禁用nouveau驱动。
+
+    ```bash
+    lsmod | grep nouveau
+    ```
+  
+  - 2.2 下载CUDA工具包
+
+    CUDA 12.8官网下载链接“[CUDA Toolkit 12.8 Downloads](https://developer.nvidia.com/cuda-12-8-0-download-archive?target_os=Linux&target_arch=arm64-sbsa&Compilation=Native&Distribution=RHEL&target_version=8)”。
+    
+    下载对应版本的CUDA工具包，且仅需下载CUDA工具包，无需单独下载GPU驱动。CUDA工具包cuda_12.8.0_***_linux_sbsa.run内含GPU驱动。
+    
+  - 2.3 安装CUDA工具包
+
+    安装工具包，赋予可执行权限并运行.run文件，根据提示完成安装。
+
+    ```bash
+    ./cuda_12.8.0_***_linux_sbsa.run
+    ```
+
+    添加环境变量。安装完成后，需要将CUDA路径添加到系统环境变量（建议采用默认安装路径/usr/local/cuda-12.8）。
+
+  - 2.4 验证安装
+  
+    检查CUDA版本，若输出CUDA 12.8.0相关信息，则安装成功。
+
+    ```bash
+    nvcc --version
+    ```
 
 ## 准备TensorFlow源码
 
@@ -122,30 +175,13 @@ TensorFlow使用Bazel 7.4.1构建。Bazel安装方法请参见《TensorFlow 移�
   Configuration finished
   ```
   
-- 1.2 打开.tf_configure.bazelrc，复制以下内容并替换。
+- 1.2 打开.tf_configure.bazelrc，添加以下build 配置。
 
   ```bash
-  build --action_env PYTHON_BIN_PATH="/usr/bin/python3"
-  build --action_env PYTHON_LIB_PATH="/usr/lib/python3.11/site-packages"
-  build --python_path="/usr/bin/python3"
-  build:cuda --repo_env HERMETIC_CUDA_VERSION="12.8.0"
-  build:cuda --repo_env HERMETIC_CUDNN_VERSION="9.5.0"
-  build:cuda --repo_env HERMETIC_CUDA_COMPUTE_CAPABILITIES="8.9"
   build:cuda --repo_env TF_NEED_CUDA=1
   build:cuda --crosstool_top=@local_config_cuda//crosstool:toolchain
   build:cuda --@local_config_cuda//:enable_cuda
   build:cuda --config=cuda_version
-  build --action_env LD_LIBRARY_PATH="/opt/openEuler/gcc-toolset-14/root/usr/lib64/:/opt/openEuler/gcc-toolset-14/root/usr/lib64:/opt/openEuler/gcc-toolset-14/root/usr/lib64:/opt/openEuler/gcc-toolset-14/root/usr/lib:/opt/openEuler/gcc-toolset-14/root/usr/lib64/dyninst:/opt/openEuler/gcc-toolset-14/root/usr/lib/dyninst:/opt/openEuler/gcc-toolset-14/root/usr/lib64:/opt/openEuler/gcc-toolset-14/root/usr/lib:/usr/local/cuda/lib64/:/opt/openEuler/gcc-toolset-14/root/lib64:/opt/openEuler/gcc-toolset-14/root/lib64/dyninst:"
-  build --action_env GCC_HOST_COMPILER_PATH="/opt/openEuler/gcc-toolset-14/root/usr/bin/gcc"
-  build --config=cuda
-  build:opt --copt=-Wno-sign-compare
-  build:opt --host_copt=-Wno-sign-compare
-  test --test_size_filters=small,medium
-  test --test_env=LD_LIBRARY_PATH
-  test:v1 --test_tag_filters=-benchmark-test,-no_oss,-oss_excluded,-no_gpu,-oss_serial
-  test:v1 --build_tag_filters=-benchmark-test,-no_oss,-oss_excluded,-no_gpu
-  test:v2 --test_tag_filters=-benchmark-test,-no_oss,-oss_excluded,-no_gpu,-oss_serial,-v1only
-  test:v2 --build_tag_filters=-benchmark-test,-no_oss,-oss_excluded,-no_gpu,-v1only
   ```
 
 - 1.3 构建TensorFlow pip包。
