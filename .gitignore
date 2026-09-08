@@ -1,3 +1,4 @@
+/output/
 .DS_Store
 .ipynb_checkpoints
 node_modules
@@ -51,3 +52,6 @@ gradleBuild
 Podfile.lock
 Pods
 xcuserdata
+
+third_party/KDNN/src
+third_party/KDNN/include

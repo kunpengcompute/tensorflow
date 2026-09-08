@@ -1,0 +1,13 @@
+services:
+  benchmark-infer:
+    image: ${BENCHMARK_INFER_IMAGE}
+    container_name: ${BENCHMARK_INFER_CONTAINER}
+    privileged: true
+    network_mode: host
+    cpuset: ${CPUSET_CPUS}
+    cpu_period: 100000
+    cpu_quota: ${CPU_QUOTA}
+    volumes:
+      - ${HOST_WORKSPACE}:/workspace
+    working_dir: /workspace
+    command: ["tail", "-f", "/dev/null"]

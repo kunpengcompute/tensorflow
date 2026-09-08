@@ -1,0 +1,8 @@
+.git
+.gitignore
+
+output/
+bazel-*
+
+*.pyc
+__pycache__/
