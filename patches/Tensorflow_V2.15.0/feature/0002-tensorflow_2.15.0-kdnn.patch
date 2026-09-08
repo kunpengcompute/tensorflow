@@ -1223,13 +1223,13 @@ index 0000000000000000000000000000000000000000..bcb6c88ffd7e314f2294a2519c345f0f
 +                    shutil.rmtree(target_dir)
 +                
 +                os.rename(src_dir, target_dir)
-+                print(f"✅ Profile 已固化至: {target_dir}")
++                print(f"Profile 已固化至: {target_dir}")
 +                return target_dir
 +
 +                # 可选：清理掉空的时间戳父目录或日志文件
 +                # (TensorFlow 有时会留下一些空的 event 文件，通常不影响解析)
 +        except Exception as e:
-+            print(f"⚠️ 路径固化失败: {e}")
++            print(f"路径固化失败: {e}")
 +
 +    def run_performance_test(self, test_case: TestCase):
 +        if test_case.num_iters == 0:
@@ -1248,11 +1248,11 @@ index 0000000000000000000000000000000000000000..bcb6c88ffd7e314f2294a2519c345f0f
 +        kdnn_path = self.run_func_in_subprocess(self.parse_performance_data, 1, raw_inputs, test_case)
 +        kdnn_wall_during, _ = self.get_average_wall_during(kdnn_path, operator_name, test_case)
 +        if kdnn_wall_during <= 0.0 or no_kdnn_wall_during <= 0.0:
-+            print(f"⚠️ 获取平均运行时长失败, 无法进行比较")
++            print(f"获取平均运行时长失败, 无法进行比较")
 +            return False
 +        real_percent = 100 * (no_kdnn_wall_during/kdnn_wall_during - 1)
 +        if real_percent < optimize_percent:
-+            raise Exception(f"⚠️ 性能提升{real_percent:.2f}%, 低于预期{optimize_percent}%, KDNN开启状态下耗时{kdnn_wall_during:.2f}us, 关闭状态下耗时{no_kdnn_wall_during:.2f}us")
++            raise Exception(f"性能提升{real_percent:.2f}%, 低于预期{optimize_percent}%, KDNN开启状态下耗时{kdnn_wall_during:.2f}us, 关闭状态下耗时{no_kdnn_wall_during:.2f}us")
 +            return False
 +
 +        print(f"性能测试通过, 性能提升{real_percent:.2f}%, KDNN开启状态下耗时{kdnn_wall_during:.2f}us, 关闭状态下耗时{no_kdnn_wall_during:.2f}us")
@@ -1304,8 +1304,8 @@ index 0000000000000000000000000000000000000000..bcb6c88ffd7e314f2294a2519c345f0f
 +            is_correct = test_case.check_fn(no_kdnn_data, kdnn_data, test_case.meta)
 +
 +        if not is_correct:
-+            print(f"⚠️ 误差较大")
-+            raise Exception(f"⚠️ 误差较大")
++            print(f"误差较大")
++            raise Exception(f"误差较大")
 +            return False
 +        print("功能测试通过")
 +        return True
@@ -1342,7 +1342,7 @@ index 0000000000000000000000000000000000000000..1ee592efd85d940fe014a8e1a70e854f
 +    }
 +
 +    if args.list:
-+        print("📁 可用算子列表:")
++        print("可用算子列表:")
 +        for name in available_ops: print(f"  - {name}")
 +        return
 +
@@ -1361,7 +1361,7 @@ index 0000000000000000000000000000000000000000..1ee592efd85d940fe014a8e1a70e854f
 +                    for case in cases:
 +                        bench.run_performance_test(case)
 +        except Exception as e:
-+            print(f"❌ 运行模块 {module_path} 失败: {e}")
++            print(f"运行模块 {module_path} 失败: {e}")
 +            traceback.print_exc()
 +
 +
@@ -2945,29 +2945,29 @@ index 0000000000000000000000000000000000000000..08920229b74cd150f5b7194776acecad
 +--- include/types/kdnn_tensor_info.hpp	2025-10-25 18:55:04.018830570 +0800
 ++++ include_bak/types/kdnn_tensor_info.hpp	2025-10-25 18:23:18.070830570 +0800
 +@@ -214,7 +214,7 @@
-+             return Layout::ABCDE;
-+         }
-+         default: {
-+-            throw Service::LogicError{"Tensor Info: tensor dimensionality is incorrect"};
-++            return Layout::UNDEFINED;
-+         }
++                 return Layout::ABCDE;
++             }
++             default: {
++-                throw Service::LogicError {"Tensor Info: tensor dimensionality is incorrect"};
+++                return Layout::UNDEFINED;
++             }
 +         }
 +     }
 +@@ -238,7 +238,7 @@
-+             return Layout::ACDEB;
-+         }
-+         default: {
-+-            throw Service::LogicError{"Tensor Info: tensor dimensionality is incorrect"};
-++            return Layout::UNDEFINED;
-+         }
++                 return Layout::ACDEB;
++             }
++             default: {
++-                throw Service::LogicError {"Tensor Info: tensor dimensionality is incorrect"};
+++                return Layout::UNDEFINED;
++             }
 +         }
 +     }
 +@@ -262,7 +262,7 @@
-+             return Layout::BCDEA;
-+         }
-+         default: {
-+-            throw Service::LogicError{"Tensor Info: tensor dimensionality is incorrect"};
-++            return Layout::UNDEFINED;
-+         }
++                 return Layout::BCDEA;
++             }
++             default: {
++-                throw Service::LogicError {"Tensor Info: tensor dimensionality is incorrect"};
+++                return Layout::UNDEFINED;
++             }
 +         }
 +     }
