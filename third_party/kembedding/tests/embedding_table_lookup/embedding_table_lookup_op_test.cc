@@ -1,5 +1,6 @@
 // Unit tests for EmbeddingTableLookup related ops.
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -27,9 +28,10 @@ void AppendRaw(std::string* output, const void* data, size_t size) {
   output->append(static_cast<const char*>(data), size);
 }
 
-std::string WriteEmbeddingTableFile(const std::vector<TableEntry>& entries) {
+std::string WriteEmbeddingTableFile(const std::vector<TableEntry>& entries,
+                                    uint64_t total_key_size) {
   sparse_embedding_table::TableInfo meta;
-  meta.set_total_key_size(entries.size());
+  meta.set_total_key_size(total_key_size);
   meta.set_endianness(sparse_embedding_table::TableInfo::LITTLE);
 
   std::string serialized_meta;
@@ -54,6 +56,21 @@ std::string WriteEmbeddingTableFile(const std::vector<TableEntry>& entries) {
 
   std::string filename =
       io::JoinPath(testing::TmpDir(), "embedding_table_lookup_test.bin");
+  CHECK(Env::Default()->CreateUniqueFileName(&filename, ".bin"));
+  TF_CHECK_OK(WriteStringToFile(Env::Default(), filename, contents));
+  return filename;
+}
+
+std::string WriteEmbeddingTableFile(const std::vector<TableEntry>& entries) {
+  return WriteEmbeddingTableFile(entries, entries.size());
+}
+
+std::string WriteFileWithHeaderSize(uint32_t header_size) {
+  std::string contents;
+  AppendRaw(&contents, &header_size, sizeof(header_size));
+
+  std::string filename =
+      io::JoinPath(testing::TmpDir(), "embedding_table_invalid_header.bin");
   CHECK(Env::Default()->CreateUniqueFileName(&filename, ".bin"));
   TF_CHECK_OK(WriteStringToFile(Env::Default(), filename, contents));
   return filename;
@@ -109,6 +126,23 @@ TEST_F(InitializeEmbeddingIndexToValueTableFromTextFileOpTest,
   ASSERT_NE(resource_or.value(), nullptr);
   EXPECT_TRUE(resource_or.value()->is_initialized());
   EXPECT_EQ(resource_or.value()->num_entries(), 2);
+}
+
+TEST(EmbeddingIndexToValueTableTest, RejectsInvalidHeaderBeforeAllocation) {
+  const std::string filename =
+      WriteFileWithHeaderSize(std::numeric_limits<uint32_t>::max());
+  EmbeddingTableIterator iter;
+  const Status status = iter.Init(filename, Env::Default());
+  EXPECT_TRUE(errors::IsDataLoss(status));
+}
+
+TEST(EmbeddingIndexToValueTableTest,
+     RejectsImpossibleRowCountBeforeBucketReservation) {
+  const std::string filename = WriteEmbeddingTableFile(
+      {{101, {{0, 1.0f}}}}, std::numeric_limits<uint64_t>::max());
+  EmbeddingTableIterator iter;
+  const Status status = iter.Init(filename, Env::Default());
+  EXPECT_TRUE(errors::IsDataLoss(status));
 }
 
 class EmbeddingTableLookupOpTest : public OpsTestBase {

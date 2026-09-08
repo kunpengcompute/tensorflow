@@ -154,7 +154,8 @@ class SparseTensorDenseMatMulOp : public OpKernel {
         adjoint_a_ == false &&
         FastBoundsCheck(inner_left, int32max) &&
         FastBoundsCheck(inner_right, int32max) &&
-        FastBoundsCheck(outer_left, int32max)) {
+        FastBoundsCheck(outer_left, int32max) &&
+        FastBoundsCheck(a_values->NumElements(), int32max)) {
       KDNN_ADJOINT(false, false);
       KDNN_ADJOINT(false, true);
       return;
