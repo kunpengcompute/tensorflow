@@ -21,7 +21,8 @@
         "tensorflow/tensorflow.bzl",
         "tensorflow/workspace2.bzl",
         "third_party/xla/third_party/tsl/tsl/platform/default/env.cc",
-        "third_party/grpc/upb_gcc10_compile_fix.patch"
+        "third_party/grpc/upb_gcc10_compile_fix.patch",
+        "tensorflow/core/common_runtime/executor.cc"
       ]
     },
     {
@@ -109,7 +110,9 @@
     }
   ],
   "tooling_patterns": [
-    "patches/Tensorflow_V2.15.0/**"
+    "patches/**",
+    "Dockerfile.ci",
+    "ci_build.sh"
   ],
   "generated_files": [
     {

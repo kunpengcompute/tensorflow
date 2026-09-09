@@ -234,11 +234,11 @@ index 0000000000000000000000000000000000000000..7d5ee228cf5d4da3c3745c0e58d250ab
 \ No newline at end of file
 diff --git a/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.cc b/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..9371a942c4b41044c384a4bffe78472c31e87679
+index 0000000000000000000000000000000000000000..4e642e40de0ea470d37bd77af139602e98327316
 --- /dev/null
 +++ b/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.cc
 @@ -0,0 +1,809 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -1049,11 +1049,11 @@ index 0000000000000000000000000000000000000000..9371a942c4b41044c384a4bffe78472c
 +}  // namespace annc
 diff --git a/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.h b/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..59ed34af09c947dddaff98ee8b0896bb43f86dda
+index 0000000000000000000000000000000000000000..d3c3a6266cbde9e84887521d3c3be78b78314de8
 --- /dev/null
 +++ b/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.h
 @@ -0,0 +1,196 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -1250,10 +1250,28 @@ index 0000000000000000000000000000000000000000..59ed34af09c947dddaff98ee8b0896bb
 +}  // namespace annc
 +#endif  // ANNC_TF_GRAPH_OPT_H_
 diff --git a/tensorflow/core/grappler/optimizers/remapper.cc b/tensorflow/core/grappler/optimizers/remapper.cc
-index 3c37150f496aa4e70acb9d3f8a5f3d33f1a134ee..f6a59a68ffcc0320d328fe0ba0f9e6ae43636c3f 100644
+index 3c37150f496aa4e70acb9d3f8a5f3d33f1a134ee..9c405e81acea8df11df2de5c990d3e63530b828c 100644
 --- a/tensorflow/core/grappler/optimizers/remapper.cc
 +++ b/tensorflow/core/grappler/optimizers/remapper.cc
-@@ -43,6 +43,9 @@ limitations under the License.
+@@ -1,3 +1,17 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
+ /* Copyright 2018 The TensorFlow Authors. All Rights Reserved.
+ 
+ Licensed under the Apache License, Version 2.0 (the "License");
+@@ -43,6 +57,9 @@ limitations under the License.
  #include "tensorflow/core/util/env_var.h"
  #include "tensorflow/core/util/use_cudnn.h"
  #include "tsl/platform/errors.h"
@@ -1263,7 +1281,7 @@ index 3c37150f496aa4e70acb9d3f8a5f3d33f1a134ee..f6a59a68ffcc0320d328fe0ba0f9e6ae
  #ifdef INTEL_MKL
  #include "tensorflow/core/util/mkl_heuristics.h"
  #endif  // INTEL_MKL
-@@ -4941,6 +4944,19 @@ Status Remapper::Optimize(Cluster* cluster, const GrapplerItem& item,
+@@ -4941,6 +4958,19 @@ Status Remapper::Optimize(Cluster* cluster, const GrapplerItem& item,
    }
    TF_RETURN_IF_ERROR(mutation->Apply());
  
@@ -1285,11 +1303,11 @@ index 3c37150f496aa4e70acb9d3f8a5f3d33f1a134ee..f6a59a68ffcc0320d328fe0ba0f9e6ae
    return OkStatus();
 diff --git a/tensorflow/core/kernels/embedding_fused_action_id_gather.cc b/tensorflow/core/kernels/embedding_fused_action_id_gather.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..e49f984f05b8e2f184fe775289c07e1efebc0a0f
+index 0000000000000000000000000000000000000000..dcdb5818582e037ada23acb991d02169ff4be22c
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_action_id_gather.cc
 @@ -0,0 +1,263 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -1555,24 +1573,24 @@ index 0000000000000000000000000000000000000000..e49f984f05b8e2f184fe775289c07e1e
 \ No newline at end of file
 diff --git a/tensorflow/core/kernels/embedding_fused_action_id_gather_test.cc b/tensorflow/core/kernels/embedding_fused_action_id_gather_test.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..16d96eff355738a791dab980fa205ceec01184e0
+index 0000000000000000000000000000000000000000..74d092d4a96457d761844a475606bd02682551ab
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_action_id_gather_test.cc
 @@ -0,0 +1,369 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
-+ *
-+ * Licensed under the Apache License, Version 2.0 (the "License");
-+ * you may not use this file except in compliance with the License.
-+ * You may obtain a copy of the License at
-+ *
-+ *     http://www.apache.org/licenses/LICENSE-2.0
-+ *
-+ *     Unless required by applicable law or agreed to in writing, software
-+ *     distributed under the License is distributed on an "AS IS" BASIS,
-+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-+ *     See the License for the specific language governing permissions and
-+ *     limitations under the License.
-+ *     ==============================================================================*/
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
 +
 +#include "tensorflow/core/common_runtime/kernel_benchmark_testlib.h"
 +#include "tensorflow/core/framework/allocator.h"
@@ -1930,11 +1948,11 @@ index 0000000000000000000000000000000000000000..16d96eff355738a791dab980fa205cee
 +}  // namespace tensorflow
 diff --git a/tensorflow/core/kernels/embedding_fused_gather.cc b/tensorflow/core/kernels/embedding_fused_gather.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..14de30e35ac8edc821dcb8d59e14e23ba5b860d1
+index 0000000000000000000000000000000000000000..405072848059c7b647620090e57745863d7641ac
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_gather.cc
 @@ -0,0 +1,90 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -2027,11 +2045,11 @@ index 0000000000000000000000000000000000000000..14de30e35ac8edc821dcb8d59e14e23b
 \ No newline at end of file
 diff --git a/tensorflow/core/kernels/embedding_fused_gather_test.cc b/tensorflow/core/kernels/embedding_fused_gather_test.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..c94770910fec821986eda72b2d0571688b46c012
+index 0000000000000000000000000000000000000000..7d3b174d3e17ef9cbdb9223ab0e40a629607a274
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_gather_test.cc
 @@ -0,0 +1,186 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -2220,11 +2238,11 @@ index 0000000000000000000000000000000000000000..c94770910fec821986eda72b2d057168
 \ No newline at end of file
 diff --git a/tensorflow/core/kernels/embedding_fused_padding.cc b/tensorflow/core/kernels/embedding_fused_padding.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..1030d6e87e6d0f17a9752f56c5e7660caa81f7f2
+index 0000000000000000000000000000000000000000..4418a4860f216634610965175c1380259658f7b7
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_padding.cc
 @@ -0,0 +1,126 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -2353,10 +2371,25 @@ index 0000000000000000000000000000000000000000..1030d6e87e6d0f17a9752f56c5e7660c
 \ No newline at end of file
 diff --git a/tensorflow/core/kernels/embedding_fused_padding_test.cc b/tensorflow/core/kernels/embedding_fused_padding_test.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..5137d51300ad862d7ffabd425bf549f07a172ae3
+index 0000000000000000000000000000000000000000..6d6870bb0a289824bf75a480d07e90e42e6e1216
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_padding_test.cc
-@@ -0,0 +1,307 @@
+@@ -0,0 +1,322 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
++
 +/* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
@@ -2666,11 +2699,11 @@ index 0000000000000000000000000000000000000000..5137d51300ad862d7ffabd425bf549f0
 +}  // end namespace tensorflow
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch.cc b/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..05c7b2fa93375f7f8849ca010ae1e7f78c0f894b
+index 0000000000000000000000000000000000000000..c74e46471b5ee8122c172be7447e88a86d2c40c0
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch.cc
 @@ -0,0 +1,87 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -2759,24 +2792,24 @@ index 0000000000000000000000000000000000000000..05c7b2fa93375f7f8849ca010ae1e7f7
 +                        KPFusedSparseDynamicStitchOp);
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch_test.cc b/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch_test.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..74fdd250336f6e12382ffc7cef64dcf1b63cdecf
+index 0000000000000000000000000000000000000000..733ebc78c0565474551cb3d5795bf1445c21a852
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch_test.cc
 @@ -0,0 +1,108 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
-+ *
-+ * Licensed under the Apache License, Version 2.0 (the "License");
-+ * you may not use this file except in compliance with the License.
-+ * You may obtain a copy of the License at
-+ *
-+ *     http://www.apache.org/licenses/LICENSE-2.0
-+ *
-+ *     Unless required by applicable law or agreed to in writing, software
-+ *     distributed under the License is distributed on an "AS IS" BASIS,
-+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-+ *     See the License for the specific language governing permissions and
-+ *     limitations under the License.
-+ *     ==============================================================================*/
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
 +
 +#include <functional>
 +#include <memory>
@@ -2873,11 +2906,11 @@ index 0000000000000000000000000000000000000000..74fdd250336f6e12382ffc7cef64dcf1
 +}  // namespace tensorflow
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_reshape.cc b/tensorflow/core/kernels/embedding_fused_sparse_reshape.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..9b03e429b67ec4563518d08a516c80311726a2fd
+index 0000000000000000000000000000000000000000..ba1366d6d67cccad1e5c2cac2cbc76ffc0368d68
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_reshape.cc
 @@ -0,0 +1,203 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -3082,11 +3115,11 @@ index 0000000000000000000000000000000000000000..9b03e429b67ec4563518d08a516c8031
 +#undef REGISTER_KERNEL
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_reshape_test.cc b/tensorflow/core/kernels/embedding_fused_sparse_reshape_test.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..874d48a5ed83720900d055999a23d7730ed01cd8
+index 0000000000000000000000000000000000000000..cdc11b52deb11cff110d97f059ad30f2167861e5
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_reshape_test.cc
 @@ -0,0 +1,281 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -3369,11 +3402,11 @@ index 0000000000000000000000000000000000000000..874d48a5ed83720900d055999a23d773
 +}  // namespace
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce.cc b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..33bbd312bea3f388707cb57a23a1c27eb2c2bb4a
+index 0000000000000000000000000000000000000000..eb23c7dbef55f20e11c98d7f101c4aef5f496e6e
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce.cc
 @@ -0,0 +1,165 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -3541,11 +3574,11 @@ index 0000000000000000000000000000000000000000..33bbd312bea3f388707cb57a23a1c27e
 \ No newline at end of file
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_nonzero.cc b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_nonzero.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..3f0a4dfd8f48019581071e4ed4130e69bfdeb015
+index 0000000000000000000000000000000000000000..83a0f867ab9175e2fdd3663893c2d4255b1d3357
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_nonzero.cc
 @@ -0,0 +1,387 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -3934,24 +3967,24 @@ index 0000000000000000000000000000000000000000..3f0a4dfd8f48019581071e4ed4130e69
 +#undef REGISTER_KERNEL
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_nonzero_test.cc b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_nonzero_test.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..1a83beb99484b175f3f5704f6385d473be83b29b
+index 0000000000000000000000000000000000000000..180ff4e91b138b452cb1d552b27c6bf317c343f8
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_nonzero_test.cc
 @@ -0,0 +1,183 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
-+ *
-+ * Licensed under the Apache License, Version 2.0 (the "License");
-+ * you may not use this file except in compliance with the License.
-+ * You may obtain a copy of the License at
-+ *
-+ *     http://www.apache.org/licenses/LICENSE-2.0
-+ *
-+ *     Unless required by applicable law or agreed to in writing, software
-+ *     distributed under the License is distributed on an "AS IS" BASIS,
-+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-+ *     See the License for the specific language governing permissions and
-+ *     limitations under the License.
-+ *     ==============================================================================*/
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
 +
 +#include <functional>
 +#include <memory>
@@ -4123,24 +4156,24 @@ index 0000000000000000000000000000000000000000..1a83beb99484b175f3f5704f6385d473
 +}  // namespace tensorflow
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_test.cc b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_test.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..558ab85505bb57559dc499c0510b39c6ee542f52
+index 0000000000000000000000000000000000000000..e7512ffd039f6f778371f63b4f306b7e52f8d011
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_test.cc
 @@ -0,0 +1,205 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
-+ *
-+ * Licensed under the Apache License, Version 2.0 (the "License");
-+ * you may not use this file except in compliance with the License.
-+ * You may obtain a copy of the License at
-+ *
-+ *     http://www.apache.org/licenses/LICENSE-2.0
-+ *
-+ *     Unless required by applicable law or agreed to in writing, software
-+ *     distributed under the License is distributed on an "AS IS" BASIS,
-+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-+ *     See the License for the specific language governing permissions and
-+ *     limitations under the License.
-+ *     ==============================================================================*/
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
 +
 +#include <functional>
 +#include <memory>
@@ -4334,11 +4367,11 @@ index 0000000000000000000000000000000000000000..558ab85505bb57559dc499c0510b39c6
 +}  // namespace tensorflow
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_select.cc b/tensorflow/core/kernels/embedding_fused_sparse_select.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..dd175c8c5bb19a4030b33310098998d8857e911d
+index 0000000000000000000000000000000000000000..c1853c9de64f76b0447a6f0406a80b71aa7288b7
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_select.cc
 @@ -0,0 +1,112 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -4453,11 +4486,11 @@ index 0000000000000000000000000000000000000000..dd175c8c5bb19a4030b33310098998d8
 \ No newline at end of file
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_select_test.cc b/tensorflow/core/kernels/embedding_fused_sparse_select_test.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..d649d63e60b2ed574e0dd44cdad28313aae83523
+index 0000000000000000000000000000000000000000..56e13a18906b4f68a8e6aa78f3cc833fedb0f107
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_select_test.cc
 @@ -0,0 +1,182 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -4676,11 +4709,11 @@ index 91d80b6c2b541534f655e4d9fdc1e3564efd1556..509f7eabb82094912d43dd3404a340b7
  
 diff --git a/tensorflow/core/ops/embedding_fused_ops.cc b/tensorflow/core/ops/embedding_fused_ops.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..547e60eee21afd60ba6d5afa8b98da5517234149
+index 0000000000000000000000000000000000000000..8e7fd04e12ed16b061b458aef9927765966bfbd0
 --- /dev/null
 +++ b/tensorflow/core/ops/embedding_fused_ops.cc
 @@ -0,0 +1,132 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -4812,7 +4845,6 @@ index 0000000000000000000000000000000000000000..547e60eee21afd60ba6d5afa8b98da55
 +    .Output("output0: float")
 +    .SetShapeFn(shape_inference::UnknownShape);
 +}  // namespace tensorflow
-\ No newline at end of file
 diff --git a/tensorflow/python/BUILD b/tensorflow/python/BUILD
 index 9810f8acd2e83c487facbf96dadb780efe52525f..2bf06943e97d7df97a33de24f807812548e0fbbd 100644
 --- a/tensorflow/python/BUILD

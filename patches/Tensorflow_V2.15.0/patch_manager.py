@@ -22,9 +22,32 @@ from typing import Iterable, Sequence
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-REPO_ROOT = SCRIPT_DIR.parent
 DEFAULT_MANIFEST = SCRIPT_DIR / "manifest.json"
 DEFAULT_PATCH_DIR = SCRIPT_DIR / "feature"
+
+
+def _repo_root() -> Path:
+    """Resolve the Git repository root from the script's location.
+
+    The tooling can live at ``<repo>/patches`` (flat layout) or at
+    ``<repo>/patches/<version>`` (multi-version layout), so the root cannot be
+    derived from a fixed number of parent directories. Ask Git instead, and
+    fall back to the flat-layout assumption when Git is unavailable.
+    """
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=SCRIPT_DIR,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.returncode == 0 and result.stdout.strip():
+        return Path(result.stdout.strip()).resolve()
+    return SCRIPT_DIR.parent
+
+
+REPO_ROOT = _repo_root()
 
 
 class PatchError(RuntimeError):

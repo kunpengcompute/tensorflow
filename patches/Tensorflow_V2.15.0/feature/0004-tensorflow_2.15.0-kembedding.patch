@@ -729,10 +729,24 @@ index 0000000000000000000000000000000000000000..18c9f0c74650d3d8bcdd9c21295d1605
 +fi
 diff --git a/third_party/kembedding/include/core/embedding_index_to_value_table.h b/third_party/kembedding/include/core/embedding_index_to_value_table.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..d040445847838e45a1e12d52c46f3503391b9e83
+index 0000000000000000000000000000000000000000..ddfdddb04b4971d00cde1ee6a2a66734bc6b79e8
 --- /dev/null
 +++ b/third_party/kembedding/include/core/embedding_index_to_value_table.h
-@@ -0,0 +1,181 @@
+@@ -0,0 +1,195 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
 +#ifndef KEMBEDDING_CORE_EMBEDDING_INDEX_TO_VALUE_TABLE_H_
 +#define KEMBEDDING_CORE_EMBEDDING_INDEX_TO_VALUE_TABLE_H_
 +
@@ -916,10 +930,24 @@ index 0000000000000000000000000000000000000000..d040445847838e45a1e12d52c46f3503
 +#endif  // KEMBEDDING_CORE_EMBEDDING_INDEX_TO_VALUE_TABLE_H_
 diff --git a/third_party/kembedding/include/core/resource_hash_map.h b/third_party/kembedding/include/core/resource_hash_map.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..b493e35466b19998cfe264db64b6a53efabc0f24
+index 0000000000000000000000000000000000000000..33e05c6d7e7f854f0a81efed1127acb45b03c878
 --- /dev/null
 +++ b/third_party/kembedding/include/core/resource_hash_map.h
-@@ -0,0 +1,36 @@
+@@ -0,0 +1,50 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
 +#ifndef KEMBEDDING_CORE_RESOURCE_HASH_MAP_H_
 +#define KEMBEDDING_CORE_RESOURCE_HASH_MAP_H_
 +
@@ -984,10 +1012,24 @@ index 0000000000000000000000000000000000000000..a90a5b9571ff8c422b5969de5c4bad51
 \ No newline at end of file
 diff --git a/third_party/kembedding/src/core/embedding_index_to_value_table.cc b/third_party/kembedding/src/core/embedding_index_to_value_table.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..780868fe7da089214dc45a072606637358e10b2e
+index 0000000000000000000000000000000000000000..7d97c974fc37e39841e7970419867fd07dfd1900
 --- /dev/null
 +++ b/third_party/kembedding/src/core/embedding_index_to_value_table.cc
-@@ -0,0 +1,286 @@
+@@ -0,0 +1,326 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
 +#include "include/core/embedding_index_to_value_table.h"
 +
 +#include <algorithm>
@@ -1030,6 +1072,17 @@ index 0000000000000000000000000000000000000000..780868fe7da089214dc45a0726066373
 +    return s;
 +  }
 +
++  uint64_t file_size = 0;
++  s = Env::Default()->GetFileSize(file_path_, &file_size);
++  if (!s.ok()) {
++    return s;
++  }
++  if (file_size < sizeof(header_size) ||
++      static_cast<uint64_t>(header_size) > file_size - sizeof(header_size)) {
++    return errors::DataLoss("Invalid embedding table header size ",
++                            header_size, " in ", file_path_);
++  }
++
 +  std::string header_bytes;
 +  s = input_buffer_->ReadNBytes(header_size, &header_bytes);
 +  if (!s.ok()) {
@@ -1041,6 +1094,21 @@ index 0000000000000000000000000000000000000000..780868fe7da089214dc45a0726066373
 +  if (!info->ParseFromString(header_bytes)) {
 +    LOG(ERROR) << "Failed to parse TableInfo protobuf from " << file_path_;
 +    return errors::DataLoss("Corrupted embedding table header in ", file_path_);
++  }
++
++  const int64_t data_start = input_buffer_->Tell();
++  if (data_start < 0 || static_cast<uint64_t>(data_start) > file_size) {
++    return errors::DataLoss("Invalid embedding table data offset in ",
++                            file_path_);
++  }
++  const uint64_t min_row_size = sizeof(uint64_t) + sizeof(uint16_t);
++  const uint64_t max_possible_rows =
++      (file_size - static_cast<uint64_t>(data_start)) / min_row_size;
++  if (info->total_key_size() > max_possible_rows) {
++    return errors::DataLoss("Embedding table header declares ",
++                            info->total_key_size(),
++                            " rows, but the file can contain at most ",
++                            max_possible_rows, " rows: ", file_path_);
 +  }
 +
 +  return absl::OkStatus();
@@ -1276,10 +1344,24 @@ index 0000000000000000000000000000000000000000..780868fe7da089214dc45a0726066373
 +}  // namespace tensorflow
 diff --git a/third_party/kembedding/src/kernels/embedding_table_lookup_op.cc b/third_party/kembedding/src/kernels/embedding_table_lookup_op.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..38cad2b820c84c9e09fb0af59d8099549a73e6ed
+index 0000000000000000000000000000000000000000..0f687d809b63fcb2f311a5eae207b2ee6a78ec8b
 --- /dev/null
 +++ b/third_party/kembedding/src/kernels/embedding_table_lookup_op.cc
-@@ -0,0 +1,271 @@
+@@ -0,0 +1,285 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
 +#define EIGEN_USE_THREADS
 +
 +#include "tensorflow/core/framework/op.h"
@@ -1553,10 +1635,24 @@ index 0000000000000000000000000000000000000000..38cad2b820c84c9e09fb0af59d809954
 +}  // namespace tensorflow
 diff --git a/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_benchmark.cc b/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_benchmark.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..1337272bfdce6e7d8beeb5f37154a93633ac630c
+index 0000000000000000000000000000000000000000..ac8d45c425c9fc12945ae618e9ff3b7acf3f1765
 --- /dev/null
 +++ b/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_benchmark.cc
-@@ -0,0 +1,213 @@
+@@ -0,0 +1,227 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
 +// Benchmark tests for EmbeddingTableLookup operator.
 +#include <algorithm>
 +#include <cstddef>
@@ -1772,12 +1868,27 @@ index 0000000000000000000000000000000000000000..1337272bfdce6e7d8beeb5f37154a936
 +}  // namespace tensorflow
 diff --git a/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_op_test.cc b/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_op_test.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..016d7a70251c3e3e6970ca675d3a114bf93c1a37
+index 0000000000000000000000000000000000000000..db6bd851780c8dbc97a65b67a61c78042f5fc00c
 --- /dev/null
 +++ b/third_party/kembedding/tests/embedding_table_lookup/embedding_table_lookup_op_test.cc
-@@ -0,0 +1,214 @@
+@@ -0,0 +1,262 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
 +// Unit tests for EmbeddingTableLookup related ops.
 +#include <cstdint>
++#include <limits>
 +#include <string>
 +#include <utility>
 +#include <vector>
@@ -1805,9 +1916,10 @@ index 0000000000000000000000000000000000000000..016d7a70251c3e3e6970ca675d3a114b
 +  output->append(static_cast<const char*>(data), size);
 +}
 +
-+std::string WriteEmbeddingTableFile(const std::vector<TableEntry>& entries) {
++std::string WriteEmbeddingTableFile(const std::vector<TableEntry>& entries,
++                                    uint64_t total_key_size) {
 +  sparse_embedding_table::TableInfo meta;
-+  meta.set_total_key_size(entries.size());
++  meta.set_total_key_size(total_key_size);
 +  meta.set_endianness(sparse_embedding_table::TableInfo::LITTLE);
 +
 +  std::string serialized_meta;
@@ -1832,6 +1944,21 @@ index 0000000000000000000000000000000000000000..016d7a70251c3e3e6970ca675d3a114b
 +
 +  std::string filename =
 +      io::JoinPath(testing::TmpDir(), "embedding_table_lookup_test.bin");
++  CHECK(Env::Default()->CreateUniqueFileName(&filename, ".bin"));
++  TF_CHECK_OK(WriteStringToFile(Env::Default(), filename, contents));
++  return filename;
++}
++
++std::string WriteEmbeddingTableFile(const std::vector<TableEntry>& entries) {
++  return WriteEmbeddingTableFile(entries, entries.size());
++}
++
++std::string WriteFileWithHeaderSize(uint32_t header_size) {
++  std::string contents;
++  AppendRaw(&contents, &header_size, sizeof(header_size));
++
++  std::string filename =
++      io::JoinPath(testing::TmpDir(), "embedding_table_invalid_header.bin");
 +  CHECK(Env::Default()->CreateUniqueFileName(&filename, ".bin"));
 +  TF_CHECK_OK(WriteStringToFile(Env::Default(), filename, contents));
 +  return filename;
@@ -1887,6 +2014,23 @@ index 0000000000000000000000000000000000000000..016d7a70251c3e3e6970ca675d3a114b
 +  ASSERT_NE(resource_or.value(), nullptr);
 +  EXPECT_TRUE(resource_or.value()->is_initialized());
 +  EXPECT_EQ(resource_or.value()->num_entries(), 2);
++}
++
++TEST(EmbeddingIndexToValueTableTest, RejectsInvalidHeaderBeforeAllocation) {
++  const std::string filename =
++      WriteFileWithHeaderSize(std::numeric_limits<uint32_t>::max());
++  EmbeddingTableIterator iter;
++  const Status status = iter.Init(filename, Env::Default());
++  EXPECT_TRUE(errors::IsDataLoss(status));
++}
++
++TEST(EmbeddingIndexToValueTableTest,
++     RejectsImpossibleRowCountBeforeBucketReservation) {
++  const std::string filename = WriteEmbeddingTableFile(
++      {{101, {{0, 1.0f}}}}, std::numeric_limits<uint64_t>::max());
++  EmbeddingTableIterator iter;
++  const Status status = iter.Init(filename, Env::Default());
++  EXPECT_TRUE(errors::IsDataLoss(status));
 +}
 +
 +class EmbeddingTableLookupOpTest : public OpsTestBase {
