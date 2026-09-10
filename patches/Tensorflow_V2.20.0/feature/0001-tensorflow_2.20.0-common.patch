@@ -1,8 +1,15 @@
 diff --git a/tensorflow/dtensor/mlir/shape_utils.cc b/tensorflow/dtensor/mlir/shape_utils.cc
-index 27f9fc5f7f0..6ab20453985 100644
+index 27f9fc5f7..8cb02fc2c 100644
 --- a/tensorflow/dtensor/mlir/shape_utils.cc
 +++ b/tensorflow/dtensor/mlir/shape_utils.cc
-@@ -73,7 +73,7 @@ StatusOr<llvm::ArrayRef<int64_t>> ExtractGlobalInputShape(
+@@ -1,4 +1,5 @@
+-/* Copyright 2022 The TensorFlow Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026.
++Copyright 2022 The TensorFlow Authors. All Rights Reserved.
+ 
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+@@ -73,7 +74,7 @@ StatusOr<llvm::ArrayRef<int64_t>> ExtractGlobalInputShape(
          return errors::Internal("global_shape does not have static rank");
        return *global_shape;
      }
@@ -12,10 +19,17 @@ index 27f9fc5f7f0..6ab20453985 100644
  
    // If we reach this point, we're working with a function argument.
 diff --git a/tensorflow/dtensor/mlir/spmd_expansion.cc b/tensorflow/dtensor/mlir/spmd_expansion.cc
-index 434bf869a4e..ebf00189fae 100644
+index 434bf869a..9248c890b 100644
 --- a/tensorflow/dtensor/mlir/spmd_expansion.cc
 +++ b/tensorflow/dtensor/mlir/spmd_expansion.cc
-@@ -188,7 +188,7 @@ bool GetResourceArgIndexIfUsedInAssignmentOp(
+@@ -1,4 +1,5 @@
+-/* Copyright 2022 The TensorFlow Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026.
++Copyright 2022 The TensorFlow Authors. All Rights Reserved.
+ 
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+@@ -188,7 +189,7 @@ bool GetResourceArgIndexIfUsedInAssignmentOp(
            GetForwardedDTensorLayoutInput(assign_variable_op.getResource());
        if (llvm::isa<mlir::BlockArgument>(resource)) {
          *resource_argument_index_for_assign_variable =
@@ -24,7 +38,7 @@ index 434bf869a4e..ebf00189fae 100644
          return true;
        }
      }
-@@ -221,7 +221,7 @@ mlir::LogicalResult UpdateFunctionArgsUsingLayout(mlir::func::FuncOp function) {
+@@ -221,7 +222,7 @@ mlir::LogicalResult UpdateFunctionArgsUsingLayout(mlir::func::FuncOp function) {
  
      // If argument is a resource type update the subtype shape information
      // to reflect local shape of resources.
@@ -34,7 +48,7 @@ index 434bf869a4e..ebf00189fae 100644
          return mlir::failure();
        continue;
 diff --git a/tensorflow/python/client/BUILD b/tensorflow/python/client/BUILD
-index 807a94def6a..7d4d1dbc595 100644
+index 807a94def..7d4d1dbc5 100644
 --- a/tensorflow/python/client/BUILD
 +++ b/tensorflow/python/client/BUILD
 @@ -29,7 +29,10 @@ py_strict_library(
@@ -50,7 +64,7 @@ index 807a94def6a..7d4d1dbc595 100644
          if_false = [
              "tf_session_helper.h",
 diff --git a/tensorflow/python/util/BUILD b/tensorflow/python/util/BUILD
-index 26de739df06..01e4ea77410 100644
+index 26de739df..01e4ea774 100644
 --- a/tensorflow/python/util/BUILD
 +++ b/tensorflow/python/util/BUILD
 @@ -437,7 +437,11 @@ py_strict_library(
@@ -67,7 +81,7 @@ index 26de739df06..01e4ea77410 100644
          "//tensorflow/c:headers",
          "//tensorflow/c/eager:headers",
 diff --git a/tensorflow/workspace2.bzl b/tensorflow/workspace2.bzl
-index 9e49ab40b25..dcab09daf6c 100644
+index 9e49ab40b..dcab09daf 100644
 --- a/tensorflow/workspace2.bzl
 +++ b/tensorflow/workspace2.bzl
 @@ -788,6 +788,9 @@ def _tf_repositories():
@@ -80,9 +94,29 @@ index 9e49ab40b25..dcab09daf6c 100644
      )
  
      tf_http_archive(
+diff --git a/third_party/py/rules_python_no_isolated.patch b/third_party/py/rules_python_no_isolated.patch
+new file mode 100644
+index 000000000..ea0de8996
+--- /dev/null
++++ b/third_party/py/rules_python_no_isolated.patch
+@@ -0,0 +1,14 @@
++--- a/python/private/pypi/whl_installer/wheel_installer.py
+++++ b/python/private/pypi/whl_installer/wheel_installer.py
++@@ -167,7 +167,7 @@ def main() -> None:
++         )
++         return
++ 
++     pip_args = (
++         [sys.executable, "-m", "pip"]
++-        + (["--isolated"] if args.isolated else [])
+++        + []
++         + (["download", "--only-binary=:all:"] if args.download_only else ["wheel"])
++         + ["--no-deps"]
++         + deserialized_args["extra_pip_args"]
++     )
 diff --git a/third_party/pybind11_protobuf/link_protobuf.patch b/third_party/pybind11_protobuf/link_protobuf.patch
 new file mode 100644
-index 00000000000..8cb6dd4eaa6
+index 000000000..8cb6dd4ea
 --- /dev/null
 +++ b/third_party/pybind11_protobuf/link_protobuf.patch
 @@ -0,0 +1,82 @@
@@ -168,9 +202,40 @@ index 00000000000..8cb6dd4eaa6
 +
 + }  // namespace pybind11_protobuf
 ++#pragma GCC visibility pop
+diff --git a/third_party/xla/third_party/py/python_init_rules.bzl b/third_party/xla/third_party/py/python_init_rules.bzl
+index 0cabd24e7..54ebca7bb 100644
+--- a/third_party/xla/third_party/py/python_init_rules.bzl
++++ b/third_party/xla/third_party/py/python_init_rules.bzl
+@@ -13,5 +13,6 @@ def python_init_rules():
+             Label("//third_party/py:rules_python1.patch"),
+             Label("//third_party/py:rules_python2.patch"),
+             Label("//third_party/py:rules_python3.patch"),
++            Label("//third_party/py:rules_python_no_isolated.patch"),
+         ],
+     )
+diff --git a/third_party/xla/third_party/py/rules_python_no_isolated.patch b/third_party/xla/third_party/py/rules_python_no_isolated.patch
+new file mode 100644
+index 000000000..ea0de8996
+--- /dev/null
++++ b/third_party/xla/third_party/py/rules_python_no_isolated.patch
+@@ -0,0 +1,14 @@
++--- a/python/private/pypi/whl_installer/wheel_installer.py
+++++ b/python/private/pypi/whl_installer/wheel_installer.py
++@@ -167,7 +167,7 @@ def main() -> None:
++         )
++         return
++ 
++     pip_args = (
++         [sys.executable, "-m", "pip"]
++-        + (["--isolated"] if args.isolated else [])
+++        + []
++         + (["download", "--only-binary=:all:"] if args.download_only else ["wheel"])
++         + ["--no-deps"]
++         + deserialized_args["extra_pip_args"]
++     )
 diff --git a/third_party/xla/third_party/pybind11_abseil/link_abseil.patch b/third_party/xla/third_party/pybind11_abseil/link_abseil.patch
 new file mode 100644
-index 00000000000..fe0f9580bdc
+index 000000000..fe0f9580b
 --- /dev/null
 +++ b/third_party/xla/third_party/pybind11_abseil/link_abseil.patch
 @@ -0,0 +1,85 @@
@@ -260,7 +325,7 @@ index 00000000000..fe0f9580bdc
 + }  // namespace pybind11
 ++#pragma GCC visibility pop
 diff --git a/third_party/xla/third_party/pybind11_abseil/workspace.bzl b/third_party/xla/third_party/pybind11_abseil/workspace.bzl
-index c12f0ba77f8..5117c0af60d 100644
+index c12f0ba77..5117c0af6 100644
 --- a/third_party/xla/third_party/pybind11_abseil/workspace.bzl
 +++ b/third_party/xla/third_party/pybind11_abseil/workspace.bzl
 @@ -16,5 +16,5 @@ def repo():
@@ -271,10 +336,17 @@ index c12f0ba77f8..5117c0af60d 100644
 +        patch_file = ["//third_party/pybind11_abseil:remove_license.patch", "//third_party/pybind11_abseil:link_abseil.patch"],
      )
 diff --git a/third_party/xla/xla/tsl/profiler/utils/group_events.cc b/third_party/xla/xla/tsl/profiler/utils/group_events.cc
-index fc8c041c640..159484e0949 100644
+index fc8c041c6..3746c910e 100644
 --- a/third_party/xla/xla/tsl/profiler/utils/group_events.cc
 +++ b/third_party/xla/xla/tsl/profiler/utils/group_events.cc
-@@ -167,8 +167,9 @@ void ConnectContextGroups(const ContextGroupMap& context_groups) {
+@@ -1,4 +1,5 @@
+-/* Copyright 2020 The TensorFlow Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026.
++Copyright 2020 The TensorFlow Authors. All Rights Reserved.
+ 
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+@@ -167,8 +168,9 @@ void ConnectContextGroups(const ContextGroupMap& context_groups) {
  }
  
  bool IsImplicitRootEvent(const XEventVisitor& event) {
