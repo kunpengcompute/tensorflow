@@ -23,7 +23,7 @@ export PATH=/opt/openEuler/gcc-toolset-12/root/usr/bin/:$PATH
 export LD_LIBRARY_PATH=/opt/openEuler/gcc-toolset-12/root/usr/lib64/:$LD_LIBRARY_PATH
 ```
 
-TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请参见《TensorFlow 移植指南》的“[安装Bazel](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0008.html)”章节。
+TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请参见《TensorFlow 移植指南》的“[安装Bazel](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlowServing/kunpengtfserving_02_0009.html)”章节。
 
 ## 准备TensorFlow源码
 
@@ -31,23 +31,23 @@ TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请
 
 | 特性组合 | 包含内容 | 对应补丁（按应用顺序） | 适用场景 |
 | --- | --- | --- | --- |
-| `common-only` | 公共构建集成（common）与兼容性改动 | `patches/Tensorflow_V2.15.0/feature/0001-tensorflow_2.15.0-common.patch` | 检查公共改动，不启用加速特性。 |
-| `kdnn-core` | 公共构建集成（common）、KDNN算子优化 | `patches/Tensorflow_V2.15.0/feature/0001-tensorflow_2.15.0-common.patch`<br>`patches/Tensorflow_V2.15.0/feature/0002-tensorflow_2.15.0-kdnn.patch` | 使用KDNN算子优化。 |
-| `kdnn-annc` | 公共构建集成（common）、KDNN算子优化、ANNC静态图融合 | `patches/Tensorflow_V2.15.0/feature/0001-tensorflow_2.15.0-common.patch`<br>`patches/Tensorflow_V2.15.0/feature/0002-tensorflow_2.15.0-kdnn.patch`<br>`patches/Tensorflow_V2.15.0/feature/0003-tensorflow_2.15.0-annc.patch` | 使用KDNN和ANNC静态图融合。 |
-| `full-default` | 公共构建集成（common）、KDNN算子优化、ANNC静态图融合、KEmbedding自定义算子 | `patches/Tensorflow_V2.15.0/feature/0001-tensorflow_2.15.0-common.patch`<br>`patches/Tensorflow_V2.15.0/feature/0002-tensorflow_2.15.0-kdnn.patch`<br>`patches/Tensorflow_V2.15.0/feature/0003-tensorflow_2.15.0-annc.patch`<br>`patches/Tensorflow_V2.15.0/feature/0004-tensorflow_2.15.0-kembedding.patch` | 使用当前维护的全部特性。 |
+| common-only | 公共构建集成（common）与兼容性改动 | patches/Tensorflow_V2.15.0/feature/0001-tensorflow_2.15.0-common.patch | 检查公共改动，不启用加速特性。 |
+| kdnn-core | 公共构建集成（common）、KDNN算子优化 | patches/Tensorflow_V2.15.0/feature/0001-tensorflow_2.15.0-common.patch<br>patches/Tensorflow_V2.15.0/feature/0002-tensorflow_2.15.0-kdnn.patch | 使用KDNN算子优化。 |
+| kdnn-annc | 公共构建集成（common）、KDNN算子优化、ANNC静态图融合 | patches/Tensorflow_V2.15.0/feature/0001-tensorflow_2.15.0-common.patch<br>patches/Tensorflow_V2.15.0/feature/0002-tensorflow_2.15.0-kdnn.patch<br>patches/Tensorflow_V2.15.0/feature/0003-tensorflow_2.15.0-annc.patch | 使用KDNN和ANNC静态图融合。 |
+| full-default | 公共构建集成（common）、KDNN算子优化、ANNC静态图融合、KEmbedding自定义算子 | patches/Tensorflow_V2.15.0/feature/0001-tensorflow_2.15.0-common.patch<br>patches/Tensorflow_V2.15.0/feature/0002-tensorflow_2.15.0-kdnn.patch<br>patches/Tensorflow_V2.15.0/feature/0003-tensorflow_2.15.0-annc.patch<br>patches/Tensorflow_V2.15.0/feature/0004-tensorflow_2.15.0-kembedding.patch | 使用当前维护的全部特性。 |
 
 ### 生成完整源码
 
-1. 下载补丁仓并获取官方TensorFlow基线。
+下载补丁仓并获取官方TensorFlow基线。
 
    ```bash
-   git clone -b v1.2.0 https://gitcode.com/boostkit/tensorflow.git sra-tensorflow
+   git clone https://gitcode.com/boostkit/tensorflow.git sra-tensorflow
    cd sra-tensorflow
    git remote add tensorflow-upstream https://github.com/tensorflow/tensorflow.git
    git fetch tensorflow-upstream refs/tags/v2.15.0:refs/tags/v2.15.0
    ```
 
-2. 根据需要创建TensorFlow完整源码。以下以完整默认特性为例。
+根据需要创建TensorFlow完整源码。以下以完整默认特性为例。
 
    ```bash
    python3 patches/Tensorflow_V2.15.0/prepare_source.py \
@@ -57,7 +57,7 @@ TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请
 
    如需其他组合，只需修改`--feature-set`。输出目录包含官方TensorFlow `v2.15.0`完整源码、所选补丁以及自动生成的`tensorflow/feature_copts.bzl`。
 
-3. 在TensorFlow源码根目录创建统一的构建目录。
+在TensorFlow源码根目录创建统一的构建目录。
 
    ```bash
    cd /path/to/tensorflow
@@ -73,17 +73,18 @@ TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请
 
 `kdnn-core`、`kdnn-annc`和`full-default`均需要KDNN头文件和静态库。
 
-1. 获取并安装[KDNN软件包](https://gitcode.com/boostkit/boostsra/releases/download/v1.1.0/BoostKit-boostcore-kdnn_3.0.0.zip)。
+获取并安装[KDNN软件包](https://gitcode.com/boostkit/boostsra/releases/download/v1.2.0/BoostKit-boostcore-kdnn_3.1.0.zip)。
 
    ```bash
-   rpm -ivh boostcore-kdnn-3.0.0-1.aarch64.rpm
+   unzip BoostKit-boostcore-kdnn_3.1.0.zip
+   rpm -ivh boostcore-kdnn-3.1.0-1.aarch64.rpm
    ```
 
    安装后，头文件位于`/usr/local/kdnn/include`，线程池和OpenMP库分别位于
    `/usr/local/kdnn/lib/threadpool`和`/usr/local/kdnn/lib/omp`。
    TensorFlow集成使用线程池版本。
 
-2. 将KDNN头文件和线程池静态库放入生成的TensorFlow源码。
+将KDNN头文件和线程池静态库放入生成的TensorFlow源码。
 
    ```bash
    export TF_PATH=/path/to/tensorflow
@@ -93,7 +94,7 @@ TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请
      $TF_PATH/third_party/KDNN/src/
    ```
 
-3. 应用KDNN头文件适配补丁。
+应用KDNN头文件适配补丁。
 
    ```bash
    cd $TF_PATH/third_party/KDNN
@@ -106,7 +107,11 @@ ANNC静态图融合代码已经包含在`kdnn-annc`和`full-default`特性组合
 
 ### KEmbedding
 
-KEmbedding代码已经包含在`full-default`特性组合中，无需额外下载源码。若只需要KEmbedding动态库，可在生成的TensorFlow源码中单独构建：
+KEmbedding代码已经包含在`full-default`特性组合中，无需额外下载源码。
+
+>![](public_sys-resources/icon-note.gif) **说明：**
+>
+>- 若只需要KEmbedding动态库，可在生成的TensorFlow源码中单独构建，若需构建完整Tensorflow产物则跳过此步骤。
 
 ```bash
 cd /path/to/tensorflow
@@ -117,34 +122,7 @@ bazel --output_base="$PWD/output" build \
 
 构建产物为`bazel-bin/third_party/kembedding/kembedding_embedding_table_lookup.so`。
 
-## 构建推理服务
-
-当前版本支持基于开源TensorFlow Serving构建推理服务。
-
-### 构建TensorFlow Serving
-
-1. 按照《搜推排序模型推理Benchmark》的“[编译TensorFlow Serving](https://www.hikunpeng.com/document/detail/zh/SRA/perfEval/benchmarksra/kunpengmodelzoo_06_0011.html)”章节准备TensorFlow Serving源码、Bazel和编译依赖。
-
-2. 编译时将`--tensorflow_dir`指向本指南生成的TensorFlow完整源码。
-
-   ```bash
-   cd /path/to/serving
-   sh compile_serving.sh \
-     --tensorflow_dir /path/to/tensorflow \
-     --features gcc12
-   ```
-
-3. 检查构建产物。
-
-   ```text
-   /path/to/serving/bazel-bin/tensorflow_serving/model_servers/tensorflow_model_server
-   ```
-
-TensorFlow Serving通过本地TensorFlow源码完成集成。更换特性组合时，无需重新整理Serving源码，只需重新生成对应TensorFlow源码、准备其依赖并重新构建Serving。
-
 ## 构建TensorFlow产物
-
-不使用推理服务时，也可以直接在生成的源码中按需构建TensorFlow目标。
 
 ### TensorFlow pip包
 
@@ -154,11 +132,73 @@ TensorFlow Serving通过本地TensorFlow源码完成集成。更换特性组合�
 cd /path/to/tensorflow
 export TF_PYTHON_VERSION=3.11
 ./configure
+```
+
+依次按照如下选项配置，未显示N或n的选项使用回车`[Enter]`确认。
+
+```bash
+You have bazel 6.5.0- (@non-git) installed.
+Please specify the location of python. [Default is /usr/bin/python3.11]:
+
+
+Found possible Python library paths:
+  /usr/lib/python3.11/site-packages
+  /usr/lib64/python3.11/site-packages
+Please input the desired Python library path to use.  Default is [/usr/lib/python3.11/site-packages]
+
+Do you wish to build TensorFlow with ROCm support? [y/N]: N
+No ROCm support will be enabled for TensorFlow.
+
+Do you wish to build TensorFlow with CUDA support? [y/N]: N
+No CUDA support will be enabled for TensorFlow.
+
+Do you want to use Clang to build TensorFlow? [Y/n]: n
+GCC will be used to compile TensorFlow.
+
+Please specify optimization flags to use during compilation when bazel option "--config=opt" is specified [Default is -Wno-sign-compare]:
+
+
+Would you like to interactively configure ./WORKSPACE for Android builds? [y/N]: N
+Not configuring the WORKSPACE for Android builds.
+
+Preconfigured Bazel build configs. You can use any of the below by adding "--config=<>" to your build command. See .bazelrc for more details.
+        --config=mkl            # Build with MKL support.
+        --config=mkl_aarch64    # Build with oneDNN and Compute Library for the Arm Architecture (ACL).
+        --config=monolithic     # Config for mostly static monolithic build.
+        --config=numa           # Build with NUMA support.
+        --config=dynamic_kernels        # (Experimental) Build kernels into separate shared objects.
+        --config=v1             # Build with TensorFlow 1 API instead of TF 2 API.
+Preconfigured Bazel build configs to DISABLE default on features:
+        --config=nogcp          # Disable GCP support.
+        --config=nonccl         # Disable NVIDIA NCCL support.
+Configuration finished
+```
+
+开始执行编译。
+
+```bash
 bazel --output_base="$PWD/output" build \
   --distdir="$PWD/distdir" \
   -c opt \
+  --define=enable_kdnn=True \
   //tensorflow/tools/pip_package:build_pip_package
 ./bazel-bin/tensorflow/tools/pip_package/build_pip_package ./output-release
+```
+
+>![](public_sys-resources/icon-note.gif) **说明：**
+>
+>- `--define=enable_kdnn=True`用于开启KDNN算子优化，选择`kdnn-core`、`kdnn-annc`或`full-default`特性组合时添加该选项，`common-only`组合不包含KDNN代码，无需添加。
+
+编译完成后，检查产物目录。
+
+```bash
+ls ./output-release
+```
+
+回显类似如下信息时，表示pip包构建成功。
+
+```text
+tensorflow-2.15.0-cp311-cp311-linux_aarch64.whl
 ```
 
 ### TensorFlow C++动态库
@@ -175,19 +215,46 @@ bazel --output_base="$PWD/output" build \
 
 ## 验证特性
 
+>![](public_sys-resources/icon-note.gif) **说明：**
+>
+>- 需完成构建TensorFlow pip包并安装后，才能验证特性。
+
+安装命令。
+
+```bash
+pip install /path/to/tensorflow/output-release/tensorflow-2.15.0-cp311-cp311-linux_aarch64.whl
+```
+
+安装完成后，切换到TensorFlow源码目录以外的任意目录（如用户主目录）执行以下命令验证。
+
+```bash
+cd ~
+python3 -c "import tensorflow as tf; print(tf.__version__)"
+```
+
+>![](public_sys-resources/icon-note.gif) **说明：**
+>
+>- 请勿在TensorFlow源码根目录下执行验证命令，否则Python会优先加载源码目录下的`tensorflow/`包而非已安装的pip包，导致导入报错。
+
+回显类似如下信息时，表示TensorFlow安装成功。
+
+```text
+2.15.0
+```
+
 ### KDNN
 
-1. 进入测试目录并查询支持的模块。
+进入测试目录并查询支持的模块。
 
    ```bash
    cd /path/to/tensorflow/tensorflow/python/kernel_tests/benchmark
    python main.py --list
    ```
 
-2. 从查询结果中选择算子并运行测试。
+从查询结果中选择算子并运行测试。
 
    ```bash
-   python main.py --op {op_name} --performance_test False
+   numactl -C 0-15 python main.py --op {op_name} --performance_test True
    ```
 
    执行通过即表示相关算子集成成功。
@@ -199,7 +266,7 @@ bazel --output_base="$PWD/output" build \
 ```bash
 cd /path/to/tensorflow/tensorflow/python/grappler/embedding_fused_test
 python main.py --list
-python main.py --op {op_name} --performance_test False
+python main.py --op {op_name} --performance_test True
 ```
 
 ANNC静态图融合只对满足特定结构和输入约束的子图生效。
@@ -215,9 +282,38 @@ bazel test //third_party/kembedding:embedding_table_lookup_op_test \
 bazel run //third_party/kembedding:embedding_table_lookup_benchmark
 ```
 
+## 构建推理服务（可选）
+
+当前版本支持基于开源TensorFlow Serving构建推理服务。
+
+### 构建TensorFlow Serving
+
+按照《搜推排序模型推理Benchmark》的“[编译TensorFlow Serving](https://www.hikunpeng.com/document/detail/zh/SRA/perfEval/benchmarksra/kunpengmodelzoo_06_0011.html)”章节准备TensorFlow Serving源码、Bazel和编译依赖。
+
+编译时将`--tensorflow_dir`指向本指南生成的TensorFlow完整源码。
+
+   ```bash
+   cd /path/to/serving
+   sh compile_serving.sh \
+     --tensorflow_dir /path/to/tensorflow \
+     --features gcc12
+   ```
+
+检查构建产物。
+
+   ```text
+   /path/to/serving/bazel-bin/tensorflow_serving/model_servers/tensorflow_model_server
+   ```
+
+TensorFlow Serving通过本地TensorFlow源码完成集成。更换特性组合时，无需重新整理Serving源码，只需重新生成对应TensorFlow源码、准备其依赖并重新构建Serving。
+
 ## Legacy功能
 
-Legacy补丁包含历史Runtime调度、旧融合Embedding、ANNC图编译和旧XLA执行等功能，只允许独立应用到官方TensorFlow `v2.15.0`基线。Legacy补丁不依赖common，不属于当前维护的特性组合，也不保证与KDNN、ANNC静态图融合或KEmbedding补丁兼容。
+Legacy补丁包含历史Runtime调度、旧融合Embedding、ANNC图编译和旧XLA执行等功能，只允许独立应用到官方TensorFlow `v2.15.0`基线。
+
+>![](public_sys-resources/icon-note.gif) **说明：**
+>
+>- Legacy补丁不依赖common，不属于当前维护的特性组合，也不保证与KDNN、ANNC静态图融合或KEmbedding补丁兼容。
 
 ```bash
 git clone -b v2.15.0 https://github.com/tensorflow/tensorflow.git tensorflow-legacy
@@ -239,7 +335,7 @@ bazel --output_base="$PWD/output" build \
 
 ## 常见问题
 
-编译TensorFlow和TensorFlow Serving时，可参考以下故障处理文档：
+编译TensorFlow和TensorFlow Serving时，可参考以下故障处理文档。
 
 - [TensorFlow源码编译证书校验失败](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0012.html)
 - [TensorFlow Serving依赖下载失败](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlowServing/kunpengtfserving_02_0014.html)
