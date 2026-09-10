@@ -1,3 +1,17 @@
+/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+==============================================================================*/
 #include "include/core/embedding_index_to_value_table.h"
 
 #include <algorithm>
@@ -40,6 +54,17 @@ Status EmbeddingTableReader::ReadHeader(
     return s;
   }
 
+  uint64_t file_size = 0;
+  s = Env::Default()->GetFileSize(file_path_, &file_size);
+  if (!s.ok()) {
+    return s;
+  }
+  if (file_size < sizeof(header_size) ||
+      static_cast<uint64_t>(header_size) > file_size - sizeof(header_size)) {
+    return errors::DataLoss("Invalid embedding table header size ",
+                            header_size, " in ", file_path_);
+  }
+
   std::string header_bytes;
   s = input_buffer_->ReadNBytes(header_size, &header_bytes);
   if (!s.ok()) {
@@ -51,6 +76,21 @@ Status EmbeddingTableReader::ReadHeader(
   if (!info->ParseFromString(header_bytes)) {
     LOG(ERROR) << "Failed to parse TableInfo protobuf from " << file_path_;
     return errors::DataLoss("Corrupted embedding table header in ", file_path_);
+  }
+
+  const int64_t data_start = input_buffer_->Tell();
+  if (data_start < 0 || static_cast<uint64_t>(data_start) > file_size) {
+    return errors::DataLoss("Invalid embedding table data offset in ",
+                            file_path_);
+  }
+  const uint64_t min_row_size = sizeof(uint64_t) + sizeof(uint16_t);
+  const uint64_t max_possible_rows =
+      (file_size - static_cast<uint64_t>(data_start)) / min_row_size;
+  if (info->total_key_size() > max_possible_rows) {
+    return errors::DataLoss("Embedding table header declares ",
+                            info->total_key_size(),
+                            " rows, but the file can contain at most ",
+                            max_possible_rows, " rows: ", file_path_);
   }
 
   return absl::OkStatus();
