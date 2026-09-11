@@ -1,5 +1,5 @@
 diff --git a/tensorflow/cc/BUILD b/tensorflow/cc/BUILD
-index d7398e61c2c..551decb0228 100644
+index d7398e61c..551decb02 100644
 --- a/tensorflow/cc/BUILD
 +++ b/tensorflow/cc/BUILD
 @@ -161,9 +161,26 @@ cc_library(
@@ -47,11 +47,12 @@ index d7398e61c2c..551decb0228 100644
      api_def_srcs = ["//tensorflow/core/api_def:base_api_def"],
 diff --git a/tensorflow/cc/gradients/flash_attn_grad.cc b/tensorflow/cc/gradients/flash_attn_grad.cc
 new file mode 100644
-index 00000000000..0decef247f9
+index 000000000..a529c8159
 --- /dev/null
 +++ b/tensorflow/cc/gradients/flash_attn_grad.cc
-@@ -0,0 +1,100 @@
-+/* Copyright 2024 The TensorFlow Authors. All Rights Reserved.
+@@ -0,0 +1,101 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026.
++Copyright 2024 The TensorFlow Authors. All Rights Reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -152,7 +153,7 @@ index 00000000000..0decef247f9
 +}  // namespace ops
 +}  // namespace tensorflow
 diff --git a/tensorflow/core/BUILD b/tensorflow/core/BUILD
-index 69a2c5fcaad..30c68e05664 100644
+index 69a2c5fca..30c68e056 100644
 --- a/tensorflow/core/BUILD
 +++ b/tensorflow/core/BUILD
 @@ -564,6 +564,7 @@ cc_library(
@@ -173,7 +174,7 @@ index 69a2c5fcaad..30c68e05664 100644
          "functional_ops_op_lib",
 diff --git a/tensorflow/core/api_def/base_api/api_def_FlashAttentionBackward.pbtxt b/tensorflow/core/api_def/base_api/api_def_FlashAttentionBackward.pbtxt
 new file mode 100644
-index 00000000000..8cd23f5fad6
+index 000000000..8cd23f5fa
 --- /dev/null
 +++ b/tensorflow/core/api_def/base_api/api_def_FlashAttentionBackward.pbtxt
 @@ -0,0 +1,3 @@
@@ -183,7 +184,7 @@ index 00000000000..8cd23f5fad6
 \ No newline at end of file
 diff --git a/tensorflow/core/api_def/base_api/api_def_FlashAttentionForward.pbtxt b/tensorflow/core/api_def/base_api/api_def_FlashAttentionForward.pbtxt
 new file mode 100644
-index 00000000000..9ef20c42eb7
+index 000000000..9ef20c42e
 --- /dev/null
 +++ b/tensorflow/core/api_def/base_api/api_def_FlashAttentionForward.pbtxt
 @@ -0,0 +1,3 @@
@@ -193,7 +194,7 @@ index 00000000000..9ef20c42eb7
 \ No newline at end of file
 diff --git a/tensorflow/core/api_def/python_api/api_def_FlashAttentionBackward.pbtxt b/tensorflow/core/api_def/python_api/api_def_FlashAttentionBackward.pbtxt
 new file mode 100644
-index 00000000000..8cd23f5fad6
+index 000000000..8cd23f5fa
 --- /dev/null
 +++ b/tensorflow/core/api_def/python_api/api_def_FlashAttentionBackward.pbtxt
 @@ -0,0 +1,3 @@
@@ -203,7 +204,7 @@ index 00000000000..8cd23f5fad6
 \ No newline at end of file
 diff --git a/tensorflow/core/api_def/python_api/api_def_FlashAttentionForward.pbtxt b/tensorflow/core/api_def/python_api/api_def_FlashAttentionForward.pbtxt
 new file mode 100644
-index 00000000000..9ef20c42eb7
+index 000000000..9ef20c42e
 --- /dev/null
 +++ b/tensorflow/core/api_def/python_api/api_def_FlashAttentionForward.pbtxt
 @@ -0,0 +1,3 @@
@@ -212,7 +213,7 @@ index 00000000000..9ef20c42eb7
 +}
 \ No newline at end of file
 diff --git a/tensorflow/core/grappler/optimizers/BUILD b/tensorflow/core/grappler/optimizers/BUILD
-index e967c468367..3a8b64d7683 100644
+index e967c4683..3a8b64d76 100644
 --- a/tensorflow/core/grappler/optimizers/BUILD
 +++ b/tensorflow/core/grappler/optimizers/BUILD
 @@ -6,6 +6,8 @@ load("@local_xla//xla/tsl/mkl:build_defs.bzl", "if_mkl")
@@ -236,7 +237,7 @@ index e967c468367..3a8b64d7683 100644
  tf_cuda_cc_test(
 diff --git a/tensorflow/core/grappler/optimizers/graph_optimizer/BUILD b/tensorflow/core/grappler/optimizers/graph_optimizer/BUILD
 new file mode 100644
-index 00000000000..a58c36810f5
+index 000000000..a58c36810
 --- /dev/null
 +++ b/tensorflow/core/grappler/optimizers/graph_optimizer/BUILD
 @@ -0,0 +1,22 @@
@@ -265,10 +266,13 @@ index 00000000000..a58c36810f5
 \ No newline at end of file
 diff --git a/tensorflow/core/grappler/optimizers/graph_optimizer/flash_attn_graph_opt.cc b/tensorflow/core/grappler/optimizers/graph_optimizer/flash_attn_graph_opt.cc
 new file mode 100644
-index 00000000000..fcb5cdf9cc6
+index 000000000..d7ab2306a
 --- /dev/null
 +++ b/tensorflow/core/grappler/optimizers/graph_optimizer/flash_attn_graph_opt.cc
-@@ -0,0 +1,258 @@
+@@ -0,0 +1,261 @@
++// Copyright (c) Huawei Technologies Co., Ltd. 2026.
++// Licensed under the MIT License.
++
 +#include "flash_attn_graph_opt.h"
 +
 +using namespace tensorflow;
@@ -505,7 +509,7 @@ index 00000000000..fcb5cdf9cc6
 +
 +  if (graph == nullptr) return;
 +
-+  if (enable_all || enable_flashattn_fwd) {
++  if(enable_all || enable_flashattn_fwd) {
 +    std::vector<FwdCandidate> candidates;
 +    absl::flat_hash_set<std::string> processed;
 +    for (NodeDef& node : *graph->mutable_node()) {
@@ -529,10 +533,13 @@ index 00000000000..fcb5cdf9cc6
 +}  // namespace annc
 diff --git a/tensorflow/core/grappler/optimizers/graph_optimizer/flash_attn_graph_opt.h b/tensorflow/core/grappler/optimizers/graph_optimizer/flash_attn_graph_opt.h
 new file mode 100644
-index 00000000000..f7d849b1002
+index 000000000..0011ac809
 --- /dev/null
 +++ b/tensorflow/core/grappler/optimizers/graph_optimizer/flash_attn_graph_opt.h
-@@ -0,0 +1,32 @@
+@@ -0,0 +1,35 @@
++// Copyright (c) Huawei Technologies Co., Ltd. 2026.
++// Licensed under the MIT License.
++
 +#ifndef FAGO_TF_FLASH_ATTN_GRAPH_OPT_H_
 +#define FAGO_TF_FLASH_ATTN_GRAPH_OPT_H_
 +
@@ -566,10 +573,17 @@ index 00000000000..f7d849b1002
 +
 +#endif  // FAGO_TF_FLASH_ATTN_GRAPH_OPT_H_
 diff --git a/tensorflow/core/grappler/optimizers/remapper.cc b/tensorflow/core/grappler/optimizers/remapper.cc
-index 427b3c3e51d..a4311695b28 100644
+index 427b3c3e5..71e50ad37 100644
 --- a/tensorflow/core/grappler/optimizers/remapper.cc
 +++ b/tensorflow/core/grappler/optimizers/remapper.cc
-@@ -51,6 +51,7 @@ limitations under the License.
+@@ -1,4 +1,5 @@
+-/* Copyright 2018 The TensorFlow Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026.
++Copyright 2018 The TensorFlow Authors. All Rights Reserved.
+ 
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+@@ -51,6 +52,7 @@ limitations under the License.
  
  #if GOOGLE_CUDA
  #include "third_party/gpus/cudnn/cudnn.h"
@@ -577,7 +591,7 @@ index 427b3c3e51d..a4311695b28 100644
  #endif  // GOOGLE_CUDA
  
  namespace tensorflow {
-@@ -5399,6 +5400,21 @@ absl::Status Remapper::Optimize(Cluster* cluster, const GrapplerItem& item,
+@@ -5399,6 +5401,21 @@ absl::Status Remapper::Optimize(Cluster* cluster, const GrapplerItem& item,
    }
    TF_RETURN_IF_ERROR(mutation->Apply());
  
@@ -600,7 +614,7 @@ index 427b3c3e51d..a4311695b28 100644
  
    return absl::OkStatus();
 diff --git a/tensorflow/core/kernels/BUILD b/tensorflow/core/kernels/BUILD
-index d78d3e17679..402be483601 100644
+index d78d3e176..402be4836 100644
 --- a/tensorflow/core/kernels/BUILD
 +++ b/tensorflow/core/kernels/BUILD
 @@ -123,6 +123,23 @@ cc_library(
@@ -629,11 +643,12 @@ index d78d3e17679..402be483601 100644
      srcs = [
 diff --git a/tensorflow/core/kernels/flash_attn_op.cc b/tensorflow/core/kernels/flash_attn_op.cc
 new file mode 100644
-index 00000000000..800d72de83a
+index 000000000..a163da029
 --- /dev/null
 +++ b/tensorflow/core/kernels/flash_attn_op.cc
-@@ -0,0 +1,357 @@
-+/* Copyright 2024 The TensorFlow Authors. All Rights Reserved.
+@@ -0,0 +1,358 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026.
++Copyright 2024 The TensorFlow Authors. All Rights Reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -992,11 +1007,12 @@ index 00000000000..800d72de83a
 +}  // namespace tensorflow
 diff --git a/tensorflow/core/kernels/flash_attn_op.h b/tensorflow/core/kernels/flash_attn_op.h
 new file mode 100644
-index 00000000000..739b60b8a92
+index 000000000..883357af7
 --- /dev/null
 +++ b/tensorflow/core/kernels/flash_attn_op.h
-@@ -0,0 +1,140 @@
-+/* Copyright 2024 The TensorFlow Authors. All Rights Reserved.
+@@ -0,0 +1,141 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026.
++Copyright 2024 The TensorFlow Authors. All Rights Reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -1138,11 +1154,12 @@ index 00000000000..739b60b8a92
 +#endif  // TENSORFLOW_CORE_KERNELS_FLASH_ATTN_OP_H_
 diff --git a/tensorflow/core/kernels/flash_attn_op_gpu.cu.cc b/tensorflow/core/kernels/flash_attn_op_gpu.cu.cc
 new file mode 100644
-index 00000000000..3653ef8398b
+index 000000000..f08895c7f
 --- /dev/null
 +++ b/tensorflow/core/kernels/flash_attn_op_gpu.cu.cc
-@@ -0,0 +1,1700 @@
-+/* Copyright 2024 The TensorFlow Authors. All Rights Reserved.
+@@ -0,0 +1,1706 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026.
++Copyright 2024 The TensorFlow Authors. All Rights Reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -1260,7 +1277,7 @@ index 00000000000..3653ef8398b
 +    __half*      __restrict__ dst,
 +    const int row_start, const int block_rows,
 +    const int seq_len, const int d_k, const int d_k_padded,
-+    const int ld_h, const int head_offset,
++    const int ld_h, const int64_t head_offset,
 +    const int tid, const int num_threads)
 +{
 +    if ((d_k & 1) == 0) {
@@ -1272,9 +1289,9 @@ index 00000000000..3653ef8398b
 +            float2 v = make_float2(0.f, 0.f);
 +            if (gr < seq_len && c + 1 < d_k)
 +                v = *reinterpret_cast<const float2*>(
-+                        &src[head_offset + gr * d_k + c]);
++                        &src[head_offset + (int64_t)gr * d_k + c]);
 +            else if (gr < seq_len && c < d_k)
-+                v.x = src[head_offset + gr * d_k + c];
++                v.x = src[head_offset + (int64_t)gr * d_k + c];
 +            *reinterpret_cast<__half2*>(&dst[r * ld_h + c]) =
 +                __floats2half2_rn(v.x, v.y);
 +        }
@@ -1285,7 +1302,7 @@ index 00000000000..3653ef8398b
 +            int gr = row_start + r;
 +            float v = 0.f;
 +            if (gr < seq_len && c < d_k)
-+                v = src[head_offset + gr * d_k + c];
++                v = src[head_offset + (int64_t)gr * d_k + c];
 +            dst[r * ld_h + c] = __float2half(v);
 +        }
 +    }
@@ -1298,7 +1315,7 @@ index 00000000000..3653ef8398b
 +    __half*      __restrict__ dstB,
 +    const int row_start, const int block_rows,
 +    const int seq_len, const int d_k, const int d_k_padded,
-+    const int ld_h, const int head_offset,
++    const int ld_h, const int64_t head_offset,
 +    const int tid, const int num_threads)
 +{
 +    if ((d_k & 1) == 0) {
@@ -1311,12 +1328,12 @@ index 00000000000..3653ef8398b
 +            float2 vb = make_float2(0.f, 0.f);
 +            if (gr < seq_len && c + 1 < d_k) {
 +                va = *reinterpret_cast<const float2*>(
-+                         &srcA[head_offset + gr * d_k + c]);
++                         &srcA[head_offset + (int64_t)gr * d_k + c]);
 +                vb = *reinterpret_cast<const float2*>(
-+                         &srcB[head_offset + gr * d_k + c]);
++                         &srcB[head_offset + (int64_t)gr * d_k + c]);
 +            } else if (gr < seq_len && c < d_k) {
-+                va.x = srcA[head_offset + gr * d_k + c];
-+                vb.x = srcB[head_offset + gr * d_k + c];
++                va.x = srcA[head_offset + (int64_t)gr * d_k + c];
++                vb.x = srcB[head_offset + (int64_t)gr * d_k + c];
 +            }
 +            *reinterpret_cast<__half2*>(&dstA[r * ld_h + c]) =
 +                __floats2half2_rn(va.x, va.y);
@@ -1330,8 +1347,8 @@ index 00000000000..3653ef8398b
 +            int gr = row_start + r;
 +            float va = 0.f, vb = 0.f;
 +            if (gr < seq_len && c < d_k) {
-+                va = srcA[head_offset + gr * d_k + c];
-+                vb = srcB[head_offset + gr * d_k + c];
++                va = srcA[head_offset + (int64_t)gr * d_k + c];
++                vb = srcB[head_offset + (int64_t)gr * d_k + c];
 +            }
 +            dstA[r * ld_h + c] = __float2half(va);
 +            dstB[r * ld_h + c] = __float2half(vb);
@@ -1370,7 +1387,7 @@ index 00000000000..3653ef8398b
 +        int r = row_start + idx / tile_n;
 +        int c = col_start + idx % tile_n;      /* 连续 c -> 合并读 */
 +        if (r < seq_len && c < seq_len) {
-+            float v = mask[r * seq_len + c];
++            float v = mask[(int64_t)r * seq_len + c];
 +            t_min = fminf(t_min, v);
 +            t_max = fmaxf(t_max, v);
 +        }
@@ -1590,7 +1607,7 @@ index 00000000000..3653ef8398b
 +    const int q_block_idx = blockIdx.x;
 +    const int head        = blockIdx.y;
 +
-+    const int head_offset = head * seq_len * d_k;
++    const int64_t head_offset = (int64_t)head * seq_len * d_k;
 +    const int q_row_start = q_block_idx * BLOCK_M;
 +
 +    /* ---- SMEM 切分 ---- */
@@ -1698,7 +1715,7 @@ index 00000000000..3653ef8398b
 +                int gr = q_row_start  + r;
 +                int gc = kv_row_start + c;
 +                if (gr < seq_len && gc < seq_len)
-+                    sS[r * LD_S + c] += mask[gr * seq_len + gc]; /* 连续 gc -> 全合并 */
++                    sS[r * LD_S + c] += mask[(int64_t)gr * seq_len + gc]; /* 连续 gc -> 全合并 */
 +            }
 +            __syncthreads();
 +        }
@@ -1814,14 +1831,19 @@ index 00000000000..3653ef8398b
 +            int c  = idx % d_k;
 +            int gr = q_row_start + r;
 +            if (gr < seq_len) {
-+                float val = sO[r * ld_o + c] / sl[r];
-+                O[head_offset + gr * d_k + c] = val;
++                float l = sl[r];
++                float val = (l > 0.f) ? (sO[r * ld_o + c] / l) : 0.f;  // 零分母防护
++                O[head_offset + (int64_t)gr * d_k + c] = val;
 +            }
 +        }
 +        if (tid < BLOCK_M) {
 +            int gr = q_row_start + tid;
-+            if (gr < seq_len)
-+                L[head * seq_len + gr] = sm[tid] + logf(sl[tid]);
++            if (gr < seq_len) {
++                L[(int64_t)head * seq_len + gr] = sm[tid] + logf(sl[tid]);
++                float l = sl[tid];
++                L[(int64_t)head * seq_len + gr] =
++                    (l > 0.f) ? (sm[tid] + logf(l)) : -INFINITY;  // 零分母防护
++            }
 +        }
 +    } else {
 +        /* ---- Split-KV: 写未归一化部分和, 由 merge kernel 归一化 ----
@@ -2029,7 +2051,7 @@ index 00000000000..3653ef8398b
 +    __half*      __restrict__ dstB,
 +    const int row_start, const int block_rows,
 +    const int seq_len, const int d_k, const int d_k_padded,
-+    const int ld_h, const int head_offset,
++    const int ld_h, const int64_t head_offset,
 +    const int tid, const int num_threads)
 +{
 +    if ((d_k & 1) == 0) {
@@ -2042,12 +2064,12 @@ index 00000000000..3653ef8398b
 +            float2 vb = make_float2(0.f, 0.f);
 +            if (gr < seq_len && c + 1 < d_k) {
 +                va = *reinterpret_cast<const float2*>(
-+                         &srcA[head_offset + gr * d_k + c]);
++                         &srcA[head_offset + (int64_t)gr * d_k + c]);
 +                vb = *reinterpret_cast<const float2*>(
-+                         &srcB[head_offset + gr * d_k + c]);
++                         &srcB[head_offset + (int64_t)gr * d_k + c]);
 +            } else if (gr < seq_len && c < d_k) {
-+                va.x = srcA[head_offset + gr * d_k + c];
-+                vb.x = srcB[head_offset + gr * d_k + c];
++                va.x = srcA[head_offset + (int64_t)gr * d_k + c];
++                vb.x = srcB[head_offset + (int64_t)gr * d_k + c];
 +            }
 +            *reinterpret_cast<__half2*>(&dstA[r * ld_h + c]) =
 +                __floats2half2_rn(va.x, va.y);
@@ -2061,8 +2083,8 @@ index 00000000000..3653ef8398b
 +            int gr = row_start + r;
 +            float va = 0.f, vb = 0.f;
 +            if (gr < seq_len && c < d_k) {
-+                va = srcA[head_offset + gr * d_k + c];
-+                vb = srcB[head_offset + gr * d_k + c];
++                va = srcA[head_offset + (int64_t)gr * d_k + c];
++                vb = srcB[head_offset + (int64_t)gr * d_k + c];
 +            }
 +            dstA[r * ld_h + c] = __float2half(va);
 +            dstB[r * ld_h + c] = __float2half(vb);
@@ -2087,11 +2109,11 @@ index 00000000000..3653ef8398b
 +
 +    if (row >= N) return;
 +
-+    const int offset = head * N * d_k + row * d_k;
++    const int64_t offset = (int64_t)head * N * d_k + (int64_t)row * d_k;
 +    float d = 0.f;
 +    for (int x = 0; x < d_k; x++)
 +        d += dO[offset + x] * O[offset + x];
-+    D_buf[head * N + row] = d;
++    D_buf[(int64_t)head * N + row] = d;
 +}
 +
 +/* ========================================================================
@@ -2144,7 +2166,7 @@ index 00000000000..3653ef8398b
 +    const int q_block_idx = blockIdx.x;
 +    const int head        = blockIdx.y;
 +
-+    const int head_offset = head * seq_len * d_k;
++    const int64_t head_offset = (int64_t)head * seq_len * d_k;
 +    const int q_row_start = q_block_idx * BLOCK_M;
 +
 +    const int ld_h = d_k_padded + SKEW_HALF;
@@ -2185,8 +2207,8 @@ index 00000000000..3653ef8398b
 +    if (tid < BLOCK_M) {
 +        int gr = q_row_start + tid;
 +        if (gr < seq_len) {
-+            sL[tid] = L    [head * seq_len + gr];
-+            sD[tid] = D_buf[head * seq_len + gr];
++            sL[tid] = L    [(int64_t)head * seq_len + gr];
++            sD[tid] = D_buf[(int64_t)head * seq_len + gr];
 +        } else {
 +            sL[tid] = 0.f;
 +            sD[tid] = 0.f;
@@ -2301,7 +2323,7 @@ index 00000000000..3653ef8398b
 +                int gr = q_row_start  + r;
 +                int gc = kv_row_start + c;
 +                if (gr < seq_len && gc < seq_len)
-+                    sS[r * LD_S + c] += mask[gr * seq_len + gc]; /* 连续 gc -> 全合并 */
++                    sS[r * LD_S + c] += mask[(int64_t)gr * seq_len + gc]; /* 连续 gc -> 全合并 */
 +            }
 +            __syncthreads();
 +        }
@@ -2380,7 +2402,7 @@ index 00000000000..3653ef8398b
 +            int gc = dt * WMMA_N + lc;
 +            if (gr < seq_len && gc < d_k) {
 +                float val = sdP[warp_id * WMMA_M * LD_STAGE + lr * LD_STAGE + lc];
-+                dQ[head_offset + gr * d_k + gc] = val;
++                dQ[head_offset + (int64_t)gr * d_k + gc] = val;
 +            }
 +        }
 +        __syncthreads();
@@ -2425,7 +2447,7 @@ index 00000000000..3653ef8398b
 +    const int kv_block_idx = blockIdx.x;
 +    const int head         = blockIdx.y;
 +
-+    const int head_offset   = head * seq_len * d_k;
++    const int64_t head_offset   = (int64_t)head * seq_len * d_k;
 +    const int kv_row_start  = kv_block_idx * BLOCK_N;
 +
 +    /* fp16 tile 行距 (skew) */
@@ -2493,8 +2515,8 @@ index 00000000000..3653ef8398b
 +        if (tid < BLOCK_M) {
 +            int gr = q_row_start + tid;
 +            if (gr < seq_len) {
-+                sL[tid] = L    [head * seq_len + gr];
-+                sD[tid] = D_buf[head * seq_len + gr];
++                sL[tid] = L    [(int64_t)head * seq_len + gr];
++                sD[tid] = D_buf[(int64_t)head * seq_len + gr];
 +            } else {
 +                sL[tid] = 0.f;
 +                sD[tid] = 0.f;
@@ -2578,7 +2600,7 @@ index 00000000000..3653ef8398b
 +                int gr = q_row_start  + r;
 +                int gc = kv_row_start + c;
 +                if (gr < seq_len && gc < seq_len)
-+                    sS[r * LD_S + c] += mask[gr * seq_len + gc]; /* 连续 gc -> 全合并 */
++                    sS[r * LD_S + c] += mask[(int64_t)gr * seq_len + gc]; /* 连续 gc -> 全合并 */
 +            }
 +            __syncthreads();
 +        }
@@ -2693,7 +2715,7 @@ index 00000000000..3653ef8398b
 +            int gc = dt * WMMA_N + lc;
 +            if (gr < seq_len && gc < d_k) {
 +                float val = sdP[warp_id * WMMA_M * LD_STAGE + lr * LD_STAGE + lc];
-+                dK[head_offset + gr * d_k + gc] = val;
++                dK[head_offset + (int64_t)gr * d_k + gc] = val;
 +            }
 +        }
 +        __syncthreads();
@@ -2713,7 +2735,7 @@ index 00000000000..3653ef8398b
 +            int gc = dt * WMMA_N + lc;
 +            if (gr < seq_len && gc < d_k) {
 +                float val = sdP[warp_id * WMMA_M * LD_STAGE + lr * LD_STAGE + lc];
-+                dV[head_offset + gr * d_k + gc] = val;
++                dV[head_offset + (int64_t)gr * d_k + gc] = val;
 +            }
 +        }
 +        __syncthreads();
@@ -2843,7 +2865,7 @@ index 00000000000..3653ef8398b
 +
 +#endif  // GOOGLE_CUDA
 diff --git a/tensorflow/core/ops/BUILD b/tensorflow/core/ops/BUILD
-index be03e74cb4c..4533adee09d 100644
+index be03e74cb..4533adee0 100644
 --- a/tensorflow/core/ops/BUILD
 +++ b/tensorflow/core/ops/BUILD
 @@ -269,9 +269,20 @@ tf_gen_op_libs(
@@ -2869,11 +2891,12 @@ index be03e74cb4c..4533adee09d 100644
          ":batch_ops_op_lib",
 diff --git a/tensorflow/core/ops/flash_attn_ops.cc b/tensorflow/core/ops/flash_attn_ops.cc
 new file mode 100644
-index 00000000000..eb45266786c
+index 000000000..5e4586da1
 --- /dev/null
 +++ b/tensorflow/core/ops/flash_attn_ops.cc
-@@ -0,0 +1,172 @@
-+/* Copyright 2024 The TensorFlow Authors. All Rights Reserved.
+@@ -0,0 +1,173 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026.
++Copyright 2024 The TensorFlow Authors. All Rights Reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -3046,7 +3069,7 @@ index 00000000000..eb45266786c
 +
 +}  // namespace tensorflow
 diff --git a/tensorflow/python/BUILD b/tensorflow/python/BUILD
-index 8fea090dc44..eb28fdb758f 100644
+index 8fea090dc..eb28fdb75 100644
 --- a/tensorflow/python/BUILD
 +++ b/tensorflow/python/BUILD
 @@ -9,6 +9,8 @@ load(
@@ -3078,10 +3101,13 @@ index 8fea090dc44..eb28fdb758f 100644
  tf_python_pybind_extension(
 diff --git a/tensorflow/python/grappler/flash_attn_opt_test/framework/runner.py b/tensorflow/python/grappler/flash_attn_opt_test/framework/runner.py
 new file mode 100644
-index 00000000000..79cf291df5a
+index 000000000..87020589e
 --- /dev/null
 +++ b/tensorflow/python/grappler/flash_attn_opt_test/framework/runner.py
-@@ -0,0 +1,227 @@
+@@ -0,0 +1,229 @@
++# Copyright (c) Huawei Technologies Co., Ltd. 2026.
++# Licensed under the MIT License.
++
 +import os
 +import time
 +import shutil
@@ -3101,7 +3127,6 @@ index 00000000000..79cf291df5a
 +from tensorflow.core.protobuf import rewriter_config_pb2
 +
 +tf.disable_eager_execution()
-+
 +
 +@dataclass
 +class TestCase:
@@ -3311,10 +3336,13 @@ index 00000000000..79cf291df5a
 +        return True
 diff --git a/tensorflow/python/grappler/flash_attn_opt_test/main.py b/tensorflow/python/grappler/flash_attn_opt_test/main.py
 new file mode 100644
-index 00000000000..b061f5863ac
+index 000000000..a26826ac6
 --- /dev/null
 +++ b/tensorflow/python/grappler/flash_attn_opt_test/main.py
-@@ -0,0 +1,51 @@
+@@ -0,0 +1,53 @@
++# Copyright (c) Huawei Technologies Co., Ltd. 2026.
++# Licensed under the MIT License.
++
 +import argparse
 +import importlib
 +import pkgutil
@@ -3363,20 +3391,21 @@ index 00000000000..b061f5863ac
 +            print(f"❌ 运行模块 {module_path} 失败: {e}")
 +            traceback.print_exc()
 +
-+
 +if __name__ == "__main__":
 +    main()
 \ No newline at end of file
 diff --git a/tensorflow/python/grappler/flash_attn_opt_test/ops/FlashAttn_op.py b/tensorflow/python/grappler/flash_attn_opt_test/ops/FlashAttn_op.py
 new file mode 100644
-index 00000000000..d97a4f7e4ed
+index 000000000..a4240dd27
 --- /dev/null
 +++ b/tensorflow/python/grappler/flash_attn_opt_test/ops/FlashAttn_op.py
-@@ -0,0 +1,303 @@
+@@ -0,0 +1,299 @@
++# Copyright (c) Huawei Technologies Co., Ltd. 2026.
++# Licensed under the MIT License.
++
 +import tensorflow as tf
 +import numpy as np
 +from framework.runner import TestCase
-+
 +
 +# -----------------------------------------------------------------------------
 +# 核心函数: 原始 5 算子 Attention 子图 (含 1/√d_k scale, 与 FlashAttention kernel 对齐)
@@ -3404,7 +3433,6 @@ index 00000000000..d97a4f7e4ed
 +    p = tf.compat.v1.raw_ops.Softmax(logits=s)                     # [h, s, s]
 +    out = tf.compat.v1.raw_ops.BatchMatMulV2(x=p, y=v, adj_y=False)  # [h, s, d_k]
 +    return out
-+
 +
 +def FlashAttn_graph(input, meta):
 +    """根据核心函数入参名创建 placeholder, 返回结果与 feed_dict."""
@@ -3456,8 +3484,7 @@ index 00000000000..d97a4f7e4ed
 +    p = tf.compat.v1.raw_ops.Softmax(logits=s)
 +    out = tf.compat.v1.raw_ops.BatchMatMulV2(x=p, y=v, adj_y=False)
 +    return out
-+ 
-+ 
++
 +def FlashAttn_no_scale_graph(input, meta):
 +    num_heads, seq_len, d_k = meta["num_heads"], meta["seq_len"], meta["d_k"]
 +    dtype = meta.get("dtype", np.float32)
@@ -3471,8 +3498,7 @@ index 00000000000..d97a4f7e4ed
 +    feed_dict = {q: input["q"], k: input["k"], v: input["v"], mask: input["mask"]}
 +    result = _AttentionFwdNoScale(q, k, v, mask, scale)
 +    return result, feed_dict
-+ 
-+ 
++
 +# --- 负向2: 缺少 AddV2(mask), 直接用 Softmax(Mul), 违反 MatchFwd 第1步 ---
 +# Softmax 的输入不是 AddV2 → 匹配失败
 +@tf.function
@@ -3483,8 +3509,7 @@ index 00000000000..d97a4f7e4ed
 +    p = tf.compat.v1.raw_ops.Softmax(logits=s)
 +    out = tf.compat.v1.raw_ops.BatchMatMulV2(x=p, y=v, adj_y=False)
 +    return out
-+ 
-+ 
++
 +def FlashAttn_no_mask_graph(input, meta):
 +    num_heads, seq_len, d_k = meta["num_heads"], meta["seq_len"], meta["d_k"]
 +    dtype = meta.get("dtype", np.float32)
@@ -3509,8 +3534,7 @@ index 00000000000..d97a4f7e4ed
 +    # 跳过SoftMax
 +    out = tf.compat.v1.raw_ops.BatchMatMulV2(x=s, y=v, adj_y=False)  # [h, s, d_k]
 +    return out
-+ 
-+ 
++
 +def FlashAttn_no_softmax_graph(input, meta):
 +    num_heads, seq_len, d_k = meta["num_heads"], meta["seq_len"], meta["d_k"]
 +    dtype = meta.get("dtype", np.float32)
@@ -3545,7 +3569,6 @@ index 00000000000..d97a4f7e4ed
 +    # 向量化因果 mask: 上三角(k=1)填 -1e9
 +    mask = np.triu(np.full([seq_len, seq_len], -1e9, dtype=np.float32), k=1)
 +    return mask.astype(dtype)
-+
 +
 +def build_input(meta):
 +    """通用输入构造函数, 由 meta 控制 d_k / dtype / mask."""
@@ -3677,7 +3700,7 @@ index 00000000000..d97a4f7e4ed
 +        
 +    return cases
 diff --git a/tensorflow/python/ops/BUILD b/tensorflow/python/ops/BUILD
-index c3cb14d9ac8..c505b527872 100644
+index c3cb14d9a..c505b5278 100644
 --- a/tensorflow/python/ops/BUILD
 +++ b/tensorflow/python/ops/BUILD
 @@ -238,6 +238,14 @@ tf_gen_op_strict_wrapper_private_py(

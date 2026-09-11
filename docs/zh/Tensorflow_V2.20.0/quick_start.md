@@ -28,7 +28,7 @@
 
 4. 根据实际使用场景选择需要的构建目标，无需同时构建全部目标。以下提供pip构建目标的参考命令。
 
-  - 4.1 配置bazel。
+   4.1. 配置bazel。
 
       ```bash
       cd ../tensorflow-full-default
@@ -95,33 +95,16 @@
       Configuration finished
       ```
 
-  - 4.2 打开.tf_configure.bazelrc，复制以下内容并替换。
+   4.2. 打开`.tf_configure.bazelrc`，在`build --action_env LD_LIBRARY_PATH=...`行前添加以下build 配置。
 
       ```bash
-      build --action_env PYTHON_BIN_PATH="/usr/bin/python3"
-      build --action_env PYTHON_LIB_PATH="/usr/lib/python3.11/site-packages"
-      build --python_path="/usr/bin/python3"
-      build:cuda --repo_env HERMETIC_CUDA_VERSION="12.8.0"
-      build:cuda --repo_env HERMETIC_CUDNN_VERSION="9.5.0"
-      build:cuda --repo_env HERMETIC_CUDA_COMPUTE_CAPABILITIES="8.9"
       build:cuda --repo_env TF_NEED_CUDA=1
       build:cuda --crosstool_top=@local_config_cuda//crosstool:toolchain
       build:cuda --@local_config_cuda//:enable_cuda
       build:cuda --config=cuda_version
-      build --action_env LD_LIBRARY_PATH="/opt/openEuler/gcc-toolset-14/root/usr/lib64/:/opt/openEuler/gcc-toolset-14/root/usr/lib64:/opt/openEuler/gcc-toolset-14/root/usr/lib64:/opt/openEuler/gcc-toolset-14/root/usr/lib:/opt/openEuler/gcc-toolset-14/root/usr/lib64/dyninst:/opt/openEuler/gcc-toolset-14/root/usr/lib/dyninst:/opt/openEuler/gcc-toolset-14/root/usr/lib64:/opt/openEuler/gcc-toolset-14/root/usr/lib:/usr/local/cuda/lib64/:/opt/openEuler/gcc-toolset-14/root/lib64:/opt/openEuler/gcc-toolset-14/root/lib64/dyninst:"
-      build --action_env GCC_HOST_COMPILER_PATH="/opt/openEuler/gcc-toolset-14/root/usr/bin/gcc"
-      build --config=cuda
-      build:opt --copt=-Wno-sign-compare
-      build:opt --host_copt=-Wno-sign-compare
-      test --test_size_filters=small,medium
-      test --test_env=LD_LIBRARY_PATH
-      test:v1 --test_tag_filters=-benchmark-test,-no_oss,-oss_excluded,-no_gpu,-oss_serial
-      test:v1 --build_tag_filters=-benchmark-test,-no_oss,-oss_excluded,-no_gpu
-      test:v2 --test_tag_filters=-benchmark-test,-no_oss,-oss_excluded,-no_gpu,-oss_serial,-v1only
-      test:v2 --build_tag_filters=-benchmark-test,-no_oss,-oss_excluded,-no_gpu,-v1only
       ```
 
-  - 4.3 构建TensorFlow pip包。
+   4.3. 构建TensorFlow pip包。
 
      ```bash
      bazel build \
@@ -142,16 +125,31 @@
       //tensorflow/tools/pip_package:wheel
      ```
 
-  - 4.4 安装TensorFlow pip包。
+   4.4. 安装TensorFlow pip包。
   
      ```bash
      pip install bazel-bin/tensorflow/tools/pip_package/wheel_house/tensorflow-2.20.0.dev0+selfbuilt-cp311-cp311-linux_aarch64.whl
+     ```
+
+5. 调用Tensorflow接口。
+
+   5.1. C++接口调用，预期可以输出Tensorflow C++共享库依赖的系统动态库。
+   
+     ```bash
+     ldd /usr/local/lib64/python3.11/site-packages/tensorflow/libtensorflow_cc.so.2
+     ```
+
+   5.2. Python接口调用，预期可以输出tensorflow lib路径。
+
+     ```bash
+     cd ..
+     python3 -c "import tensorflow; print(tensorflow.sysconfig.get_lib())"
      ```
 
 如果在编译过程中遇到任何问题，请参见《[TensorFlow 移植指南](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0001.html)》。
 
 ## 修订记录
 
-| 发布日期 | 修订记录 |
-| ---- | ---- |
-| 2026-09-30 | 第一次正式发布。<ul><li>新增TensorFlow 2.20.0安装步骤内容。</li><li>新增TensorFlow FAGO静态图融合特性安装指导内容。</li></ul> |
+| 文档版本 | 发布日期 | 修订记录 |
+| ---- | ---- | ---- |
+| 01 | 2026-09-30 | 第一次正式发布。|
