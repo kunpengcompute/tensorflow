@@ -52,9 +52,9 @@ TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请�
   2. 下载CUDA工具包。
 
      CUDA 12.8官网下载链接“[CUDA Toolkit 12.8 Downloads](https://developer.nvidia.com/cuda-12-8-0-download-archive?target_os=Linux&target_arch=arm64-sbsa&Compilation=Native&Distribution=RHEL&target_version=8)”。
-    
+
      下载对应版本的CUDA工具包，且仅需下载CUDA工具包，无需单独下载GPU驱动。CUDA工具包`cuda_12.8.0_***_linux_sbsa.run`内含GPU驱动。
-    
+
   3. 安装CUDA工具包。
 
      安装工具包，赋予可执行权限并运行.run文件，根据提示完成安装。
@@ -175,7 +175,7 @@ TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请�
    Configuration finished
    ```
   
-2. 打开`.tf_configure.bazelrc`，在`build --action_env LD_LIBRARY_PATH=...`行前添加以下build 配置。
+2. 打开`.tf_configure.bazelrc`，在`build --action_env LD_LIBRARY_PATH=...`行前添加以下build配置。
 
    ```bash
    build:cuda --repo_env TF_NEED_CUDA=1
@@ -250,11 +250,11 @@ ImportError: libnvrtc-builtins.so.12.5: cannot open shared object file: No such 
 
 #### 根本原因分析
 
-TensorFlow 构建脚本中硬编码了 libnvrtc-builtins.so.12.5 作为依赖版本，但实际安装的是 CUDA 12.8，对应库文件为 libnvrtc-builtins.so.12.8，运行时动态链接器找不到对应版本的库，触发导入失败。
+TensorFlow构建脚本中硬编码了libnvrtc-builtins.so.12.5作为依赖版本，但实际安装的是CUDA 12.8，对应库文件为libnvrtc-builtins.so.12.8，运行时动态链接器找不到对应版本的库，触发导入失败。
 
 #### 解决方案及效果
 
-NVIDIA 保证 CUDA 同大版本（12.x）内的 nvrtc-builtins 库二进制向下兼容，直接创建版本软链接即可正常运行，不影响功能与性能。
+NVIDIA保证CUDA同大版本（12.x）内的nvrtc-builtins库二进制向下兼容，直接创建版本软链接即可正常运行，不影响功能与性能。
 
 1. 执行以下命令进行修复。
 
@@ -274,6 +274,6 @@ NVIDIA 保证 CUDA 同大版本（12.x）内的 nvrtc-builtins 库二进制向�
 
 ## 修订记录
 
-| 文档版本 | 发布日期 | 修订记录 |
+| 文档版本 | 发布日期 | 修改说明 |
 | ---- | ---- | ---- |
 | 01 | 2026-09-30 | 第一次正式发布。|

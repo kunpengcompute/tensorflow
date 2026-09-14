@@ -33,7 +33,7 @@
 
 4. 根据实际使用场景选择需要的构建目标，无需同时构建全部目标。以下提供两种常用构建目标的参考命令。
 
-   - TensorFlow pip包：
+   - TensorFlow pip包。
 
      ```bash
      bazel --output_base="$PWD/output" build \
@@ -43,7 +43,7 @@
      ./bazel-bin/tensorflow/tools/pip_package/build_pip_package ./output-release
      ```
 
-   - TensorFlow C++动态库：
+   - TensorFlow C++动态库。
   
      ```bash
      bazel --output_base="$PWD/output" build \
@@ -140,14 +140,14 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
     export ANNC_FLAGS="--gemm-opt --graph-opt"
     ```
 
-3. 启动TF Serving服务。
+3. 启动TensorFlow Serving服务。
 
     ```bash
     /path/to/tensorflow-serving/bazel-bin/tensorflow_serving/model_servers/tensorflow_model_server --port=8889 --model_name=deepfm --model_base_path=/optimized_model/deepfm --tensorflow_intra_op_parallelism=1 --tensorflow_inter_op_parallelism=-1 --xla_cpu_compilation_enabled=true
     ```
 
     >![icon note](public_sys-resources/icon-note.gif) **说明：**
-    >“--model\_base\_path”所指定的模型不在此限制，用户可自行下载或使用其他模型。
+    >“--model\_base\_path”所指定的模型不受此限制，用户可自行下载或使用其他模型。
 
 4. 启动客户端压测。
 
@@ -164,8 +164,8 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 
 ## 修订记录
 
-| 发布日期 | 修订记录 |
-| ---- | ---- |
-| 2026-09-30 | 第三次正式发布。<ul><li>更新按特性组合创建完整TensorFlow源码及按需选择构建目标的操作指导。</li><li>重构TensorFlow Serving推理服务使用说明，并明确当前维护特性与Legacy功能的使用范围。</li></ul> |
-| 2026-06-30 | 第二次正式发布。<ul><li>TensorFlow ANNC图编译优化特性增加常量折叠优化特性内容。</li><li>新增TensorFlow ANNC静态图融合特性，增加对应使用样例。</li></ul> |
-| 2026-03-30 | 第一次正式发布。 <ul><li>新增TensorFlow集成KDNN使用示例。</li><li>新增TensorFlow KDNN线程直通特性，增加对应使用示例。</li></ul> |
+| 文档版本 | 发布日期 | 修改说明 |
+| ---- | ---- | --- |
+| 03 | 2026-09-30 | 第三次正式发布。<ul><li>更新按特性组合创建完整TensorFlow源码及按需选择构建目标的操作指导。</li><li>重构TensorFlow Serving推理服务使用说明，并明确当前维护特性与Legacy功能的使用范围。</li></ul> |
+| 02 | 2026-06-30 | 第二次正式发布。<ul><li>TensorFlow ANNC图编译优化特性增加常量折叠优化特性内容。</li><li>新增TensorFlow ANNC静态图融合特性，增加对应使用样例。</li></ul> |
+| 01 | 2026-03-30 | 第一次正式发布。 <ul><li>新增TensorFlow集成KDNN使用示例。</li><li>新增TensorFlow KDNN线程直通特性，增加对应使用示例。</li></ul> |

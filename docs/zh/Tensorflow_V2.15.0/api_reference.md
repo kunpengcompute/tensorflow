@@ -6,7 +6,7 @@ TensorFlow KDNN线程直通特性通过进程环境变量控制，具体说明�
 
  **变量类型**
 
-进程环境变量
+进程环境变量。
 
 **变量名称**
 
@@ -59,14 +59,14 @@ SparseMatmul算子属于KDNN算子库，用于计算稀疏矩阵与稠密矩阵�
 
 接口函数签名新增`ThreadpoolIface *tp`参数，用于传递线程池实例。
 
-* 修改前
+* 修改前。
 
   ```c
   kdnn_sparse_status_t kdnn_sparse_scsrmm(
       const kdnn_sparse_operation_t opt, ...);
   ```
 
-* 修改后
+* 修改后。
 
   ```c
   kdnn_sparse_status_t kdnn_sparse_scsrmm(
@@ -76,8 +76,7 @@ SparseMatmul算子属于KDNN算子库，用于计算稀疏矩阵与稠密矩阵�
 
 **接口源码文件**
 
-接口源码文件有`third_party/kdnn/kdnn_adapter.h`和
-`tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc`。
+接口源码文件有`third_party/kdnn/kdnn_adapter.h`和`tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc`。
 
 ## KEmbedding算子库EmbeddingTableLookup算子说明
 
@@ -99,22 +98,22 @@ TensorFlow OpKernel类。
 
 | 参数名称 | 类型 | 描述 |
 | ---------------- | ------------- | ------ |
-| `keys` | `int64`张量 | 需要查找的Embedding key列表，形状为`[key_cnt]`。|
-| `table_handle` | `resource` | 资源表句柄，通过`EmbeddingIndexToValueTable`创建并已加载Embedding数据。 |
+| keys | int64张量 | 需要查找的Embedding key列表，形状为`[key_cnt]`。 |
+| table_handle | resource | 资源表句柄，通过`EmbeddingIndexToValueTable`创建并已加载Embedding数据。 |
 
 **输出参数**
 
-| 参数名称 | 类型  | 描述 |
+| 参数名称 | 类型 | 描述 |
 | --------------- | ------------- | ------------- |
-| `indices` | `int64`张量 | SparseTensor的索引，形状为`[N, 2]`，N为命中非零元素总数，第二维为`[row, col]`。 |
-| `values` | `float`张量 | SparseTensor的值，形状为`[N]`，与indices一一对应。 |
-| `dense_shape` | `int64`张量 | 稠密形状，形状为`[2]`，值为`[key_cnt, emb_dim]`。|
+| indices | int64张量 | SparseTensor的索引，形状为`[N, 2]`，N为命中非零元素总数，第二维为`[row, col]`。 |
+| values | float张量 | SparseTensor的值，形状为`[N]`，与indices一一对应。 |
+| dense_shape | int64张量 | 稠密形状，形状为`[2]`，值为`[key_cnt, emb_dim]`。 |
 
 **关键属性**
 
-| 属性名称    | 描述  |
+| 属性名称 | 描述 |
 | ----------- | --------- |
-| `emb_dim` | Embedding维度，用于构造输出的`dense_shape`。 |
+| emb_dim | Embedding维度，用于构造输出的dense_shape。 |
 
 **接口源码文件**
 
@@ -125,8 +124,7 @@ TensorFlow OpKernel类。
 * `EmbeddingIndexToValueTable`：创建资源表句柄。
 * `InitializeEmbeddingIndexToValueTableFromTextFile`：从二进制文件初始化资源表。
   
-  该接口名称中保留`TextFile`是历史命名，实际读取的输入文件不是文本文件，而是下文所述的 kembedding
-  二进制表文件。
+  该接口名称中保留`TextFile`是历史命名，实际读取的输入文件不是文本文件，而是下文所述的 kembedding二进制表文件。
 
 **使用示例**
 
@@ -175,7 +173,7 @@ with tf.compat.v1.Session() as sess:
 
 TensorFlow ANNC静态图融合特性开关通过环境变量开关控制，具体说明如[表1 ANNC静态图融合特性开关](#table473618378218)所示。
 
-特性开关默认取值为0，即关闭ANNC静态图融合功能，如需使用需要手动在图优化前设置环境变量开启，以Python语言为例可以通过如下方式设置：
+特性开关默认取值为0，即关闭ANNC静态图融合功能，如需使用需要手动在图优化前设置环境变量开启，以Python语言为例可以通过如下方式设置。
 
 ```python
 import os
@@ -184,18 +182,18 @@ os.environ['ANNC_FUSED_ALL'] = '1'
 
 **表 1**  ANNC静态图融合特性开关<a id="table473618378218"></a>
 
-| 开关名   | 类型  | 取值  | 功能   |
+| 开关名 | 类型 | 取值 | 功能 |
 | -------- | ------------ | --------------- | ------------------ |
-| ANNC_FUSED_EMB_ACTIONID_GATHER | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedEmbeddingActionIdGather算子开启ANNC静态图融合。    |
-| ANNC_FUSED_GATHER              | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedGather算子开启ANNC静态图融合。                     |
-| ANNC_FUSED_EMD_PADDING         | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedEmbeddingPadding算子开启ANNC静态图融合。           |
-| ANNC_FUSED_EMD_PADDING_FAST    | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedEmbeddingPaddingFast算子开启ANNC静态图融合。       |
-| ANNC_FUSED_SPS_STITCH          | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedSparseDynamicStitch算子开启ANNC静态图融合。        |
-| ANNC_FUSED_SPS_RESHAPE         | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedSparseReshape算子开启ANNC静态图融合。              |
-| ANNC_FUSED_SPS_REDUCE          | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedSparseSegmentReduce算子开启ANNC静态图融合。        |
-| ANNC_FUSED_SPS_REDUCE_NONZERO  | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedSparseSegmentReduceNonzero算子开启ANNC静态图融合。 |
-| ANNC_FUSED_SPS_SELECT          | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedSparseSelect算子开启ANNC静态图融合。               |
-| ANNC_FUSED_ALL                 | 进程环境变量 | 1：开启 0：关闭 | 用于所有ANNC融合算子开启ANNC静态图融合。                      |
+| ANNC_FUSED_EMB_ACTIONID_GATHER | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedEmbeddingActionIdGather算子开启ANNC静态图融合。 |
+| ANNC_FUSED_GATHER | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedGather算子开启ANNC静态图融合。 |
+| ANNC_FUSED_EMD_PADDING | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedEmbeddingPadding算子开启ANNC静态图融合。 |
+| ANNC_FUSED_EMD_PADDING_FAST | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedEmbeddingPaddingFast算子开启ANNC静态图融合。 |
+| ANNC_FUSED_SPS_STITCH | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedSparseDynamicStitch算子开启ANNC静态图融合。 |
+| ANNC_FUSED_SPS_RESHAPE | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedSparseReshape算子开启ANNC静态图融合。 |
+| ANNC_FUSED_SPS_REDUCE | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedSparseSegmentReduce算子开启ANNC静态图融合。 |
+| ANNC_FUSED_SPS_REDUCE_NONZERO | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedSparseSegmentReduceNonzero算子开启ANNC静态图融合。 |
+| ANNC_FUSED_SPS_SELECT | 进程环境变量 | 1：开启 0：关闭 | 用于KPFusedSparseSelect算子开启ANNC静态图融合。 |
+| ANNC_FUSED_ALL | 进程环境变量 | 1：开启 0：关闭 | 用于所有ANNC融合算子开启ANNC静态图融合。 |
 
 > ![icon note](public_sys-resources/icon-note.gif) **说明：**
 > 以上算子当且仅当ANNC_FUSED_ALL=0且算子对应的环境变量为0时，该算子不会进行算子融合。
@@ -256,15 +254,15 @@ export ANNC_FLAGS="--graph-opt"
 
 ### 算子优化
 
-已优化的算子接口有冗余算子、矩阵算子和Softmax算子，使用方式如[**表 1** 算子优化接口](#算子优化接口)所示。
+已优化的算子接口有冗余算子、矩阵算子和Softmax算子，使用方式如[表 1 算子优化接口](#算子优化接口)所示。
 
 **表 1** 算子优化接口<a id="算子优化接口"></a>
 
 | 接口名称 | 接口功能 | 环境变量 | 取值范围 | 使用示例 |
 | ---- | ---- | ---- | ---- | ---- |
-| 冗余算子优化接口 | 使能冗余算子优化。 | ENABLE_BISHENG_GRAPH_OPT | 环境变量非空时开启特性。| `export ENABLE_BISHENG_GRAPH_OPT=""` |
-| 矩阵算子优化接口 | 使能矩阵算子优化。 | ANNC_FLAGS | 环境变量值为“--gemm-opt”开启特性。| `export ANNC_FLAGS="--gemm-opt"` |
-| Softmax算子优化接口 | 使能Softmax算子优化。 | XLA_FLAGS | 环境变量值为“--xla_cpu_enable_xnnpack=true”开启特性。 | `export XLA_FLAGS="--xla_cpu_enable_xnnpack=true"` |
+| 冗余算子优化接口 | 使能冗余算子优化。 | ENABLE_BISHENG_GRAPH_OPT | 环境变量非空时开启特性。 | export ENABLE_BISHENG_GRAPH_OPT="" |
+| 矩阵算子优化接口 | 使能矩阵算子优化。 | ANNC_FLAGS | 环境变量值为“--gemm-opt”开启特性。 | export ANNC_FLAGS="--gemm-opt" |
+| Softmax算子优化接口 | 使能Softmax算子优化。 | XLA_FLAGS | 环境变量值为“--xla_cpu_enable_xnnpack=true”开启特性。 | export XLA_FLAGS="--xla_cpu_enable_xnnpack=true" |
 
 ### 常量折叠优化
 
@@ -319,13 +317,13 @@ export ANNC_FLAGS="--layout-matmul"
 
 鲲鹏TensorFlow Serving线程调度优化通过命令行提供了算子批量调度和线程亲和性隔离两个特性开关，用户可根据实际场景自行配置。
 
-使用TF Serving启动推理压测指导请参见《TensorFlow Serving推理部署框架移植指南》的“[启动服务并压测](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlowServing/kunpengtfserving_02_0012.html)”章节。
+使用TensorFlow Serving启动推理压测指导请参见《TensorFlow Serving推理部署框架移植指南》的“[启动服务并压测](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlowServing/kunpengtfserving_02_0012.html)”章节。
 
 ### 算子批量调度
 
 算子批量调度接口使用如下所示。
 
-**TF Serving命令行接口**
+**TensorFlow Serving命令行接口**
 
 `--batch_op_scheduling`
 
@@ -368,16 +366,16 @@ bool
 
 线程亲和性隔离接口使用如下所示。
 
-**TF Serving命令行接口**
+**TensorFlow Serving命令行接口**
 
 `--task_affinity_isolation`
 
 **接口功能**
 
-使能线程亲和性隔离特性，有两种隔离方式：
+使能线程亲和性隔离特性，有两种隔离方式。
 
-* 顺序绑核，TensorFlow计算线程绑定到前K个核，TF Serving通信线程绑定到其余核。
-* 交叉绑核，适用于开启超线程的场景，将TensorFlow线程绑定到物理核，TF Serving通信线程绑定到虚拟核。
+* 顺序绑核，TensorFlow计算线程绑定到前K个核，TensorFlow Serving通信线程绑定到其余核。
+* 交叉绑核，适用于开启超线程的场景，将TensorFlow线程绑定到物理核，TensorFlow Serving通信线程绑定到虚拟核。
 
 **参数类型**
 
@@ -433,13 +431,13 @@ mode;m-n;k，默认0。
 </table>
 
 > ![icon note](public_sys-resources/icon-note.gif) **说明：**
-> numactl是一个在Linux系统上用于控制和管理NUMA（非统一内存访问，Non-Uniform Memory Access）架构的工具。可通过yum工具安装：
+> numactl是一个在Linux系统上用于控制和管理NUMA（非统一内存访问，Non-Uniform Memory Access）架构的工具。可通过yum工具安装。
 >
 > ```bash
 > yum install -y numactl numactl-devel
 > ```
 >
-> **numactl -C 0-79 -m 0**是限定TF Serving服务运行在NUMA 0对应的核上，以该方式启动可以充分利用CPU资源，-C指定NUMA 0对应的核，-m指的是使用NUMA 0对应的内存。
+> **numactl -C 0-79 -m 0**是限定TensorFlow Serving服务运行在NUMA 0对应的核上，以该方式启动可以充分利用CPU资源，-C指定NUMA 0对应的核，-m指的是使用NUMA 0对应的内存。
 
 **推荐场景**
 
@@ -450,13 +448,13 @@ mode;m-n;k，默认0。
 
 一台160个物理核的服务器，开启超线程共320个核心，4个NUMA，每个NUMA上80个核心。
 
-* 如果使用TensorFlow调度方式运行，运行参数可参考：
+* 如果使用TensorFlow调度方式运行，运行参数可参考。
 
    ```bash
    numactl -C 0-79 -m 0 /path/to/tensorflow_model_server  --port=8850 --rest_api_port=8851 --model_base_path=/path/to/saved_model/ --model_name=model --tensorflow_intra_op_parallelism=75 --tensorflow_inter_op_parallelism=75 --task_affinity_isolation="1;0-79;75"
    ```
 
-* 如果使能了--batch_op_scheduling选项，--tensorflow_inter_op_parallelism参数推荐设置为物理核数量，其他运行参数可参考：
+* 如果使能了--batch_op_scheduling选项，--tensorflow_inter_op_parallelism参数推荐设置为物理核数量，其他运行参数可参考。
 
    ```bash
    numactl -C 0-79 -m 0 /path/to/tensorflow_model_server  --port=8850 --rest_api_port=8851 --model_base_path=/path/to/saved_model/ --model_name=model --tensorflow_intra_op_parallelism=1 --tensorflow_inter_op_parallelism=40 --batch_op_scheduling=true --task_affinity_isolation="2;0-79"
@@ -464,8 +462,8 @@ mode;m-n;k，默认0。
 
 ## 修订记录
 
-| 发布日期   | 修订记录         |
-| ---------- | ---------------- |
-| 2026-09-30 | 第三次正式发布。<ul><li>新增KEmbedding自定义算子库，提供EmbeddingTableLookup算子说明内容。</li><li>新增KDNN SparseMatmul多线程优化接口说明内容。</li><li>优化文档结构。</li></ul> |
-| 2026-06-30 | 第二次正式发布。<ul><li>TensorFlow ANNC图编译优化特性增加常量折叠优化特性接口说明内容。</li><li>新增TensorFlow ANNC静态图融合特性使用说明内容。</li></ul> |
-| 2026-03-30 | 第一次正式发布。新增TensorFlow KDNN线程直通特性使用说明内容。 |
+| 文档版本 | 发布日期 | 修改说明 |
+| ---------- | -------- | -------- |
+| 03 | 2026-09-30 | 第三次正式发布。<ul><li>新增KEmbedding自定义算子库，提供EmbeddingTableLookup算子说明内容。</li><li>新增KDNN SparseMatmul多线程优化接口说明内容。</li><li>优化文档结构。</li></ul> |
+| 02 | 2026-06-30 | 第二次正式发布。<ul><li>TensorFlow ANNC图编译优化特性增加常量折叠优化特性接口说明内容。</li><li>新增TensorFlow ANNC静态图融合特性使用说明内容。</li></ul> |
+| 01 | 2026-03-30 | 第一次正式发布。新增TensorFlow KDNN线程直通特性使用说明内容。 |

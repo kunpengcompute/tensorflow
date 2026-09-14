@@ -9,7 +9,7 @@
    cd kunpeng-tensorflow
    ```
 
-2. 获取官方TensorFlow 2.20.0基线。
+2. 获取官方TensorFlow v2.20.0基线。
 
    ```bash
    git remote add tensorflow-upstream https://github.com/tensorflow/tensorflow.git
@@ -134,7 +134,7 @@
 5. 调用Tensorflow接口。
 
    5.1. C++接口调用，预期可以输出Tensorflow C++共享库依赖的系统动态库。
-   
+
      ```bash
      ldd /usr/local/lib64/python3.11/site-packages/tensorflow/libtensorflow_cc.so.2
      ```
@@ -150,6 +150,6 @@
 
 ## 修订记录
 
-| 文档版本 | 发布日期 | 修订记录 |
+| 文档版本 | 发布日期 | 修改说明 |
 | ---- | ---- | ---- |
-| 01 | 2026-09-30 | 第一次正式发布。|
+| 01 | 2026-09-30 | 第一次正式发布。 |

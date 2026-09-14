@@ -38,7 +38,7 @@ TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请
 
 ### 生成完整源码
 
-下载补丁仓并获取官方TensorFlow基线。
+1. 下载补丁仓并获取官方TensorFlow基线。
 
    ```bash
    git clone https://gitcode.com/boostkit/tensorflow.git sra-tensorflow
@@ -47,7 +47,7 @@ TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请
    git fetch tensorflow-upstream refs/tags/v2.15.0:refs/tags/v2.15.0
    ```
 
-根据需要创建TensorFlow完整源码。以下以完整默认特性为例。
+2. 根据需要创建TensorFlow完整源码。以下以完整默认特性为例。
 
    ```bash
    python3 patches/Tensorflow_V2.15.0/prepare_source.py \
@@ -57,7 +57,7 @@ TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请
 
    如需其他组合，只需修改`--feature-set`。输出目录包含官方TensorFlow `v2.15.0`完整源码、所选补丁以及自动生成的`tensorflow/feature_copts.bzl`。
 
-在TensorFlow源码根目录创建统一的构建目录。
+3. 在TensorFlow源码根目录创建统一的构建目录。
 
    ```bash
    cd /path/to/tensorflow
@@ -73,18 +73,17 @@ TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请
 
 `kdnn-core`、`kdnn-annc`和`full-default`均需要KDNN头文件和静态库。
 
-获取并安装[KDNN软件包](https://gitcode.com/boostkit/boostsra/releases/download/v1.2.0/BoostKit-boostcore-kdnn_3.1.0.zip)。
+1. 获取并安装[KDNN软件包](https://gitcode.com/boostkit/boostsra/releases/download/v1.2.0/BoostKit-boostcore-kdnn_3.1.0.zip)。
 
    ```bash
    unzip BoostKit-boostcore-kdnn_3.1.0.zip
    rpm -ivh boostcore-kdnn-3.1.0-1.aarch64.rpm
    ```
 
-   安装后，头文件位于`/usr/local/kdnn/include`，线程池和OpenMP库分别位于
-   `/usr/local/kdnn/lib/threadpool`和`/usr/local/kdnn/lib/omp`。
+   安装后，头文件位于`/usr/local/kdnn/include`，线程池和OpenMP库分别位于`/usr/local/kdnn/lib/threadpool`和`/usr/local/kdnn/lib/omp`。
    TensorFlow集成使用线程池版本。
 
-将KDNN头文件和线程池静态库放入生成的TensorFlow源码。
+2. 将KDNN头文件和线程池静态库放入生成的TensorFlow源码。
 
    ```bash
    export TF_PATH=/path/to/tensorflow
@@ -94,7 +93,7 @@ TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请
      $TF_PATH/third_party/KDNN/src/
    ```
 
-应用KDNN头文件适配补丁。
+3. 应用KDNN头文件适配补丁。
 
    ```bash
    cd $TF_PATH/third_party/KDNN
@@ -107,99 +106,99 @@ ANNC静态图融合代码已经包含在`kdnn-annc`和`full-default`特性组合
 
 ### KEmbedding
 
-KEmbedding代码已经包含在`full-default`特性组合中，无需额外下载源码。
+1. KEmbedding代码已经包含在`full-default`特性组合中，无需额外下载源码。
 
->![](public_sys-resources/icon-note.gif) **说明：**
->
->- 若只需要KEmbedding动态库，可在生成的TensorFlow源码中单独构建，若需构建完整Tensorflow产物则跳过此步骤。
+   ```bash
+   cd /path/to/tensorflow
+   bazel --output_base="$PWD/output" build \
+   --distdir="$PWD/distdir" \
+   //third_party/kembedding:kembedding_embedding_table_lookup.so
+   ```
 
-```bash
-cd /path/to/tensorflow
-bazel --output_base="$PWD/output" build \
-  --distdir="$PWD/distdir" \
-  //third_party/kembedding:kembedding_embedding_table_lookup.so
-```
+   >![](public_sys-resources/icon-note.gif) **说明：**
+   >
+   >- 若只需要KEmbedding动态库，可在生成的TensorFlow源码中单独构建，若需构建完整Tensorflow产物则跳过此步骤。
 
-构建产物为`bazel-bin/third_party/kembedding/kembedding_embedding_table_lookup.so`。
+2. 构建产物为`bazel-bin/third_party/kembedding/kembedding_embedding_table_lookup.so`。
 
 ## 构建TensorFlow产物
 
 ### TensorFlow pip包
 
-构建TensorFlow pip包。
+1. 构建TensorFlow pip包。
 
-```bash
-cd /path/to/tensorflow
-export TF_PYTHON_VERSION=3.11
-./configure
-```
+   ```bash
+   cd /path/to/tensorflow
+   export TF_PYTHON_VERSION=3.11
+   ./configure
+   ```
 
-依次按照如下选项配置，未显示N或n的选项使用回车`[Enter]`确认。
+2. 依次按照如下选项配置，未显示N或n的选项使用回车`[Enter]`确认。
 
-```bash
-You have bazel 6.5.0- (@non-git) installed.
-Please specify the location of python. [Default is /usr/bin/python3.11]:
-
-
-Found possible Python library paths:
-  /usr/lib/python3.11/site-packages
-  /usr/lib64/python3.11/site-packages
-Please input the desired Python library path to use.  Default is [/usr/lib/python3.11/site-packages]
-
-Do you wish to build TensorFlow with ROCm support? [y/N]: N
-No ROCm support will be enabled for TensorFlow.
-
-Do you wish to build TensorFlow with CUDA support? [y/N]: N
-No CUDA support will be enabled for TensorFlow.
-
-Do you want to use Clang to build TensorFlow? [Y/n]: n
-GCC will be used to compile TensorFlow.
-
-Please specify optimization flags to use during compilation when bazel option "--config=opt" is specified [Default is -Wno-sign-compare]:
+   ```bash
+   You have bazel 6.5.0- (@non-git) installed.
+   Please specify the location of python. [Default is /usr/bin/python3.11]:
 
 
-Would you like to interactively configure ./WORKSPACE for Android builds? [y/N]: N
-Not configuring the WORKSPACE for Android builds.
+   Found possible Python library paths:
+   /usr/lib/python3.11/site-packages
+   /usr/lib64/python3.11/site-packages
+   Please input the desired Python library path to use.  Default is [/usr/lib/python3.11/site-packages]
 
-Preconfigured Bazel build configs. You can use any of the below by adding "--config=<>" to your build command. See .bazelrc for more details.
+   Do you wish to build TensorFlow with ROCm support? [y/N]: N
+   No ROCm support will be enabled for TensorFlow.
+
+   Do you wish to build TensorFlow with CUDA support? [y/N]: N
+   No CUDA support will be enabled for TensorFlow.
+
+   Do you want to use Clang to build TensorFlow? [Y/n]: n
+   GCC will be used to compile TensorFlow.
+
+   Please specify optimization flags to use during compilation when bazel option "--config=opt" is specified [Default is -Wno-sign-compare]:
+
+
+   Would you like to interactively configure ./WORKSPACE for Android builds? [y/N]: N
+   Not configuring the WORKSPACE for Android builds.
+
+   Preconfigured Bazel build configs. You can use any of the below by adding "--config=<>" to your build command. See .bazelrc for more details.
         --config=mkl            # Build with MKL support.
         --config=mkl_aarch64    # Build with oneDNN and Compute Library for the Arm Architecture (ACL).
         --config=monolithic     # Config for mostly static monolithic build.
         --config=numa           # Build with NUMA support.
         --config=dynamic_kernels        # (Experimental) Build kernels into separate shared objects.
         --config=v1             # Build with TensorFlow 1 API instead of TF 2 API.
-Preconfigured Bazel build configs to DISABLE default on features:
+   Preconfigured Bazel build configs to DISABLE default on features:
         --config=nogcp          # Disable GCP support.
         --config=nonccl         # Disable NVIDIA NCCL support.
-Configuration finished
-```
+   Configuration finished
+   ```
 
-开始执行编译。
+3. 开始执行编译。
 
-```bash
-bazel --output_base="$PWD/output" build \
-  --distdir="$PWD/distdir" \
-  -c opt \
-  --define=enable_kdnn=True \
-  //tensorflow/tools/pip_package:build_pip_package
-./bazel-bin/tensorflow/tools/pip_package/build_pip_package ./output-release
-```
+   ```bash
+   bazel --output_base="$PWD/output" build \
+   --distdir="$PWD/distdir" \
+   -c opt \
+   --define=enable_kdnn=True \
+   //tensorflow/tools/pip_package:build_pip_package
+   ./bazel-bin/tensorflow/tools/pip_package/build_pip_package ./output-release
+   ```
 
->![](public_sys-resources/icon-note.gif) **说明：**
->
->- `--define=enable_kdnn=True`用于开启KDNN算子优化，选择`kdnn-core`、`kdnn-annc`或`full-default`特性组合时添加该选项，`common-only`组合不包含KDNN代码，无需添加。
+   >![](public_sys-resources/icon-note.gif) **说明：**
+   >
+   >- `--define=enable_kdnn=True`用于开启KDNN算子优化，选择`kdnn-core`、`kdnn-annc`或`full-default`特性组合时添加该选项，`common-only`组合不包含KDNN代码，无需添加。
 
-编译完成后，检查产物目录。
+4. 编译完成后，检查产物目录。
 
-```bash
-ls ./output-release
-```
+   ```bash
+   ls ./output-release
+   ```
 
-回显类似如下信息时，表示pip包构建成功。
+5. 回显类似如下信息时，表示pip包构建成功。
 
-```text
-tensorflow-2.15.0-cp311-cp311-linux_aarch64.whl
-```
+   ```output
+   tensorflow-2.15.0-cp311-cp311-linux_aarch64.whl
+   ```
 
 ### TensorFlow C++动态库
 
@@ -219,39 +218,39 @@ bazel --output_base="$PWD/output" build \
 >
 >- 需完成构建TensorFlow pip包并安装后，才能验证特性。
 
-安装命令。
+1. 安装命令。
 
-```bash
-pip install /path/to/tensorflow/output-release/tensorflow-2.15.0-cp311-cp311-linux_aarch64.whl
-```
+   ```bash
+   pip install /path/to/tensorflow/output-release/tensorflow-2.15.0-cp311-cp311-linux_aarch64.whl
+   ```
 
-安装完成后，切换到TensorFlow源码目录以外的任意目录（如用户主目录）执行以下命令验证。
+2. 安装完成后，切换到TensorFlow源码目录以外的任意目录（如用户主目录）执行以下命令验证。
 
-```bash
-cd ~
-python3 -c "import tensorflow as tf; print(tf.__version__)"
-```
+   ```bash
+   cd ~
+   python3 -c "import tensorflow as tf; print(tf.__version__)"
+   ```
 
->![](public_sys-resources/icon-note.gif) **说明：**
->
->- 请勿在TensorFlow源码根目录下执行验证命令，否则Python会优先加载源码目录下的`tensorflow/`包而非已安装的pip包，导致导入报错。
+   >![](public_sys-resources/icon-note.gif) **说明：**
+   >
+   >- 请勿在TensorFlow源码根目录下执行验证命令，否则Python会优先加载源码目录下的`tensorflow/`包而非已安装的pip包，导致导入报错。
 
-回显类似如下信息时，表示TensorFlow安装成功。
+3. 回显类似如下信息时，表示TensorFlow安装成功。
 
-```text
-2.15.0
-```
+   ```output
+   2.15.0
+   ```
 
 ### KDNN
 
-进入测试目录并查询支持的模块。
+1. 进入测试目录并查询支持的模块。
 
    ```bash
    cd /path/to/tensorflow/tensorflow/python/kernel_tests/benchmark
    python main.py --list
    ```
 
-从查询结果中选择算子并运行测试。
+2. 从查询结果中选择算子并运行测试。
 
    ```bash
    numactl -C 0-15 python main.py --op {op_name} --performance_test True
@@ -290,7 +289,7 @@ bazel run //third_party/kembedding:embedding_table_lookup_benchmark
 
 按照《搜推排序模型推理Benchmark》的“[编译TensorFlow Serving](https://www.hikunpeng.com/document/detail/zh/SRA/perfEval/benchmarksra/kunpengmodelzoo_06_0011.html)”章节准备TensorFlow Serving源码、Bazel和编译依赖。
 
-编译时将`--tensorflow_dir`指向本指南生成的TensorFlow完整源码。
+1. 编译时将`--tensorflow_dir`指向本指南生成的TensorFlow完整源码。
 
    ```bash
    cd /path/to/serving
@@ -299,9 +298,9 @@ bazel run //third_party/kembedding:embedding_table_lookup_benchmark
      --features gcc12
    ```
 
-检查构建产物。
+2. 检查构建产物。
 
-   ```text
+   ```output
    /path/to/serving/bazel-bin/tensorflow_serving/model_servers/tensorflow_model_server
    ```
 
@@ -345,8 +344,8 @@ bazel --output_base="$PWD/output" build \
 
 ## 修订记录
 
-| 发布日期 | 修订记录 |
-| ---- | ---- |
-| 2026-09-30 | 第三次正式发布。重构安装流程，合并各特性重复的环境与编译步骤。 |
-| 2026-06-30 | 第二次正式发布。<ul><li>TensorFlow ANNC图编译优化特性增加常量折叠优化特性内容。</li><li>新增TensorFlow ANNC静态图融合特性适配环境和安装指导内容。</li></ul> |
-| 2026-03-30 | 第一次正式发布。 <ul><li>新增TensorFlow集成KDNN的安装步骤内容。</li><li>新增TensorFlow KDNN线程直通特性适配环境和安装指导内容。</li></ul> |
+| 文档版本 | 发布日期 | 修改说明 |
+| ---- | ---- | --- |
+| 03 | 2026-09-30 | 第三次正式发布。重构安装流程，合并各特性重复的环境与编译步骤。 |
+| 02 | 2026-06-30 | 第二次正式发布。<ul><li>TensorFlow ANNC图编译优化特性增加常量折叠优化特性内容。</li><li>新增TensorFlow ANNC静态图融合特性适配环境和安装指导内容。</li></ul> |
+| 01 | 2026-03-30 | 第一次正式发布。 <ul><li>新增TensorFlow集成KDNN的安装步骤内容。</li><li>新增TensorFlow KDNN线程直通特性适配环境和安装指导内容。</li></ul> |
