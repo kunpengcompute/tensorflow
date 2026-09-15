@@ -43,7 +43,7 @@ FAGO静态图融合软件架构如下图所示。
 | 输出1    | float    | 3维张量 |
 | 输出2    | float    | 2维张量 |
 
-> ![icon note](public_sys-resources/icon-note.gif) **说明：**
+> ![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
 > 开启FlashAttentionForward算子融合条件下，如果存在符合要求的子图则会在图优化阶段替换为对应的自定义算子，否则使用TensorFlow开源接口。
 
 ### 应用场景

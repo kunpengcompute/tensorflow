@@ -19,7 +19,7 @@ os.environ['ANNC_FUSED_FLASHATTN_FWD'] = '1'
 | ANNC_FUSED_ALL | 进程环境变量 | 1：开启 0：关闭 | 用于开启FAGO所有融合算子静态图融合。    |
 | ANNC_FUSED_FLASHATTN_FWD | 进程环境变量 | 1：开启 0：关闭 | 用于开启FlashAttentionForword算子静态图融合。    |
 
-> ![icon note](public_sys-resources/icon-note.gif) **说明：**
+> ![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
 > 以上算子当且仅当ANNC_FUSED_ALL=0且算子对应的环境变量为0时，该算子不会进行算子融合。
 
 ## 修订记录
