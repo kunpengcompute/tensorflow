@@ -75,17 +75,56 @@ Both TensorFlow and TensorFlow Serving are built using Bazel 6.5.0. For the Baze
 
 `kdnn-core`, `kdnn-annc`, and `full-default` all require KDNN header files and static libraries.
 
-1. Obtain and install the [KDNN software package](https://gitcode.com/boostkit/boostsra/releases/download/v1.1.0/BoostKit-boostcore-kdnn_3.0.0.zip).
+#### Downloading the KDNN Package and Checksum File
+
+Go to the [KDNN releases page](https://gitcode.com/boostkit/boostsra/releases), locate release v1.4.0, and download the following files:
+
+- KDNN package: `BoostKit-boostcore-kdnn_3.2.0.zip`
+- SHA256 checksum file: `BoostKit-boostcore-kdnn_3.2.0.zip.sha256`
+
+#### Verifying Package Integrity
+
+##### Overview
+
+Verify the package integrity after downloading it to ensure that the package was not corrupted during transmission or storage. Compare the checksum recorded in the checksum file with the checksum calculated manually. If the two values match, the package is intact. Otherwise, download the package again.
+
+##### Prerequisites
+
+Prepare the following files before verifying package integrity:
+
+- Package: `BoostKit-boostcore-kdnn_xxx.zip`
+- Checksum file: a `.sha256` file with the same name as the package
+
+##### Procedure
+
+1. Calculate the SHA256 checksum of the package.
+
+   On Linux, run:
 
    ```bash
-   rpm -ivh boostcore-kdnn-3.0.0-1.aarch64.rpm
+   sha256sum BoostKit-boostcore-kdnn_xxx.zip
+   ```
+
+   On Windows, run:
+
+   ```bash
+   certutil -hashfile BoostKit-boostcore-kdnn_xxx.zip SHA256
+   ```
+
+2. Compare the calculated checksum with the SHA256 value in the checksum file. If they match, the package is intact. Otherwise, download the package again.
+
+#### Installing the KDNN Package
+
+   ```bash
+   unzip BoostKit-boostcore-kdnn_3.2.0.zip
+   rpm -ivh boostcore-kdnn-3.2.0-1.aarch64.rpm
    ```
 
    After installation, the header files are located at `/usr/local/kdnn/include`, and the thread pool and OpenMP libraries are located at
    `/usr/local/kdnn/lib/threadpool` and `/usr/local/kdnn/lib/omp`, respectively.
    TensorFlow integration uses the thread pool version.
 
-2. Place the KDNN header files and the thread pool static library into the generated TensorFlow source code.
+Place the KDNN header files and the thread pool static library into the generated TensorFlow source code.
 
    ```bash
    export TF_PATH=/path/to/tensorflow
@@ -95,7 +134,7 @@ Both TensorFlow and TensorFlow Serving are built using Bazel 6.5.0. For the Baze
      $TF_PATH/third_party/KDNN/src/
    ```
 
-3. Apply the KDNN header file adaptation patch.
+Apply the KDNN header file adaptation patch.
 
    ```bash
    cd $TF_PATH/third_party/KDNN
