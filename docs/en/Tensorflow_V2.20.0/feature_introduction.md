@@ -15,16 +15,11 @@ When the FAGO static graph fusion feature is enabled, if a subgraph of the compu
 
 ### Software Architecture
 
-The software architecture of the FAGO static graph fusion is shown in [Figure 1](#fig1).
+The software architecture of the FAGO static graph fusion is shown in the following figure.
 
-**Figure 1**  Software architecture of the FAGO static graph fusion<a name="fig1"></a>
+**Figure 1** Software architecture of the FAGO static graph fusion
 
-```mermaid
-flowchart TD
-    A[TensorFlow] --> B[Graph fusion]
-    B --> C[Remapper]
-    C -- Subgraph matching and replacement --> D[FlashAttentionForward fused operator]
-```
+![FAGO-static-graph-fusion-architecture](./figures/FAGO-static-graph-fusion-architecture.png)
 
 ### Supported Custom Operator Specifications and Usage Constraints
 
