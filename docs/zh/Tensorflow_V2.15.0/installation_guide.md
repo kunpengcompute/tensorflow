@@ -75,30 +75,30 @@ TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请
 
 1. 获取并安装[KDNN软件包](https://gitcode.com/boostkit/boostsra/releases/download/v1.2.0/BoostKit-boostcore-kdnn_3.1.0.zip)。
 
-   ```bash
-   unzip BoostKit-boostcore-kdnn_3.1.0.zip
-   rpm -ivh boostcore-kdnn-3.1.0-1.aarch64.rpm
-   ```
+    ```bash
+    unzip BoostKit-boostcore-kdnn_3.1.0.zip
+    rpm -ivh boostcore-kdnn-3.1.0-1.aarch64.rpm
+    ```
 
-   安装后，头文件位于`/usr/local/kdnn/include`，线程池和OpenMP库分别位于`/usr/local/kdnn/lib/threadpool`和`/usr/local/kdnn/lib/omp`。
-   TensorFlow集成使用线程池版本。
+    安装后，头文件位于`/usr/local/kdnn/include`，线程池和OpenMP库分别位于`/usr/local/kdnn/lib/threadpool`和`/usr/local/kdnn/lib/omp`。
+    TensorFlow集成使用线程池版本。
 
 2. 将KDNN头文件和线程池静态库放入生成的TensorFlow源码。
 
    ```bash
-   export TF_PATH=/path/to/tensorflow
-   mkdir -p $TF_PATH/third_party/KDNN/src
-   cp -r /usr/local/kdnn/include $TF_PATH/third_party/KDNN/
-   cp /usr/local/kdnn/lib/threadpool/libkdnn.a \
+    export TF_PATH=/path/to/tensorflow
+    mkdir -p $TF_PATH/third_party/KDNN/src
+    cp -r /usr/local/kdnn/include $TF_PATH/third_party/KDNN/
+    cp /usr/local/kdnn/lib/threadpool/libkdnn.a \
      $TF_PATH/third_party/KDNN/src/
    ```
 
 3. 应用KDNN头文件适配补丁。
 
-   ```bash
-   cd $TF_PATH/third_party/KDNN
-   patch -p0 < tensorflow_kdnn_include_adapter.patch
-   ```
+    ```bash
+    cd $TF_PATH/third_party/KDNN
+    patch -p0 < tensorflow_kdnn_include_adapter.patch
+    ```
 
 ### ANNC静态图融合
 
@@ -115,7 +115,7 @@ ANNC静态图融合代码已经包含在`kdnn-annc`和`full-default`特性组合
    //third_party/kembedding:kembedding_embedding_table_lookup.so
    ```
 
-   >![](public_sys-resources/icon-note.gif) **说明：**
+   >![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
    >
    >- 若只需要KEmbedding动态库，可在生成的TensorFlow源码中单独构建，若需构建完整Tensorflow产物则跳过此步骤。
 
@@ -184,9 +184,9 @@ ANNC静态图融合代码已经包含在`kdnn-annc`和`full-default`特性组合
    ./bazel-bin/tensorflow/tools/pip_package/build_pip_package ./output-release
    ```
 
-   >![](public_sys-resources/icon-note.gif) **说明：**
+   >![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
    >
-   >- `--define=enable_kdnn=True`用于开启KDNN算子优化，选择`kdnn-core`、`kdnn-annc`或`full-default`特性组合时添加该选项，`common-only`组合不包含KDNN代码，无需添加。
+   >`--define=enable_kdnn=True`用于开启KDNN算子优化，选择`kdnn-core`、`kdnn-annc`或`full-default`特性组合时添加该选项，`common-only`组合不包含KDNN代码，无需添加。
 
 4. 编译完成后，检查产物目录。
 
@@ -214,9 +214,9 @@ bazel --output_base="$PWD/output" build \
 
 ## 验证特性
 
->![](public_sys-resources/icon-note.gif) **说明：**
+>![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
 >
->- 需完成构建TensorFlow pip包并安装后，才能验证特性。
+>需完成构建TensorFlow pip包并安装后，才能验证特性。
 
 1. 安装命令。
 
@@ -231,9 +231,9 @@ bazel --output_base="$PWD/output" build \
    python3 -c "import tensorflow as tf; print(tf.__version__)"
    ```
 
-   >![](public_sys-resources/icon-note.gif) **说明：**
+   >![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
    >
-   >- 请勿在TensorFlow源码根目录下执行验证命令，否则Python会优先加载源码目录下的`tensorflow/`包而非已安装的pip包，导致导入报错。
+   >请勿在TensorFlow源码根目录下执行验证命令，否则Python会优先加载源码目录下的`tensorflow/`包而非已安装的pip包，导致导入报错。
 
 3. 回显类似如下信息时，表示TensorFlow安装成功。
 
