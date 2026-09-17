@@ -1,8 +1,8 @@
 # Installation Guide
 
-<!-- md-trans-meta sourceCommit=348350b006f776e1fe13fb0fb53fe94efa080a45 translatedAt=2026-08-05T03:52:05.826Z pushedAt=2026-08-05T07:56:06.344Z -->
+<!-- md-trans-meta sourceCommit=062d2574fdfde12276d08b23b05dc9d9d8b875e2 translatedAt=2026-08-31T03:44:00.545Z pushedAt=2026-09-14T10:29:34.345Z -->
 
-This document describes the installation process in the following order: preparing the TensorFlow source code, building the reasoning service, and verifying the features.
+This document describes the installation process in the following order: preparing the TensorFlow source code, building the inference service, and verifying the features.
 
 ## Preparing the Build Environment
 
@@ -10,7 +10,7 @@ The build environment for the currently maintained version is as follows.
 
 | Item | Version or Requirement |
 | --- | --- |
-| CPU | <ul><li>Kunpeng 920 processor</li><li>Kunpeng 950 processor</li></ul> |
+| CPU | <ul><li>New Kunpeng 920 processor model</li><li>Kunpeng 950 processor</li></ul> |
 | OS | <ul><li>openEuler 22.03 LTS SP3</li><li>openEuler 24.03 LTS SP3</li></ul> |
 | GCC/G++ | 12.3.1 |
 | Bazel | 6.5.0 |
@@ -25,15 +25,15 @@ export PATH=/opt/openEuler/gcc-toolset-12/root/usr/bin/:$PATH
 export LD_LIBRARY_PATH=/opt/openEuler/gcc-toolset-12/root/usr/lib64/:$LD_LIBRARY_PATH
 ```
 
-Both TensorFlow and TensorFlow Serving are built using Bazel 6.5.0. For the Bazel installation method, see the "[Installing Bazel](https://www.hikunpeng.com/document/detail/en/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0008.html)" section in *TensorFlow Porting Guide*.
+Both TensorFlow and TensorFlow Serving are built using Bazel 6.5.0. For the Bazel installation method, see the "[Installing Bazel](https://www.hikunpeng.com/document/detail/en/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0008.html)" section in the *TensorFlow Porting Guide*.
 
 ## Preparing TensorFlow Source Code
 
 ### Selecting a Feature Combination
 
-| Feature Combination | Contents | Corresponding Patches (in App Order) | Applicable Scenario |
+| Feature Combination | Contents | Corresponding Patches (in Application Order) | Applicable Scenario |
 | --- | --- | --- | --- |
-| `common-only` | Shared build and compatibility changes | `patches/Tensorflow_V2.15.0/feature/0001-tensorflow_2.15.0-common.patch` | Inspect shared changes without acceleration features |
+| `common-only` | Public build integration (common) and compatibility changes | `patches/Tensorflow_V2.15.0/feature/0001-tensorflow_2.15.0-common.patch` | Inspect shared changes without acceleration features |
 | `kdnn-core` | common + KDNN | `patches/Tensorflow_V2.15.0/feature/0001-tensorflow_2.15.0-common.patch`<br>`patches/Tensorflow_V2.15.0/feature/0002-tensorflow_2.15.0-kdnn.patch` | Use KDNN kernel optimizations |
 | `kdnn-annc` | common + KDNN + ANNC | `patches/Tensorflow_V2.15.0/feature/0001-tensorflow_2.15.0-common.patch`<br>`patches/Tensorflow_V2.15.0/feature/0002-tensorflow_2.15.0-kdnn.patch`<br>`patches/Tensorflow_V2.15.0/feature/0003-tensorflow_2.15.0-annc.patch` | Use KDNN and ANNC static graph fusion |
 | `full-default` | common + KDNN + ANNC + KEmbedding | `patches/Tensorflow_V2.15.0/feature/0001-tensorflow_2.15.0-common.patch`<br>`patches/Tensorflow_V2.15.0/feature/0002-tensorflow_2.15.0-kdnn.patch`<br>`patches/Tensorflow_V2.15.0/feature/0003-tensorflow_2.15.0-annc.patch`<br>`patches/Tensorflow_V2.15.0/feature/0004-tensorflow_2.15.0-kembedding.patch` | Use all currently maintained features |
@@ -120,9 +120,7 @@ Prepare the following files before verifying package integrity:
    rpm -ivh boostcore-kdnn-3.2.0-1.aarch64.rpm
    ```
 
-   After installation, the header files are located at `/usr/local/kdnn/include`, and the thread pool and OpenMP libraries are located at
-   `/usr/local/kdnn/lib/threadpool` and `/usr/local/kdnn/lib/omp`, respectively.
-   TensorFlow integration uses the thread pool version.
+   After installation, the header files are located at `/usr/local/kdnn/include`, and the thread pool and OpenMP libraries are located at `/usr/local/kdnn/lib/threadpool` and `/usr/local/kdnn/lib/omp`, respectively. TensorFlow integration uses the thread pool version.
 
 Place the KDNN header files and the thread pool static library into the generated TensorFlow source code.
 
@@ -164,7 +162,7 @@ The current release supports building an inference service based on the open-sou
 
 ### Building TensorFlow Serving
 
-1. Prepare the TensorFlow Serving source code, Bazel, and build dependencies by following the "[Compiling TensorFlow Serving](https://www.hikunpeng.com/document/detail/en/SRA/perfEval/benchmarksra/kunpengmodelzoo_06_0011.html)" section in *Search and Recommendation Ranking Model Inference Benchmark*.
+1. Prepare the TensorFlow Serving source code, Bazel, and build dependencies by following the "[Compiling TensorFlow Serving](https://www.hikunpeng.com/document/detail/en/SRA/perfEval/benchmarksra/kunpengmodelzoo_06_0011.html)" section in the *Search and Recommendation Ranking Model Inference Benchmark*.
 
 2. During compilation, point `--tensorflow_dir` to the complete TensorFlow source code generated by this guide.
 
@@ -185,9 +183,9 @@ TensorFlow Serving is integrated through the local TensorFlow source code. When 
 
 ## Building TensorFlow Artifacts
 
-When the reasoning service is not used, TensorFlow targets can also be built on demand directly from the generated source code.
+When the inference service is not used, TensorFlow targets can also be built on demand directly from the generated source code.
 
-### TensorFlow pip package
+### TensorFlow pip Package
 
 Build the TensorFlow pip package.
 
@@ -235,7 +233,7 @@ bazel --output_base="$PWD/output" build \
 
 ### ANNC Static Graph Fusion
 
-After entering the test directory, execute the test command.
+Navigate to the test directory and execute the test command.
 
 ```bash
 cd /path/to/tensorflow/tensorflow/python/grappler/embedding_fused_test
@@ -258,7 +256,7 @@ bazel run //third_party/kembedding:embedding_table_lookup_benchmark
 
 ## Legacy Features
 
-The Legacy patch contains features such as historical Runtime scheduling, legacy fused Embedding, ANNC graph compilation, and legacy XLA execution. It is only allowed to be independently applied to the official TensorFlow `v2.15.0` baseline. The Legacy patch does not depend on common, is not part of the currently maintained feature combination, and is not guaranteed to be compatible with KDNN, ANNC static graph fusion, or KEmbedding patches.
+The Legacy patch contains features such as historical Runtime scheduling, legacy fused Embedding, ANNC graph compilation, and legacy XLA execution. It is only allowed to be independently applied to the official TensorFlow `v2.15.0` baseline. The Legacy patch does not depend on `common`, is not part of the currently maintained feature combination, and is not guaranteed to be compatible with KDNN, ANNC static graph fusion, or KEmbedding patches.
 
 ```bash
 git clone -b v2.15.0 https://github.com/tensorflow/tensorflow.git tensorflow-legacy
@@ -280,21 +278,17 @@ When TensorFlow Serving needs to be built, still follow the process in "[Buildin
 
 ## FAQs
 
-When compiling TensorFlow and TensorFlow Serving, refer to the following troubleshooting documents:
+When compiling TensorFlow and TensorFlow Serving, refer to the following troubleshooting cases:
 
 - [Failed to Verify the Certificate When Compiling TensorFlow Source Code](https://www.hikunpeng.com/document/detail/en/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0012.html)
-
 - [Failed to Download the TF-Serving Source Code Dependency](https://www.hikunpeng.com/document/detail/en/SRA/ecosystemEnable/TensorFlowServing/kunpengtfserving_02_0014.html)
-
 - [Failed to Obtain the Dependency of org_boost](https://www.hikunpeng.com/document/detail/en/SRA/ecosystemEnable/TensorFlowServing/kunpengtfserving_02_0015.html)
-
 - [No Golang Website Certificate](https://www.hikunpeng.com/document/detail/en/SRA/ecosystemEnable/TensorFlowServing/kunpengtfserving_02_0016.html)
-
 - [Syntax Error Reported During upb.c Compilation](https://www.hikunpeng.com/document/detail/en/SRA/ecosystemEnable/TensorFlowServing/kunpengtfserving_02_0017.html)
 
 ## Change History
 
-| Release Date | Description |
+| Date | Description |
 | ---- | ---- |
 | 2026-09-30 | This is the third official release. Restructured the installation process by consolidating duplicate environment and compilation steps across features. |
 | 2026-06-30 | This is the second official release.<ul><li>Added constant folding optimization to the TensorFlow ANNC graph compilation optimization feature.</li><li>Added adaptation environment and installation guide for the TensorFlow ANNC static graph fusion feature.</li></ul> |

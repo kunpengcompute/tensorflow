@@ -13,16 +13,11 @@ FAGO静态图融合特性开关通过代码补丁的方式接入TensorFlow，基
 
 ### 软件架构
 
-FAGO静态图融合软件架构图如[图1](#fig1)所示。
+FAGO静态图融合软件架构如下图所示。
 
-**图 1**  ANNC静态图融合软件架构图<a name="fig1"></a>
+**图 1** FAGO静态图融合软件架构图
 
-```mermaid
-flowchart TD
-    A[TensorFlow] --> B[图融合]
-    B --> C[remapper]
-    C -- 子图匹配并替换 --> D[FlashAttentionForward融合算子]
-```
+![FAGO静态图融合软件架构图](figures/FAGO静态图融合软件架构图.png)
 
 ### 支持自定义算子规格及使用约束
 
@@ -48,7 +43,7 @@ flowchart TD
 | 输出1    | float    | 3维张量 |
 | 输出2    | float    | 2维张量 |
 
-> ![icon note](public_sys-resources/icon-note.gif) **说明：**
+> ![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
 > 开启FlashAttentionForward算子融合条件下，如果存在符合要求的子图则会在图优化阶段替换为对应的自定义算子，否则使用TensorFlow开源接口。
 
 ### 应用场景
@@ -67,6 +62,6 @@ TensorFlow FAGO静态图融合主要在高并发推理场景中使用，表现�
 
 ## 修订记录
 
-| 文档版本 | 发布日期 | 修订记录 |
+| 文档版本 | 发布日期 | 修改说明 |
 | ---- | ---- | ---- |
 | 01 | 2026-09-30 | 第一次正式发布。|

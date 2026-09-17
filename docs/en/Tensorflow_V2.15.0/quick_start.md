@@ -1,6 +1,6 @@
 # Quick Start
 
-<!-- md-trans-meta sourceCommit=5c9162943c20095e6b484e3b477f280464376ee5 translatedAt=2026-08-04T03:18:27.505Z pushedAt=2026-08-05T01:07:46.202Z -->
+<!-- md-trans-meta sourceCommit=062d2574fdfde12276d08b23b05dc9d9d8b875e2 translatedAt=2026-08-31T03:44:53.550Z pushedAt=2026-09-14T09:17:32.627Z -->
 
 ## Installing the Kunpeng TensorFlow
 
@@ -16,7 +16,7 @@
    ```bash
    git remote add tensorflow-upstream https://github.com/tensorflow/tensorflow.git
    git fetch tensorflow-upstream refs/tags/v2.15.0:refs/tags/v2.15.0
-   ```  
+   ```
 
 3. Create the complete TensorFlow source code with default features.
 
@@ -27,15 +27,11 @@
    cd ../tensorflow-full-default
    mkdir -p output distdir output-release
    export TF_PYTHON_VERSION=3.11
-   ```  
+   ```
 
-   For other profiles and the standalone Legacy patch, see the
-   [Patch Release](../../../patches/Tensorflow_V2.15.0/README_en.md) document.
-   The `output/` directory preserves the reusable Bazel build cache, manually
-   downloaded build dependencies go in `distdir/`, and pip packages are written
-   to `output-release/`.
+   The `output/` directory stores the reusable Bazel build cache, `distdir/` holds manually downloaded build dependencies, and `output-release/` contains the pip package output.
 
-   For guidance on other available combinations and standalone Legacy patches, see [Patch Release Notes](../../../patches/Tensorflow_V2.15.0/README.md).
+   For guidance on other available combinations and the standalone Legacy patch, see [Patch Release](../../../patches/Tensorflow_V2.15.0/README_en.md).
 
 4. Select the required build target based on your actual use scenario. You do not need to build all targets at the same time. The following provides reference commands for two common build targets.
 
@@ -58,7 +54,7 @@
        //tensorflow:tensorflow_cc
      ```
 
-If you encounter any problem during the compilation, see [TensorFlow Porting Guide](https://www.hikunpeng.com/document/detail/en/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0017.html).
+If you encounter any problem during the compilation, see [TensorFlow Porting Guide](https://www.hikunpeng.com/document/detail/en/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0001.html).
 
 ## Running the Inference Service
 
@@ -91,11 +87,11 @@ Kunpeng Deep Neural Network Library (KDNN) is a high-performance AI operator lib
     >`--cpuset-cpus`: limits the container's processes to execute on the specified CPU cores.
     >`--cpuset-mems`: specifies the memory node bound to the container.
 
-    After the stress test starts, the server displays "KDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable \`TF\_ENABLE\_KDNN\_OPTS=0\`." In this case, the function is enabled successfully.
+    After the performance test starts, the server displays "KDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable \`TF\_ENABLE\_KDNN\_OPTS=0\`." In this case, the function is enabled successfully.
 
     KDNN is enabled by default. You can set the environment variable `TF_ENABLE_KDNN_OPTS` to `0` to disable KDNN.
 
-    ![1_zh-cn_image_0000002504453619](figures/1_zh-cn_image_0000002504453619.png)
+    ![1 zh cn image 0000002504453619](figures/1_zh-cn_image_0000002504453619.png)
 
 #### Using ANNC Static Graph Fusion
 
@@ -125,7 +121,7 @@ This section provides usage examples only. The ANNC static graph fusion feature 
 #### ANNC Offline Graph Optimization (Legacy)
 
 >![icon note](public_sys-resources/icon-note.gif) **NOTE:**
->This feature is provided only by an independently frozen Legacy patch and is not part of the currently maintained default feature set.
+>This feature is provided only by a standalone frozen Legacy patch and is not part of the currently maintained default feature set.
 
 The Kunpeng TensorFlow ANNC graph compilation optimization feature provides TensorFlow graph fusion, XLA graph fusion, operator optimization, and constant folding optimization. This section provides usage examples only. For details, see [API Reference](./api_reference.md).
 
@@ -158,7 +154,7 @@ The Kunpeng TensorFlow ANNC graph compilation optimization feature provides Tens
 4. Start the stress test on the client.
 
     ```bash
-    docker run -it --rm --net host  nvcr.io/nvidia/tritonserver:24.05-py3-sdk perf_analyzer --concurrency-range 28:28:1 -p 8561 -f perf.csv -m deepfm --service-kind tfserving -i grpc --request-distribution poisson -b 128  -u localhost:8889 --percentile 99 --input-data=random 
+    docker run -it --rm --net host  nvcr.io/nvidia/tritonserver:24.05-py3-sdk perf_analyzer --concurrency-range 28:28:1 -p 8561 -f perf.csv -m deepfm --service-kind tfserving -i grpc --request-distribution poisson -b 128  -u localhost:8889 --percentile 99 --input-data=random
     ```
 
 #### TensorFlow Serving Thread Scheduling Optimization (Legacy)
@@ -166,12 +162,12 @@ The Kunpeng TensorFlow ANNC graph compilation optimization feature provides Tens
 The Kunpeng TensorFlow Serving thread scheduling optimization feature provides two configuration options: batch operator scheduling and thread affinity isolation. For details, see [API Reference](./api_reference.md).
 
 >![icon note](public_sys-resources/icon-note.gif) **NOTE:**
->This feature has been moved to an independently frozen Legacy patch. It is not part of the currently maintained default profile, and compatibility with KDNN, ANNC, or KEmbedding is not guaranteed.
+>This feature has been moved to a standalone frozen Legacy patch. It is not part of the currently maintained default profile, and compatibility with KDNN, ANNC, or KEmbedding is not guaranteed.
 
 ## Change History
 
-| Release Date | Change History |
+| Date | Description |
 | ---- | ---- |
-| 2026-09-30 | Third official release.<ul><li>Updated the instructions for creating complete TensorFlow source code by feature combination and selecting build targets as needed.</li><li>Restructured the TensorFlow Serving inference service usage instructions, and clarified the scope of currently maintained features and Legacy functions.</li></ul> |
-| 2026-06-30 | Second official release.<ul><li>Added constant folding optimization to the TensorFlow ANNC graph compilation optimization feature.</li><li>Added the TensorFlow ANNC static graph fusion feature with corresponding usage examples.</li></ul> |
-| 2026-03-30 | First official release. <ul><li>Added usage examples for TensorFlow–KDNN integration.</li><li>Added the TensorFlow KDNN thread passthrough feature with corresponding usage examples.</li></ul> |
+| 2026-09-30 | This is the third official release.<ul><li>Updated the instructions for creating complete TensorFlow source code by feature combination and selecting build targets as needed.</li><li>Restructured the TensorFlow Serving inference service usage instructions, and clarified the scope of currently maintained features and Legacy functions.</li></ul> |
+| 2026-06-30 | This is the second official release.<ul><li>Added constant folding optimization to the TensorFlow ANNC graph compilation optimization feature.</li><li>Added the TensorFlow ANNC static graph fusion feature with corresponding usage examples.</li></ul> |
+| 2026-03-30 | This is the first official release. <ul><li>Added usage examples for TensorFlow–KDNN integration.</li><li>Added the TensorFlow KDNN thread passthrough feature with corresponding usage examples.</li></ul> |

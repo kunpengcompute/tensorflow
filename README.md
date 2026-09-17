@@ -92,12 +92,12 @@ tensorflow
 
 | 配置 | 包含的补丁 | 适用场景 |
 | --- | --- | --- |
-| `common-only` | common | 只包含构建和兼容性改动，不启用加速特性。 |
-| `kdnn-core` | common + KDNN | 启用KDNN算子优化，推荐作为基础版本。 |
-| `kdnn-annc` | common + KDNN + ANNC | 在KDNN基础上增加ANNC静态图融合。 |
-| `full-default` | common + KDNN + ANNC + KEmbedding | 启用当前维护的全部特性，包括KEmbedding自定义算子。 |
+| common-only | common | 只包含构建和兼容性改动，不启用加速特性。 |
+| kdnn-core | common + KDNN | 启用KDNN算子优化，推荐作为基础版本。 |
+| kdnn-annc | common + KDNN + ANNC | 在KDNN基础上增加ANNC静态图融合。 |
+| full-default | common + KDNN + ANNC + KEmbedding | 启用当前维护的全部特性，包括KEmbedding自定义算子。 |
 
-当前维护的补丁系列需要按特性组合生成 `tensorflow/feature_copts.bzl`，请参见`patches`目录下的《[README](./patches/Tensorflow_V2.15.0/README.md)》构建源码。
+当前维护的补丁系列需要按特性组合生成`tensorflow/feature_copts.bzl`，请参见`patches`目录下的《[README](./patches/Tensorflow_V2.15.0/README.md)》构建源码。
 
 Legacy补丁只允许独立应用到官方基线，不依赖公共构建集成（common），也不保证与其他补丁兼容。详细说明请参见《[README](./patches/Tensorflow_V2.15.0/README.md)》。
 
@@ -117,10 +117,10 @@ Legacy补丁只允许独立应用到官方基线，不依赖公共构建集成�
 
 | 配置 | 包含的补丁 | 适用场景 |
 | --- | --- | --- |
-| `common-only` | common | 只包含构建和兼容性改动，不启用加速特性。|
-| `fago` | common+FAGO | 启用FlashAttention融合算子优化。 |
+| common-only | common | 只包含构建和兼容性改动，不启用加速特性。|
+| fago | common+FAGO | 启用FlashAttention融合算子优化。 |
 
-当前维护的补丁系列需要按特性组合生成 `tensorflow/feature_copts.bzl`，请参见`patches`目录下的《[README](./patches/Tensorflow_V2.20.0/README.md)》构建源码。
+当前维护的补丁系列需要按特性组合生成`tensorflow/feature_copts.bzl`，请参见`patches`目录下的《[README](./patches/Tensorflow_V2.20.0/README.md)》构建源码。
 
 ## 版本说明
 

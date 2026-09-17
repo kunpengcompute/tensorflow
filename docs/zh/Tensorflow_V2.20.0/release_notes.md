@@ -83,7 +83,7 @@
 
 ### 更新说明
 
-- 新增TensorFlow FlashAttentionGraphOptimization(FAGO)静态图融合特性，支持FlashAttentionForward算子静态图融合。
+新增TensorFlow FlashAttentionGraphOptimization(FAGO)静态图融合特性，支持FlashAttentionForward算子静态图融合。
 
 **修改特性<a name="zh-cn_topic_0000002518399190_section16450949161512"></a>**
 

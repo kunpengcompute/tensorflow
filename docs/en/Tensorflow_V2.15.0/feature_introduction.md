@@ -124,13 +124,13 @@ Through the parallelization transformation and execution path optimization of Sp
 
 **Algorithm Logic**
 
-1. **Column sharding strategy**: Evenly divide the columns of the output matrix by the number of threads.
+- **Column sharding strategy**: Evenly divide the columns of the output matrix by the number of threads.
 
-2. **Thread-private buffer**: Allocate an independent computation buffer for each thread to avoid data races.
+- **Thread-private buffer**: Allocate an independent computation buffer for each thread to avoid data contentions.
 
-3. **Parallel execution**: Reuse the framework thread pool, where KDNN submits computation tasks to the framework thread pool for unified scheduling.
+- **Parallel execution**: Reuse the framework thread pool, where KDNN submits computation tasks to the framework thread pool for unified scheduling.
 
-4. **Single-thread fallback condition**: The serial algorithm is used when the thread pool pointer is null, the current execution is already within a parallel region, or the number of threads in the thread pool is less than or equal to 1.
+- **Single-thread fallback condition**: The serial algorithm is used when the thread pool pointer is null, the current execution is already within a parallel region, or the number of threads in the thread pool is less than or equal to 1.
 
 **Interface Change**
 
