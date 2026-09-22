@@ -1,5 +1,5 @@
 9359ea9c91bc4a9b85b5d694f2f964b50d182038529c87e33e43b38466301a94  feature/0001-tensorflow_2.15.0-common.patch
 4c1edef883151d399a91b89105ab2a9f002e0b4cd17e88b8e6ca65d261101fd2  feature/0002-tensorflow_2.15.0-kdnn.patch
 5eb4ce639dea0643cefbf62c597df8b5025a4014cb0e789e28e53c02688802a4  feature/0003-tensorflow_2.15.0-annc.patch
-80e36c3d167cb4d3d07f7f15eb3a898c97159b35e5ce658c1d3e64f5f675cde4  feature/0004-tensorflow_2.15.0-kembedding.patch
+ff8db5cb7fad4906eae36b71fcd432b4d386a5cf67e84dc2a27c545ba9cf25df  feature/0004-tensorflow_2.15.0-kembedding.patch
 80ce73c1102a2d608ecc1aa0d388e8fc874aac9240f7df6ddf4e0208652c4eb4  frozen_feature/tensorflow_2.15.0-legacy.patch

@@ -185,20 +185,82 @@ TensorFlow Serving is integrated through the local TensorFlow source code. When 
 
 When the inference service is not used, TensorFlow targets can also be built on demand directly from the generated source code.
 
+>![Note](public_sys-resources/icon-note.gif) **Build option:**
+>
+>`--define=enable_kdnn=true` enables KDNN kernel optimizations. Add this option when using the `kdnn-core`, `kdnn-annc`, or `full-default` feature combination. The `common-only` combination does not include KDNN code and does not require this option. The build examples below assume that KDNN is enabled.
+
 ### TensorFlow pip Package
 
-Build the TensorFlow pip package.
+1. Configure the TensorFlow build.
 
-```bash
-cd /path/to/tensorflow
-export TF_PYTHON_VERSION=3.11
-./configure
-bazel --output_base="$PWD/output" build \
-  --distdir="$PWD/distdir" \
-  -c opt \
-  //tensorflow/tools/pip_package:build_pip_package
-./bazel-bin/tensorflow/tools/pip_package/build_pip_package ./output-release
-```
+   ```bash
+   cd /path/to/tensorflow
+   export TF_PYTHON_VERSION=3.11
+   ./configure
+   ```
+
+2. Configure the options as follows. Press `[Enter]` to accept the default for options that do not show `N` or `n`.
+
+   ```text
+   You have bazel 6.5.0- (@non-git) installed.
+   Please specify the location of python. [Default is /usr/bin/python3.11]:
+
+
+   Found possible Python library paths:
+   /usr/lib/python3.11/site-packages
+   /usr/lib64/python3.11/site-packages
+   Please input the desired Python library path to use.  Default is [/usr/lib/python3.11/site-packages]
+
+   Do you wish to build TensorFlow with ROCm support? [y/N]: N
+   No ROCm support will be enabled for TensorFlow.
+
+   Do you wish to build TensorFlow with CUDA support? [y/N]: N
+   No CUDA support will be enabled for TensorFlow.
+
+   Do you want to use Clang to build TensorFlow? [Y/n]: n
+   GCC will be used to compile TensorFlow.
+
+   Please specify optimization flags to use during compilation when bazel option "--config=opt" is specified [Default is -Wno-sign-compare]:
+
+
+   Would you like to interactively configure ./WORKSPACE for Android builds? [y/N]: N
+   Not configuring the WORKSPACE for Android builds.
+
+   Preconfigured Bazel build configs. You can use any of the below by adding "--config=<>" to your build command. See .bazelrc for more details.
+        --config=mkl            # Build with MKL support.
+        --config=mkl_aarch64    # Build with oneDNN and Compute Library for the Arm Architecture (ACL).
+        --config=monolithic     # Config for mostly static monolithic build.
+        --config=numa           # Build with NUMA support.
+        --config=dynamic_kernels        # (Experimental) Build kernels into separate shared objects.
+        --config=v1             # Build with TensorFlow 1 API instead of TF 2 API.
+   Preconfigured Bazel build configs to DISABLE default on features:
+        --config=nogcp          # Disable GCP support.
+        --config=nonccl         # Disable NVIDIA NCCL support.
+   Configuration finished
+   ```
+
+3. Build the TensorFlow pip package.
+
+   ```bash
+   bazel --output_base="$PWD/output" build \
+     --distdir="$PWD/distdir" \
+     -c opt \
+     --define=enable_kdnn=true \
+     //tensorflow/tools/pip_package:build_pip_package
+   ./bazel-bin/tensorflow/tools/pip_package/build_pip_package ./output-release
+   ```
+
+4. Check the output directory after the build completes.
+
+   ```bash
+   ls ./output-release
+   ```
+
+5. The pip package is built successfully when output similar to the following is displayed.
+
+   ```text
+   tensorflow-2.15.0-cp311-cp311-linux_aarch64.whl
+   ```
 
 ### TensorFlow C++ Dynamic Library
 
@@ -209,6 +271,7 @@ cd /path/to/tensorflow
 bazel --output_base="$PWD/output" build \
   --distdir="$PWD/distdir" \
   -c opt \
+  --define=enable_kdnn=true \
   //tensorflow:tensorflow_cc
 ```
 

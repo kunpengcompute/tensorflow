@@ -78,7 +78,7 @@ index 0000000000000000000000000000000000000000..6aad0a8990b7d56fa12dc5cd22b75d3e
 +fi
 diff --git a/experiment_scripts/03_run_benchmark_with_monitoring.sh b/experiment_scripts/03_run_benchmark_with_monitoring.sh
 new file mode 100755
-index 0000000000000000000000000000000000000000..6ff81a5beaf0140e6d828ccd5031b23f6e51455c
+index 0000000000000000000000000000000000000000..3f5e5de64f041c80f98a109af53349153fb01a24
 --- /dev/null
 +++ b/experiment_scripts/03_run_benchmark_with_monitoring.sh
 @@ -0,0 +1,102 @@
@@ -152,7 +152,7 @@ index 0000000000000000000000000000000000000000..6ff81a5beaf0140e6d828ccd5031b23f
 +
 +trap "kill $CPU_MONITOR_PID 2>/dev/null; exit" INT TERM EXIT
 +
-+BENCHMARK_TMPDIR="${TEST_TMPDIR:-${OUTPUT_USER_ROOT}/tmp/${TARGET_NAME}}"
++BENCHMARK_TMPDIR="${TEST_TMPDIR:-${OUTPUT_BASE}/tmp/${TARGET_NAME}}"
 +mkdir -p "${BENCHMARK_TMPDIR}"
 +echo "临时目录: ${BENCHMARK_TMPDIR}" | tee -a "$RESULT_FILE"
 +
@@ -437,7 +437,7 @@ index 0000000000000000000000000000000000000000..63f395dd0da74e4d018559c109c0bfde
 +}
 diff --git a/experiment_scripts/run_full_experiment.sh b/experiment_scripts/run_full_experiment.sh
 new file mode 100755
-index 0000000000000000000000000000000000000000..6dda80afb079836035be6a729625f487a4205945
+index 0000000000000000000000000000000000000000..db85de1661dc6862b8b8284d4517d4c477f9b38d
 --- /dev/null
 +++ b/experiment_scripts/run_full_experiment.sh
 @@ -0,0 +1,98 @@
@@ -465,7 +465,7 @@ index 0000000000000000000000000000000000000000..6dda80afb079836035be6a729625f487
 +RUN_COUNT="${1:-10}"
 +CORE_RANGE="${2:-0-15}"
 +
-+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
++if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
 +    usage
 +    exit 0
 +fi

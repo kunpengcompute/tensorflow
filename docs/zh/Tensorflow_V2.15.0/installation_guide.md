@@ -166,6 +166,10 @@ ANNC静态图融合代码已经包含在`kdnn-annc`和`full-default`特性组合
 
 ## 构建TensorFlow产物
 
+>![表示说明的图片](public_sys-resources/icon-note.gif) **编译选项说明：**
+>
+>`--define=enable_kdnn=true`用于开启KDNN算子优化，选择`kdnn-core`、`kdnn-annc`或`full-default`特性组合时添加该选项，`common-only`组合不包含KDNN代码，无需添加。下面给出的编译示例均默认开启了KDNN。
+
 ### TensorFlow pip包
 
 1. 构建TensorFlow pip包。
@@ -222,14 +226,10 @@ ANNC静态图融合代码已经包含在`kdnn-annc`和`full-default`特性组合
    bazel --output_base="$PWD/output" build \
    --distdir="$PWD/distdir" \
    -c opt \
-   --define=enable_kdnn=True \
+   --define=enable_kdnn=true \
    //tensorflow/tools/pip_package:build_pip_package
    ./bazel-bin/tensorflow/tools/pip_package/build_pip_package ./output-release
    ```
-
-   >![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
-   >
-   >`--define=enable_kdnn=True`用于开启KDNN算子优化，选择`kdnn-core`、`kdnn-annc`或`full-default`特性组合时添加该选项，`common-only`组合不包含KDNN代码，无需添加。
 
 4. 编译完成后，检查产物目录。
 
@@ -252,6 +252,7 @@ cd /path/to/tensorflow
 bazel --output_base="$PWD/output" build \
   --distdir="$PWD/distdir" \
   -c opt \
+  --define=enable_kdnn=true \
   //tensorflow:tensorflow_cc
 ```
 
