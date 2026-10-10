@@ -16,12 +16,12 @@
 
 安装基础依赖并启用GCC 12.3.1。
 
-```bash
-yum install -y gcc-toolset-12-gcc* git patch patchelf perl \
-  python3 python3-devel tar unzip wget zip
-export PATH=/opt/openEuler/gcc-toolset-12/root/usr/bin/:$PATH
-export LD_LIBRARY_PATH=/opt/openEuler/gcc-toolset-12/root/usr/lib64/:$LD_LIBRARY_PATH
-```
+   ```bash
+   yum install -y gcc-toolset-12-gcc* git patch patchelf perl \
+   python3 python3-devel tar unzip wget zip
+   export PATH=/opt/openEuler/gcc-toolset-12/root/usr/bin/:$PATH
+   export LD_LIBRARY_PATH=/opt/openEuler/gcc-toolset-12/root/usr/lib64/:$LD_LIBRARY_PATH
+   ```
 
 TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请参见《TensorFlow 移植指南》的“[安装Bazel](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlowServing/kunpengtfserving_02_0009.html)”章节。
 
@@ -55,7 +55,7 @@ TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请
      --output-dir /path/to/tensorflow
    ```
 
-   如需其他组合，只需修改`--feature-set`。输出目录包含官方TensorFlow `v2.15.0`完整源码、所选补丁以及自动生成的`tensorflow/feature_copts.bzl`。
+   如需其他组合，只需修改`--feature-set`。/path/to/tensorflow表示TensorFlow源码根目录，输出目录包含官方TensorFlow `v2.15.0`完整源码、所选补丁以及自动生成的`tensorflow/feature_copts.bzl`。
 
 3. 在TensorFlow源码根目录创建统一的构建目录。
 
@@ -116,7 +116,7 @@ TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请
 
 #### 安装KDNN软件包
 
-1.将KDNN软件包解压缩，并使用rpm -ivh命令安装。
+1. 将KDNN软件包解压缩，并使用rpm -ivh命令安装。
 
    ```bash
    unzip BoostKit-boostcore-kdnn_3.2.0.zip
@@ -124,9 +124,9 @@ TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请
    ```
 
    安装后，头文件位于`/usr/local/kdnn/include`，线程池和OpenMP库分别位于`/usr/local/kdnn/lib/threadpool`和`/usr/local/kdnn/lib/omp`。
-    TensorFlow集成使用线程池版本。
+   TensorFlow集成使用线程池版本。
 
-2.将KDNN头文件和线程池静态库放入生成的TensorFlow源码。
+2. 将KDNN头文件和线程池静态库放入生成的TensorFlow源码。
 
    ```bash
     export TF_PATH=/path/to/tensorflow
@@ -136,7 +136,7 @@ TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请
      $TF_PATH/third_party/KDNN/src/
    ```
 
-3.应用KDNN头文件适配补丁。
+3. 应用KDNN头文件适配补丁。
 
    ```bash
    cd $TF_PATH/third_party/KDNN
@@ -237,7 +237,7 @@ ANNC静态图融合代码已经包含在`kdnn-annc`和`full-default`特性组合
    ls ./output-release
    ```
 
-5. 回显类似如下信息时，表示pip包构建成功。
+   回显类似如下信息时，表示pip包构建成功。
 
    ```output
    tensorflow-2.15.0-cp311-cp311-linux_aarch64.whl
@@ -247,14 +247,14 @@ ANNC静态图融合代码已经包含在`kdnn-annc`和`full-default`特性组合
 
 构建TensorFlow C++动态库。
 
-```bash
-cd /path/to/tensorflow
-bazel --output_base="$PWD/output" build \
-  --distdir="$PWD/distdir" \
-  -c opt \
-  --define=enable_kdnn=true \
-  //tensorflow:tensorflow_cc
-```
+   ```bash
+   cd /path/to/tensorflow
+   bazel --output_base="$PWD/output" build \
+   --distdir="$PWD/distdir" \
+   -c opt \
+   --define=enable_kdnn=true \
+   //tensorflow:tensorflow_cc
+   ```
 
 ## 验证特性
 
@@ -279,7 +279,7 @@ bazel --output_base="$PWD/output" build \
    >
    >请勿在TensorFlow源码根目录下执行验证命令，否则Python会优先加载源码目录下的`tensorflow/`包而非已安装的pip包，导致导入报错。
 
-3. 回显类似如下信息时，表示TensorFlow安装成功。
+   回显类似如下信息时，表示TensorFlow安装成功。
 
    ```output
    2.15.0
@@ -287,7 +287,7 @@ bazel --output_base="$PWD/output" build \
 
 ### KDNN
 
-1. 进入测试目录并查询支持的模块。
+1. 进入测试目录并查询支持的算子列表。
 
    ```bash
    cd /path/to/tensorflow/tensorflow/python/kernel_tests/benchmark
@@ -300,30 +300,90 @@ bazel --output_base="$PWD/output" build \
    numactl -C 0-15 python main.py --op {op_name} --performance_test True
    ```
 
-   执行通过即表示相关算子集成成功。
+   以batch_matmul_ops算子为例，回显类似如下信息时，表示相关算子集成成功。
+
+   ```output
+   Function testing: batch_matmul_2D_fp32_bcFalse_taTrue_tbTrue ...
+   功能测试通过
+   Performance testing: MatMul_2D_79_1570_256_False_False ...
+   Testing: MatMul_2D_79_1570_256_False_False ...
+   ✅ Profile 已固化至: bench_logs/plugins/profile/MatMul_2D_79_1570_256_False_False_kdnn_0
+   Testing: MatMul_2D_79_1570_256_False_False ...
+   ✅ Profile 已固化至: bench_logs/plugins/profile/MatMul_2D_79_1570_256_False_False_kdnn_1
+   性能测试通过, 性能提升187.43%, KDNN开启状态下耗时150.41us, 关闭状态下耗时432.33us
+   ```
 
 ### ANNC静态图融合
 
-进入测试目录后，执行测试命令。
+1. 进入测试目录并查询支持的算子列表。
 
-```bash
-cd /path/to/tensorflow/tensorflow/python/grappler/embedding_fused_test
-python main.py --list
-python main.py --op {op_name} --performance_test True
-```
+   ```bash
+   cd /path/to/tensorflow/tensorflow/python/grappler/embedding_fused_test
+   python main.py --list
+   ```
 
-ANNC静态图融合只对满足特定结构和输入约束的子图生效。
+2. 从查询结果中选择算子并运行测试。
+
+   ```bash
+   python main.py --op {op_name} --performance_test True
+   ```
+
+   以KPFusedEmbeddingActionIdGather_op算子为例，回显类似如下信息时，表示相关算子集成成功。
+
+   ```output
+   Function testing: KPFusedEmbeddingActionIdGather_case_1_int32_int32 ...
+   功能测试通过
+   Performance testing: KPFusedEmbeddingActionIdGather_case_1_int32_int32 ...
+   Testing: KPFusedEmbeddingActionIdGather_case_1_int32_int32 ...
+   Testing: KPFusedEmbeddingActionIdGather_case_1_int32_int32 ...
+   性能测试通过, 性能提升291.88%, embedding算子融合开启状态下耗时52.41us, 关闭状态下耗时205.38us
+   ```
+
+   >![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
+   >
+   >ANNC静态图融合只对满足特定结构和输入约束的子图生效。
 
 ### KEmbedding
 
-进入测试目录后，执行测试命令。
+1. 进入测试目录
 
-```bash
-cd /path/to/tensorflow
-bazel test //third_party/kembedding:embedding_table_lookup_op_test \
-  --test_output=errors
-bazel run //third_party/kembedding:embedding_table_lookup_benchmark
-```
+   ```bash
+   cd /path/to/tensorflow
+   ```
+
+2. 执行单元测试
+
+   ```bash
+   bazel test //third_party/kembedding:embedding_table_lookup_op_test \
+   --test_output=all   --nocache_test_results
+   ```
+
+   回显类似如下信息时，表示单元测试成功。
+
+   ```output
+   //third_party/kembedding:embedding_table_lookup_op_test                  PASSED in 0.2s
+   ```
+
+3. 执行基准测试
+
+   ```bash
+   bazel run //third_party/kembedding:embedding_table_lookup_benchmark -- --benchmark_filter=.
+   ```
+
+   回显类似如下信息时，表示基准测试成功。
+
+   ```output
+   Benchmark                                                 Time             CPU   Iterations UserCounters...
+   -----------------------------------------------------------------------------------------------------------
+   BM_EmbeddingTableLookup_SmallSingleThread_false       44547 ns        44428 ns        15791 items_per_second=92.1944M/s 4KKeys_Dim16_4Values_1Thread_Hit100
+   BM_EmbeddingTableLookup_SmallSingleThread_true        98719 ns        98461 ns         7046 items_per_second=41.6004M/s 4KKeys_Dim16_4Values_1Thread_Hit100
+   BM_EmbeddingTableLookup_MediumParallel_false         339120 ns       335686 ns         2164 items_per_second=48.8075M/s 16KKeys_Dim32_8Values_8Threads_Hit100
+   BM_EmbeddingTableLookup_MediumParallel_true          776258 ns       773776 ns          879 items_per_second=21.1741M/s 16KKeys_Dim32_8Values_8Threads_Hit100
+   BM_EmbeddingTableLookup_MediumParallelMiss_false     321051 ns       318884 ns         2226 items_per_second=51.3792M/s 16KKeys_Dim32_8Values_8Threads_Hit75
+   BM_EmbeddingTableLookup_MediumParallelMiss_true      794667 ns       793124 ns          882 items_per_second=20.6576M/s 16KKeys_Dim32_8Values_8Threads_Hit75
+   BM_EmbeddingTableLookup_LargeParallel_false         1873011 ns      1865223 ns          340 items_per_second=35.1357M/s 64KKeys_Dim64_16Values_16Threads_Hit100
+   BM_EmbeddingTableLookup_LargeParallel_true          6129549 ns      6100689 ns           84 items_per_second=10.7424M/s 64KKeys_Dim64_16Values_16Threads_Hit100
+   ```
 
 ## 构建推理服务（可选）
 
@@ -358,21 +418,21 @@ Legacy补丁包含历史Runtime调度、旧融合Embedding、ANNC图编译和旧
 >
 >- Legacy补丁不依赖common，不属于当前维护的特性组合，也不保证与KDNN、ANNC静态图融合或KEmbedding补丁兼容。
 
-```bash
-git clone -b v2.15.0 https://github.com/tensorflow/tensorflow.git tensorflow-legacy
-cd tensorflow-legacy
-git apply --check \
-  /path/to/sra-tensorflow/patches/Tensorflow_V2.15.0/frozen_feature/tensorflow_2.15.0-legacy.patch
-git apply \
-  /path/to/sra-tensorflow/patches/Tensorflow_V2.15.0/frozen_feature/tensorflow_2.15.0-legacy.patch
+   ```bash
+   git clone -b v2.15.0 https://github.com/tensorflow/tensorflow.git tensorflow-legacy
+   cd tensorflow-legacy
+   git apply --check \
+   /path/to/sra-tensorflow/patches/Tensorflow_V2.15.0/frozen_feature/tensorflow_2.15.0-legacy.patch
+   git apply \
+   /path/to/sra-tensorflow/patches/Tensorflow_V2.15.0/frozen_feature/tensorflow_2.15.0-legacy.patch
 
-mkdir -p output distdir output-release
-bazel --output_base="$PWD/output" build \
-  --distdir="$PWD/distdir" \
-  --config=fused_embedding \
-  //tensorflow/tools/pip_package:build_pip_package
-./bazel-bin/tensorflow/tools/pip_package/build_pip_package ./output-release
-```
+   mkdir -p output distdir output-release
+   bazel --output_base="$PWD/output" build \
+   --distdir="$PWD/distdir" \
+   --config=fused_embedding \
+   //tensorflow/tools/pip_package:build_pip_package
+   ./bazel-bin/tensorflow/tools/pip_package/build_pip_package ./output-release
+   ```
 
 需要构建TensorFlow Serving时，仍使用“[构建TensorFlow Serving](#构建tensorflow-serving)”中的流程，将`--tensorflow_dir`改为Legacy源码目录。
 
