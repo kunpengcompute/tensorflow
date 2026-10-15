@@ -20,11 +20,19 @@ limitations under the License.
 #include "tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h"
 
 #include "Eigen/Core"  // from @eigen_archive
+#include <vector>
 #include "tensorflow/core/framework/bounds_check.h"
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/kernels/fill_functor.h"
 #include "tensorflow/core/platform/bfloat16.h"
+#include "tensorflow/core/platform/logging.h"
+#include "tensorflow/core/util/port.h"
+#include "tensorflow/core/util/sparse/sparse_tensor.h"
+
+#if defined(ENABLE_KDNN)
+#include "kdnn_adapter.h"
+#endif
 
 namespace tensorflow {
 
@@ -133,6 +141,28 @@ class SparseTensorDenseMatMulOp : public OpKernel {
       f(ctx->eigen_device<Device>(), out->flat<T>());
       return;
     }
+
+#if defined(ENABLE_KDNN)
+#define KDNN_ADJOINT(ADJ_A, ADJ_B)                                             \
+  if (adjoint_a_ == ADJ_A && adjoint_b_ == ADJ_B) {                            \
+    Status functor_status = functor::KDNNSparseMatMulFunctor<                  \
+        Device, float, Tindices, ADJ_A,                                        \
+        ADJ_B>::Compute(ctx, out, *a_indices, *a_values, *b);                  \
+    OP_REQUIRES_OK(ctx, functor_status);                                       \
+  }
+    const int int32max = std::numeric_limits<int>::max();
+    if (IsKDNNEnabled() && std::is_same<Device, CPUDevice>::value &&
+        std::is_same<T, float>::value &&
+        adjoint_a_ == false &&
+        FastBoundsCheck(inner_left, int32max) &&
+        FastBoundsCheck(inner_right, int32max) &&
+        FastBoundsCheck(outer_left, int32max)) {
+      KDNN_ADJOINT(false, false);
+      KDNN_ADJOINT(false, true);
+      return;
+    }
+#undef KDNN_ADJOINT
+#endif
 
 #define MAYBE_ADJOINT(ADJ_A, ADJ_B)                                           \
   if (adjoint_a_ == ADJ_A && adjoint_b_ == ADJ_B) {                           \
@@ -357,6 +387,71 @@ struct SparseTensorDenseMatMulFunctor<CPUDevice, T, Tindices, ADJ_A, ADJ_B> {
   }
 };
 
+#if defined(ENABLE_KDNN)
+template <typename Tindices, bool ADJ_A, bool ADJ_B>
+struct KDNNSparseMatMulFunctor<CPUDevice, float, Tindices, ADJ_A, ADJ_B> {
+  static const std::size_t kNumVectorize = 32;
+
+  static Status Compute(OpKernelContext* ctx, Tensor* out_tensor,
+                        const Tensor& a_indices_tensor,
+                        const Tensor& a_values_tensor,
+                        const Tensor& b_tensor) {
+    auto out = out_tensor->matrix<float>();
+    auto b = b_tensor.matrix<float>();
+    auto a_indices = a_indices_tensor.matrix<Tindices>();
+    auto a_values = a_values_tensor.vec<float>();
+    const std::size_t nnz = a_values.size();
+    const std::size_t rhs_right = (ADJ_B ? b.dimension(0) : b.dimension(1));
+    const std::size_t lhs_right = (ADJ_B ? b.dimension(1) : b.dimension(0));
+    const int lhs_index_a = ADJ_A ? 1 : 0;
+    const int rhs_index_a = ADJ_A ? 0 : 1;
+
+    out.setZero();
+
+    if (rhs_right < kNumVectorize) {
+      // Disable vectorization if the RHS of output is too small
+      auto maybe_adjoint_b = MaybeAdjoint<decltype(b), ADJ_B>(b);
+
+      for (std::size_t i = 0; i < nnz; ++i) {
+        const Tindices m = internal::SubtleMustCopy(a_indices(i, lhs_index_a));
+        const Tindices k = internal::SubtleMustCopy(a_indices(i, rhs_index_a));
+        if (!FastBoundsCheck(k, lhs_right)) {
+          return KOutOfBoundsError(k, i, rhs_index_a, lhs_right);
+        }
+        if (!FastBoundsCheck(m, out.dimension(0))) {
+          return MOutOfBoundsError(m, i, lhs_index_a, out.dimension(0));
+        }
+        const float a_value = ADJ_A ? MaybeConj(a_values(i)) : a_values(i);
+        for (std::size_t n = 0; n < rhs_right; ++n) {
+          const float b_value = maybe_adjoint_b(k, n);
+          out(m, n) += a_value * b_value;
+        }
+      }
+    } else {
+      // Validate indices before delegating to KDNN.
+      for (std::size_t i = 0; i < nnz; ++i) {
+        const Tindices m = internal::SubtleMustCopy(a_indices(i, lhs_index_a));
+        const Tindices k = internal::SubtleMustCopy(a_indices(i, rhs_index_a));
+        if (!FastBoundsCheck(k, lhs_right)) {
+          return KOutOfBoundsError(k, i, rhs_index_a, lhs_right);
+        }
+        if (!FastBoundsCheck(m, out.dimension(0))) {
+          return MOutOfBoundsError(m, i, lhs_index_a, out.dimension(0));
+        }
+      }
+      const float* b_data = b.data();
+      Eigen::Tensor<float, 2, Eigen::ColMajor> col_major_conj_b;
+      if (ADJ_B) {
+        Eigen::array<int, 2> shuffle(1, 0);
+        col_major_conj_b = b.swap_layout().shuffle(shuffle).conjugate().eval();
+        b_data = col_major_conj_b.data();
+      }
+      kdnnSparseMatmul<Tindices>(ctx, nnz, rhs_right, lhs_right, lhs_index_a, rhs_index_a, out, a_indices, a_values, b_data);
+    }
+    return OkStatus();
+  }
+};
+#endif
 }  // namespace functor
 
 }  // namespace tensorflow

@@ -45,6 +45,7 @@ limitations under the License.
 #include "tensorflow/core/util/matmul_autotune.h"
 #include "tensorflow/core/util/matmul_bcast.h"
 #include "tensorflow/core/util/work_sharder.h"
+#include "tensorflow/core/util/port.h"
 
 #if defined(TENSORFLOW_USE_CUSTOM_CONTRACTION_KERNEL)
 #include "xla/tsl/framework/contraction/eigen_contraction_kernel.h"
@@ -66,6 +67,10 @@ limitations under the License.
 #if TF_HIPBLASLT
 #include "xla/stream_executor/rocm/hip_blas_lt.h"
 #endif
+#endif
+
+#if defined(ENABLE_KDNN)
+#include "kdnn_adapter.h"
 #endif
 
 namespace tensorflow {
@@ -965,6 +970,24 @@ class BaseBatchMatMulOp : public OpKernel {
       f(ctx->eigen_device<Device>(), out->flat<Tout>());
       return;
     }
+#if defined(ENABLE_KDNN)
+    int dims = in0.shape().dims();
+    bool trans_x = (adj_x_ || trans_x_);
+    bool trans_y = (adj_y_ || trans_y_);
+
+    if (IsKDNNEnabled()
+        && std::is_same<Ta, float>::value
+        && std::is_same<Tb, float>::value
+        && std::is_same<Tout, float>::value
+        && dims >= 2 && dims <= 5) {
+      if (batch_size == 1) {
+        kdnnGemm(ctx, in0_reshaped, in1_reshaped, out, trans_x, trans_y);
+      } else {
+        kdnnBatchGemm(ctx, in0, in1, out, trans_x, trans_y);
+      }
+      return;
+    }
+#endif
     Tensor out_reshaped;
     OP_REQUIRES(ctx,
                 out_reshaped.CopyFrom(*out, TensorShape({batch_size, d0, d3})),

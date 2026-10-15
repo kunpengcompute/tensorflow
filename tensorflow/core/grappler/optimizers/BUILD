@@ -907,6 +907,10 @@ tf_kernel_library(
         "//tensorflow/core/grappler/utils:topological_sort",
         "@com_google_absl//absl/container:flat_hash_set",
     ] + if_mkl(["//tensorflow/core/graph:mkl_graph_util"])
+    + select({
+        "@platforms//cpu:aarch64": ["//tensorflow/core/grappler/optimizers/graph_optimizer:annc_graph_opt"],
+        "//conditions:default": [],
+    })
     + if_cuda(["//tensorflow/core/grappler/optimizers/graph_optimizer:flash_attn_graph_opt"]),
 )
 
