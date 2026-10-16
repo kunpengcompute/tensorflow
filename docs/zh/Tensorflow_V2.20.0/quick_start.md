@@ -1,5 +1,7 @@
 # 快速入门
 
+本文档介绍快速入门，安装和构建鲲鹏TensorFlow，适用于需要安装和构建鲲鹏TensorFlow的用户。
+
 ## 安装鲲鹏TensorFlow
 
 1. 获取鲲鹏TensorFlow补丁仓。

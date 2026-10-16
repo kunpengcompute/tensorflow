@@ -1,5 +1,7 @@
 # 快速入门
 
+本文档介绍快速入门，介绍鲲鹏TensorFlow的安装与推理服务运行方法，适用于需要安装和运行鲲鹏TensorFlow的用户。
+
 ## 安装鲲鹏TensorFlow
 
 1. 获取鲲鹏TensorFlow补丁仓。
@@ -64,7 +66,7 @@
 
 #### 使用KDNN算子优化
 
-KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的基于鲲鹏平台进行优化的高性能AI算子库。其中MatMul、FusedMatMul、SparseMatMul算子已经适配TensorFlow。集成KDNN可以降低NN类算子的时延，增强模型推理性能。
+KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是基于鲲鹏平台进行优化的高性能AI算子库。其中MatMul、FusedMatMul、SparseMatMul算子已经适配TensorFlow。集成KDNN可以降低NN类算子的时延，增强模型推理性能。
 
 1. 启动服务端。
 
@@ -73,7 +75,7 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
     ```
 
     >![icon note](public_sys-resources/icon-note.gif) **说明：**
-    >**numactl -N 0**表示将程序绑定到第0个NUMA节点上运行。
+    >**numactl -N 0**表示将程序绑定到第0个NUMA（Non-Uniform Memory Access，非统一内存访问）节点上运行。
 
 2. 启动客户端性能测试。
 
@@ -82,8 +84,8 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
     ```
 
     >![icon note](public_sys-resources/icon-note.gif) **说明：**
-    >--cpuset-cpus：设置容器绑定的CPU核编号。
-    >--cpuset-mems：设置容器绑定的NUMA内存节点。
+    >- cpuset-cpus：设置容器绑定的CPU核编号。
+    >- cpuset-mems：设置容器绑定的NUMA内存节点。
 
     性能测试启动后，服务端显示“KDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable \`TF\_ENABLE\_KDNN\_OPTS=0\`”字样，即表示使能成功。
 
@@ -93,7 +95,7 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 
 #### 使用ANNC静态图融合
 
-鲲鹏TensorFlow ANNC静态图融合特性提供了环境变量开关，即算子可单独开启融合以及算子可全部开启融合。本章节仅提供使用样例，具体使用说明参见《[API参考](./api_reference.md)》。
+鲲鹏TensorFlow ANNC（Ascend Neural Network Compiler，昇腾神经网络编译器）静态图融合特性提供了环境变量开关，即算子可单独开启融合以及算子可全部开启融合。本章节仅提供使用样例，具体使用说明参见《[API参考](./api_reference.md)》。
 
 1. 启动服务端。
 
@@ -111,8 +113,8 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
     ```
 
     >![icon note](public_sys-resources/icon-note.gif) **说明：**
-    >--cpuset-cpus：设置容器绑定的CPU核编号。
-    >--cpuset-mems：设置容器绑定的NUMA内存节点。
+    >- cpuset-cpus：设置容器绑定的CPU核编号。
+    >- cpuset-mems：设置容器绑定的NUMA内存节点。
 
 本章节仅为使用样例，由于ANNC静态图融合功能需要模型中包含特定子图，若模型中不包含特定子图，则ANNC静态图融合功能不会生效。可以通过运行benchmark测试，用样例验证是否成功集成了ANNC静态图融合特性。
 
@@ -121,7 +123,7 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 >![icon note](public_sys-resources/icon-note.gif) **说明：**
 >该功能仅由独立冻结的Legacy补丁提供，不属于当前维护的默认特性组合。
 
-鲲鹏TensorFlow ANNC图编译优化特性提供了TensorFlow图融合、XLA图融合、算子优化和常量折叠优化特性。本章节仅提供使用样例，具体使用说明请参见《[API参考](./api_reference.md)》。
+鲲鹏TensorFlow ANNC图编译优化特性提供了TensorFlow图融合、XLA（eXternal Linear AIgebra Compiler，外部线性代数编译器）图融合、算子优化和常量折叠优化特性。本章节仅提供使用样例，具体使用说明请参见《[API参考](./api_reference.md)》。
 
 1. 模型离线图优化。
 
@@ -161,6 +163,15 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 
 >![icon note](public_sys-resources/icon-note.gif) **说明：**
 >该特性已归入独立冻结的Legacy补丁，不属于当前维护的默认Profile，也不保证与KDNN、ANNC或KEmbedding组合兼容。
+
+## 缩略语
+
+|缩略语|英文全称|中文全称|
+|---|---|---|
+|KDNN|Kunpeng Deep Neural Network Library|鲲鹏DNN库|
+|NUMA|Non-Uniform Memory Access|非统一内存访问|
+|ANNC|Ascend Neural Network Compiler|昇腾神经网络编译器|
+|XLA|eXternal Linear AIgebra Compiler|外部线性代数编译器|
 
 ## 修订记录
 

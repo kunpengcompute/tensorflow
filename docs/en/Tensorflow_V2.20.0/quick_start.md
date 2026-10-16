@@ -1,6 +1,6 @@
 # Quick Start
 
-<!-- md-trans-meta sourceCommit=062d2574fdfde12276d08b23b05dc9d9d8b875e2 translatedAt=2026-08-31T03:39:19.035Z pushedAt=2026-09-14T10:30:59.022Z -->
+<!-- md-trans-meta sourceCommit=7cc97f4b89994805c365839c45d47415fd06ffdb translatedAt=2026-10-12T06:48:30.720Z pushedAt=2026-10-13T02:43:28.000Z -->
 
 ## Installing the Kunpeng TensorFlow
 
@@ -11,7 +11,7 @@
    cd kunpeng-tensorflow
    ```
 
-2. Obtain the official TensorFlow 2.20.0 baseline.
+2. Obtain the official TensorFlow v2.20.0 baseline.
 
    ```bash
    git remote add tensorflow-upstream https://github.com/tensorflow/tensorflow.git
@@ -30,7 +30,7 @@
 
 4. Select the required build target based on your actual use scenario. You do not need to build all targets at the same time. The following provides the reference commands for the pip build target.
 
-  - 4.1 Configure Bazel.
+   4.1 Configure Bazel.
 
       ```bash
       cd ../tensorflow-full-default
@@ -60,7 +60,7 @@
 
       Please specify a list of comma-separated CUDA compute capabilities you want to build with.
       You can find the compute capability of your device at: https://developer.nvidia.com/cuda-gpus. Each capability can be specified as "x.y" or "compute_xy" to include both virtual and binary GPU code, or as "sm_xy" to only include the binary code.
-      Please note that each additional compute capability significantly increases your build time and binary size, and that TensorFlow only supports compute capabilities >= 3.5 [Default is: 3.5,7.0]: 
+      Please note that each additional compute capability significantly increases your build time and binary size, and that TensorFlow only supports compute capabilities >= 3.5 [Default is: 3.5,7.0]: 8.9
 
 
       Please specify the local CUDA path you want to use or leave empty to use the default version. 
@@ -97,33 +97,16 @@
       Configuration finished
       ```
 
-  - 4.2 Open `.tf_configure.bazelrc`, copy the following content, and replace the existing content with it.
+   4.2 Open `.tf_configure.bazelrc` and add the following build configuration before the line `build --action_env LD_LIBRARY_PATH=...`.
 
       ```bash
-      build --action_env PYTHON_BIN_PATH="/usr/bin/python3"
-      build --action_env PYTHON_LIB_PATH="/usr/lib/python3.11/site-packages"
-      build --python_path="/usr/bin/python3"
-      build:cuda --repo_env HERMETIC_CUDA_VERSION="12.8.0"
-      build:cuda --repo_env HERMETIC_CUDNN_VERSION="9.5.0"
-      build:cuda --repo_env HERMETIC_CUDA_COMPUTE_CAPABILITIES="8.9"
       build:cuda --repo_env TF_NEED_CUDA=1
       build:cuda --crosstool_top=@local_config_cuda//crosstool:toolchain
       build:cuda --@local_config_cuda//:enable_cuda
       build:cuda --config=cuda_version
-      build --action_env LD_LIBRARY_PATH="/opt/openEuler/gcc-toolset-14/root/usr/lib64/:/opt/openEuler/gcc-toolset-14/root/usr/lib64:/opt/openEuler/gcc-toolset-14/root/usr/lib64:/opt/openEuler/gcc-toolset-14/root/usr/lib:/opt/openEuler/gcc-toolset-14/root/usr/lib64/dyninst:/opt/openEuler/gcc-toolset-14/root/usr/lib/dyninst:/opt/openEuler/gcc-toolset-14/root/usr/lib64:/opt/openEuler/gcc-toolset-14/root/usr/lib:/usr/local/cuda/lib64/:/opt/openEuler/gcc-toolset-14/root/lib64:/opt/openEuler/gcc-toolset-14/root/lib64/dyninst:"
-      build --action_env GCC_HOST_COMPILER_PATH="/opt/openEuler/gcc-toolset-14/root/usr/bin/gcc"
-      build --config=cuda
-      build:opt --copt=-Wno-sign-compare
-      build:opt --host_copt=-Wno-sign-compare
-      test --test_size_filters=small,medium
-      test --test_env=LD_LIBRARY_PATH
-      test:v1 --test_tag_filters=-benchmark-test,-no_oss,-oss_excluded,-no_gpu,-oss_serial
-      test:v1 --build_tag_filters=-benchmark-test,-no_oss,-oss_excluded,-no_gpu
-      test:v2 --test_tag_filters=-benchmark-test,-no_oss,-oss_excluded,-no_gpu,-oss_serial,-v1only
-      test:v2 --build_tag_filters=-benchmark-test,-no_oss,-oss_excluded,-no_gpu,-v1only
       ```
 
-  - 4.3 Build the TensorFlow pip package.
+   4.3 Build the TensorFlow pip package.
 
      ```bash
      bazel build \
@@ -144,16 +127,31 @@
       //tensorflow/tools/pip_package:wheel
      ```
 
-  - 4.4 Install the TensorFlow pip package.
+   4.4 Install the TensorFlow pip package.
 
      ```bash
      pip install bazel-bin/tensorflow/tools/pip_package/wheel_house/tensorflow-2.20.0.dev0+selfbuilt-cp311-cp311-linux_aarch64.whl
+     ```
+
+5. Call TensorFlow interfaces.
+
+   5.1 C++ interface call. The expected output is the system dynamic libraries that the TensorFlow C++ shared library depends on.
+
+     ```bash
+     ldd /usr/local/lib64/python3.11/site-packages/tensorflow/libtensorflow_cc.so.2
+     ```
+
+   5.2 Python interface call. The expected output is the TensorFlow lib path.
+
+     ```bash
+     cd ..
+     python3 -c "import tensorflow; print(tensorflow.sysconfig.get_lib())"
      ```
 
 If you encounter any problem during the compilation, see [TensorFlow Porting Guide](https://www.hikunpeng.com/document/detail/en/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0001.html).
 
 ## Change History
 
-| Date | Description |
-| ---- | ---- |
-| 2026-09-30 | This is the first official release.<ul><li>Added the installation steps for TensorFlow 2.20.0.</li><li>Added the installation guide for the TensorFlow FAGO static graph fusion feature.</li></ul> |
+| Version | Date | Description |
+| ---- | ---- | ---- |
+| 01 | 2026-09-30 | This is the first official release. |

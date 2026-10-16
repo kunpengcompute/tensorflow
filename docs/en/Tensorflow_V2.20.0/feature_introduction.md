@@ -1,6 +1,6 @@
 # Feature Introduction
 
-<!-- md-trans-meta sourceCommit=062d2574fdfde12276d08b23b05dc9d9d8b875e2 translatedAt=2026-08-31T03:37:41.221Z pushedAt=2026-09-15T03:11:10.624Z -->
+<!-- md-trans-meta sourceCommit=c700db08dbad7073836f1f07e4120868e3d93a59 translatedAt=2026-10-12T06:49:27.355Z pushedAt=2026-10-13T02:13:34.227Z -->
 
 ## TensorFlow FAGO Static Graph Fusion
 
@@ -15,9 +15,9 @@ When the FAGO static graph fusion feature is enabled, if a subgraph of the compu
 
 ### Software Architecture
 
-The software architecture of the FAGO static graph fusion is shown in the following figure.
+The software architecture of FAGO static graph fusion is shown in the following figure.
 
-**Figure 1** Software architecture of the FAGO static graph fusion
+**Figure 1** Software architecture of FAGO static graph fusion
 
 ![FAGO-static-graph-fusion-architecture](./figures/FAGO-static-graph-fusion-architecture.png)
 
@@ -64,6 +64,6 @@ After FAGO static graph fusion is enabled, a subgraph meeting the requirements i
 
 ## Change History
 
-| Date | Description |
-| ---- | ---- |
-| 2026-09-30 | This is the first official release. <ul><li>Added the TensorFlow FAGO static graph fusion feature, including its feature introduction, software architecture, and other content.</li></ul>|
+| Version | Date | Description |
+| ---- | ---- | ---- |
+| 01 | 2026-09-30 | This is the first official release. |

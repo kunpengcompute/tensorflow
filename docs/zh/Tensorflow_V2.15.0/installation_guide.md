@@ -118,23 +118,23 @@ TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请
 
 1. 将KDNN软件包解压缩，并使用rpm -ivh命令安装。
 
-   ```bash
-   unzip BoostKit-boostcore-kdnn_3.2.0.zip
-   rpm -ivh boostcore-kdnn-3.2.0-1.aarch64.rpm
-   ```
+   　```bash
+  　 unzip BoostKit-boostcore-kdnn_3.2.0.zip
+   　rpm -ivh boostcore-kdnn-3.2.0-1.aarch64.rpm
+   　```
 
-   安装后，头文件位于`/usr/local/kdnn/include`，线程池和OpenMP库分别位于`/usr/local/kdnn/lib/threadpool`和`/usr/local/kdnn/lib/omp`。
-   TensorFlow集成使用线程池版本。
+   　安装后，头文件位于`/usr/local/kdnn/include`，线程池和OpenMP库分别位于`/usr/　local/kdnn/lib/threadpool`和`/usr/local/kdnn/lib/omp`。
+   　TensorFlow集成使用线程池版本。
 
 2. 将KDNN头文件和线程池静态库放入生成的TensorFlow源码。
 
-   ```bash
-    export TF_PATH=/path/to/tensorflow
-    mkdir -p $TF_PATH/third_party/KDNN/src
-    cp -r /usr/local/kdnn/include $TF_PATH/third_party/KDNN/
-    cp /usr/local/kdnn/lib/threadpool/libkdnn.a \
-     $TF_PATH/third_party/KDNN/src/
-   ```
+   　```bash
+   　export TF_PATH=/path/to/tensorflow
+   　mkdir -p $TF_PATH/third_party/KDNN/src
+   　cp -r /usr/local/kdnn/include $TF_PATH/third_party/KDNN/
+   　cp /usr/local/kdnn/lib/threadpool/libkdnn.a \
+   　$TF_PATH/third_party/KDNN/src/
+   　```
 
 3. 应用KDNN头文件适配补丁。
 
@@ -160,7 +160,8 @@ ANNC静态图融合代码已经包含在`kdnn-annc`和`full-default`特性组合
 
    >![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
    >
-   >- 若只需要KEmbedding动态库，可在生成的TensorFlow源码中单独构建，若需构建完整Tensorflow产物则跳过此步骤。
+   >- 若只需要KEmbedding动态库，可在生成的TensorFlow源码中单独构建。
+   >- 若需构建完整Tensorflow产物则跳过此步骤。
 
 2. 构建产物为`bazel-bin/third_party/kembedding/kembedding_embedding_table_lookup.so`。
 
@@ -345,13 +346,13 @@ ANNC静态图融合代码已经包含在`kdnn-annc`和`full-default`特性组合
 
 ### KEmbedding
 
-1. 进入测试目录
+1. 进入测试目录。
 
    ```bash
    cd /path/to/tensorflow
    ```
 
-2. 执行单元测试
+2. 执行单元测试。
 
    ```bash
    bazel test //third_party/kembedding:embedding_table_lookup_op_test \
@@ -364,7 +365,7 @@ ANNC静态图融合代码已经包含在`kdnn-annc`和`full-default`特性组合
    //third_party/kembedding:embedding_table_lookup_op_test                  PASSED in 0.2s
    ```
 
-3. 执行基准测试
+3. 执行基准测试。
 
    ```bash
    bazel run //third_party/kembedding:embedding_table_lookup_benchmark -- --benchmark_filter=.
@@ -414,9 +415,9 @@ TensorFlow Serving通过本地TensorFlow源码完成集成。更换特性组合�
 
 Legacy补丁包含历史Runtime调度、旧融合Embedding、ANNC图编译和旧XLA执行等功能，只允许独立应用到官方TensorFlow `v2.15.0`基线。
 
->![](public_sys-resources/icon-note.gif) **说明：**
+>![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
 >
->- Legacy补丁不依赖common，不属于当前维护的特性组合，也不保证与KDNN、ANNC静态图融合或KEmbedding补丁兼容。
+>Legacy补丁不依赖common，不属于当前维护的特性组合，也不保证与KDNN、ANNC静态图融合或KEmbedding补丁兼容。
 
    ```bash
    git clone -b v2.15.0 https://github.com/tensorflow/tensorflow.git tensorflow-legacy

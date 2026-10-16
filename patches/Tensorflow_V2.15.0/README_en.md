@@ -1,6 +1,6 @@
 # TensorFlow 2.15.0 Patch Release
 
-<!-- md-trans-meta sourceCommit=062d2574fdfde12276d08b23b05dc9d9d8b875e2 translatedAt=2026-08-31T03:36:22.673Z pushedAt=2026-09-14T07:12:02.544Z -->
+<!-- md-trans-meta sourceCommit=062d2574fdfde12276d08b23b05dc9d9d8b875e2 translatedAt=2026-10-12T06:54:35.603Z pushedAt=2026-10-12T09:11:34.778Z -->
 
 This document describes the Kunpeng TensorFlow patches based on the fixed official TensorFlow `v2.15.0` baseline:
 
@@ -14,21 +14,21 @@ This document describes the Kunpeng TensorFlow patches based on the fixed offici
 
 | Order | Group | Description |
 | --- | --- | --- |
-| 1 | `common` | Common Bazel, repository integration, and general build fixes |
-| 2 | `kdnn` | KDNN integration, KDNN kernels, and SparseMatmul optimization |
-| 3 | `annc` | ANNC static graph fusion operators and tests |
-| 4 | `kembedding` | KEmbedding custom operators, tests, and benchmarks |
+| 1 | common | Common Bazel, repository integration, and general build fixes |
+| 2 | kdnn | KDNN integration, KDNN kernels, and SparseMatmul optimization |
+| 3 | annc | ANNC static graph fusion operators and tests |
+| 4 | kembedding | KEmbedding custom operators, tests, and benchmarks |
 
 The following build profiles are supported:
 
 | Profile | Groups | Purpose |
 | --- | --- | --- |
-| `common-only` | `common` | Validate shared changes |
-| `kdnn-core` | `common` + `kdnn` | Minimum recommended product profile |
-| `kdnn-annc` | `common` + `kdnn` + `annc` | KDNN with ANNC |
-| `full-default` | `common` + `kdnn` + `annc` + `kembedding` | Complete default profile |
+| common-only | common | Validate shared changes |
+| kdnn-core | common + kdnn | Minimum recommended product profile |
+| kdnn-annc | common + kdnn + annc | KDNN with ANNC |
+| full-default | common + kdnn + annc + kembedding | Complete default profile |
 
-Because `tensorflow/feature_copts.bzl` is generated for each feature set, use `prepare_source.py` to create buildable source code. Do not apply patches manually in sequence.
+`tensorflow/feature_copts.bzl` is dynamically generated based on the feature set. Use `prepare_source.py` to create buildable source code instead of manually applying patches in order.
 
 ```bash
 git clone -b master https://gitcode.com/boostkit/tensorflow.git kunpeng-tensorflow
