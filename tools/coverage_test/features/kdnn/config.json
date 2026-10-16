@@ -1,0 +1,33 @@
+{
+  "name": "kdnn",
+  "description": "KDNN operator optimization tests",
+  "bazel_args": [
+    "--config=v2",
+    "--define=enable_kdnn=true",
+    "--copt=-Wno-sign-compare"
+  ],
+  "test_targets": [
+    {
+      "id": "sparse-matmul-ut-serial",
+      "target": "//tensorflow/core/kernels:sparse_tensor_dense_matmul_op_test_cpu",
+      "kind": "gtest",
+      "gtest_filter": "*",
+      "env": {
+        "TF_ENABLE_KDNN_OPTS": "1",
+        "TF_ENABLE_KDNN_SPARSE_MATMUL_PARALLEL": "0"
+      },
+      "enabled": true
+    },
+    {
+      "id": "sparse-matmul-ut-parallel",
+      "target": "//tensorflow/core/kernels:sparse_tensor_dense_matmul_op_test_cpu",
+      "kind": "gtest",
+      "gtest_filter": "*",
+      "env": {
+        "TF_ENABLE_KDNN_OPTS": "1",
+        "TF_ENABLE_KDNN_SPARSE_MATMUL_PARALLEL": "1"
+      },
+      "enabled": true
+    }
+  ]
+}

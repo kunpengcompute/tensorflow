@@ -1,0 +1,23 @@
+{
+  "name": "kembedding",
+  "description": "Embedding table lookup custom operator tests",
+  "bazel_args": [
+    "--config=v2",
+    "--copt=-Wno-sign-compare"
+  ],
+  "test_targets": [
+    {
+      "id": "embedding-table-lookup-ut",
+      "target": "//third_party/kembedding:embedding_table_lookup_op_test",
+      "kind": "gtest",
+      "gtest_filter": "*",
+      "enabled": true
+    },
+    {
+      "id": "embedding-table-lookup-bench",
+      "target": "//third_party/kembedding:embedding_table_lookup_benchmark",
+      "kind": "benchmark",
+      "enabled": true
+    }
+  ]
+}

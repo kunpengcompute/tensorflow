@@ -1,0 +1,24 @@
+{
+  "name": "annc",
+  "description": "Embedding fusion operators tests",
+  "bazel_args": [
+    "--config=v2",
+    "--copt=-Wno-sign-compare"
+  ],
+  "test_targets": [
+    {
+      "id": "embedding-fused-ops-ut",
+      "target": "//tensorflow/core/kernels:embedding_fused_ops_test",
+      "kind": "gtest",
+      "gtest_filter": "*",
+      "enabled": true
+    },
+    {
+      "id": "graph-opt-ut",
+      "target": "//tensorflow/core/grappler/optimizers/graph_optimizer:graph_opt_test",
+      "kind": "gtest",
+      "gtest_filter": "*",
+      "enabled": true
+    }
+  ]
+}
