@@ -171,7 +171,7 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是基于鲲鹏平�
 |KDNN|Kunpeng Deep Neural Network Library|鲲鹏DNN库|
 |NUMA|Non-Uniform Memory Access|非统一内存访问|
 |ANNC|Ascend Neural Network Compiler|昇腾神经网络编译器|
-|XLA|eXternal Linear AIgebra Compiler|外部线性代数编译器
+|XLA|eXternal Linear AIgebra Compiler|外部线性代数编译器|
 
 ## 修订记录
 

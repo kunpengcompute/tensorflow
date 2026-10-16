@@ -1,6 +1,6 @@
 # API Reference
 
-<!-- md-trans-meta sourceCommit=43da085d0d418cfad09a9ba22bf97c508f3b8e0f translatedAt=2026-08-04T03:19:09.402Z pushedAt=2026-08-05T07:33:43.161Z -->
+<!-- md-trans-meta sourceCommit=50c6aa44e4779ee097085a37fd0c469acbb90932 translatedAt=2026-10-12T10:56:10.708Z pushedAt=2026-10-12T11:14:52.870Z -->
 
 ## Using the TensorFlow KDNN Thread Passthrough Feature
 
@@ -21,7 +21,6 @@ Controls the enablement of KDNN optimization features.
 **Variable Value**
 
 * 0: KDNN is disabled.
-
 * 1: KDNN is enabled.
 
 **Sample**
@@ -90,9 +89,7 @@ The EmbeddingTableLookup operator, a custom operator in the KEmbedding operator 
 This operator retrieves sparse embeddings from the resource table `EmbeddingIndexToValueTable` based on keys and outputs a standard `SparseTensor` triplet.
 
 * `indices`: contains the coordinates of the hit non-zero elements.
-
 * `values`: contains the corresponding embedding values.
-
 * `dense_shape`: contains the shape of the complete embedding matrix.
 
 **Interface Type**
@@ -127,7 +124,6 @@ TensorFlow OpKernel class.
 **Other Related Operators**
 
 * <code>EmbeddingIndexToValueTable</code>: creates a resource table handle.
-
 * <code>InitializeEmbeddingIndexToValueTableFromTextFile</code>: initializes the resource table from a binary file.
 
 The retention of `TextFile` in this interface name is due to historical naming. The actual input file read is not a text file, but a kembedding binary table file described below.
@@ -226,9 +222,7 @@ Graph fusion startup command.
 **Parameters**
 
 * `-I /path/to/save_model.pb`: Model pending graph fusion
-
 * `-O /path/to/new_save_model.pb`: Model after graph fusion
-
 * `pass`: Graph fusion strategy (currently supports `lookup_embedding_hash`).
 
 **Sample**
@@ -254,7 +248,7 @@ Compiles ANNC and enables XLA graph fusion optimization.
 
 The feature is enabled when the environment variable value is `"--graph-opt"`.
 
-Sample
+**Sample**
 
 ```bash
 export ANNC_FLAGS="--graph-opt"
@@ -262,15 +256,15 @@ export ANNC_FLAGS="--graph-opt"
 
 ### Operator Optimization
 
-The optimized operator interfaces include redundant operator, matrix operator, and Softmax operator interfaces. Their usage is shown in [**Table 1** Operator optimization interface](#operator-optimization-interface).
+The optimized operator interfaces include redundant operator, matrix operator, and Softmax operator interfaces. Their usage is shown in [Table 1 Operator optimization interface](#operator-optimization-interface).
 
 **Table 1** Operator optimization interface<a id="operator-optimization-interface"></a>
 
 | Interface | Interface | Environment Variable | Value Range | Usage Example |
 | ---- | ---- | ---- | ---- | ---- |
-| Redundant operator optimization interface | Enables redundant operator optimization. | ENABLE_BISHENG_GRAPH_OPT | The feature is enabled when the environment variable is non-empty. | `export ENABLE_BISHENG_GRAPH_OPT=""` |
-| Matrix operator optimization interface | Enables matrix operator optimization. | ANNC_FLAGS | The feature is enabled when the environment variable value is `"--gemm-opt"`. | `export ANNC_FLAGS="--gemm-opt"` |
-| Softmax operator optimization interface | Enables Softmax operator optimization. | XLA_FLAGS | The feature is enabled when the environment variable value is `"--xla_cpu_enable_xnnpack=true"`. | `export XLA_FLAGS="--xla_cpu_enable_xnnpack=true"` |
+| Redundant operator optimization interface | Enables redundant operator optimization. | ENABLE_BISHENG_GRAPH_OPT | The feature is enabled when the environment variable is non-empty. | export ENABLE_BISHENG_GRAPH_OPT="" |
+| Matrix operator optimization interface | Enables matrix operator optimization. | ANNC_FLAGS | The feature is enabled when the environment variable value is `"--gemm-opt"`. | export ANNC_FLAGS="--gemm-opt" |
+| Softmax operator optimization interface | Enables Softmax operator optimization. | XLA_FLAGS | The feature is enabled when the environment variable value is `"--xla_cpu_enable_xnnpack=true"`. | export XLA_FLAGS="--xla_cpu_enable_xnnpack=true" |
 
 ### Constant Folding Optimization
 
@@ -289,12 +283,10 @@ Constant folding startup command.
 **Parameters**
 
 * `-I /path/to/save_model.pb`: Model pending constant folding
-
 * `-O /path/to/new_save_model.pb`: Model after constant folding
-
 * `pass`: `layout_matmul`
 
-Sample
+**Sample**
 
 ```bash
 annc-opt -I /base_model/wide_and_deep/1/ -O /folding/wide_and_deep/1/ layout_matmul
@@ -333,7 +325,7 @@ To use TensorFlow Serving to start an inference stress test, see section [Starti
 
 The batch operator scheduling interface is used as follows.
 
-**TF Serving Command Line Interface**
+**TensorFlow Serving Command Line Interface**
 
 `--batch_op_scheduling`
 
@@ -348,7 +340,6 @@ bool
 **Value Range**
 
 * true: The feature is enabled.
-
 * false: The feature is disabled. The default value is false.
 
 **Recommended Scenario**
@@ -358,9 +349,7 @@ When the single-core inference latency meets service requirements, this option c
 **Recommended Configuration**
 
 * `--tensorflow_intra_op_parallelism=1`: Sets the intra-op parallelism to 1.
-
 * `--tensorflow_inter_op_parallelism=80`: Sets the inter-op parallelism to the number of CPU cores.
-
 * `--batch_op_scheduling=true`: Enables the batch operator scheduling feature.
 
 **Sample**
@@ -379,7 +368,7 @@ When the single-core inference latency meets service requirements, this option c
 
 The thread affinity isolation interface is used as follows.
 
-**TF Serving Command Line Interface**
+**TensorFlow Serving Command Line Interface**
 
 `--task_affinity_isolation`
 
@@ -387,9 +376,8 @@ The thread affinity isolation interface is used as follows.
 
 Enables the thread affinity isolation feature, which supports two isolation modes:
 
-* Sequential core binding allocates TensorFlow computing threads to the first K cores and TF Serving communication threads to remaining cores.
-
-* Interleaved core binding (applicable when hyper-threading is enabled) assigns TensorFlow threads to physical cores and TF Serving communication threads to virtual cores.
+* Sequential core binding allocates TensorFlow computing threads to the first K cores and TensorFlow Serving communication threads to remaining cores.
+* Interleaved core binding (applicable when hyper-threading is enabled) assigns TensorFlow threads to physical cores and TensorFlow Serving communication threads to virtual cores.
 
 **Parameter Type**
 
@@ -404,7 +392,6 @@ std::string
 **Table 1** Thread affinity isolation parameter values<a id="thread-affinity-isolation-parameter-values"></a>
 
 <a name="table12688064377"></a>
-
 <table><thead align="left"><tr id="row468814643718"><th class="cellrowborder" valign="top" width="7.43925607439256%" id="mcps1.2.5.1.1"><p id="p176881266377"><a name="p176881266377"></a><a name="p176881266377"></a>Parameter</p>
 </th>
 <th class="cellrowborder" valign="top" width="15.448455154484552%" id="mcps1.2.5.1.2"><p id="p14656122373711"><a name="p14656122373711"></a><a name="p14656122373711"></a>Value Range</p>
@@ -452,12 +439,11 @@ std::string
 > yum install -y numactl numactl-devel
 > ```
 >
-> For example, `numactl -C 0-79 -m 0` indicates that the TF Serving service runs on the cores of NUMA node 0, so that CPU resources can be fully utilized. `-C` and `-m` specify cores and memory of NUMA node 0, respectively.
+> For example, `numactl -C 0-79 -m 0` indicates that the TensorFlow Serving service runs on the cores of NUMA node 0, so that CPU resources can be fully utilized. `-C` and `-m` specify cores and memory of NUMA node 0, respectively.
 
 **Recommended Scenario**
 
 * When TensorFlow scheduling is used, sequential core binding is recommended.
-
 * When the thread affinity isolation feature is enabled together with the `--batch_op_scheduling` option and hyper-threading is turned on, interleaved core binding is recommended.
 
 **Sample**
@@ -478,8 +464,8 @@ Consider a server with 160 physical cores, 320 cores in total with hyper-threadi
 
 ## Change History
 
-| Release Date | Description |
-| ---- | ---- |
-| 2026-09-30 | This is the third official release.<ul><li>Added the KEmbedding custom operator library, providing the EmbeddingTableLookup operator description.</li><li>Added the KDNN SparseMatmul multi-threading optimization interface description.</li><li>Optimized document structure.</li></ul> |
-| 2026-06-30 | This is the second official release. <ul><li>Added the description for constant folding optimization to the TensorFlow ANNC for graph compilation documentation. </li><li>Added the description for the TensorFlow ANNC static graph fusion feature. </li></ul> |
-| 2026-03-30 | This is the first official release. Added the TensorFlow KDNN thread passthrough feature usage instructions. |
+| Version | Date | Description |
+| ---------- | -------- | -------- |
+| 03 | 2026-09-30 | This is the third official release.<ul><li>Added the KEmbedding custom operator library, providing the EmbeddingTableLookup operator description.</li><li>Added the KDNN SparseMatmul multi-threading optimization interface description.</li><li>Optimized document structure.</li></ul> |
+| 02 | 2026-06-30 | This is the second official release. <ul><li>Added the description for constant folding optimization to the TensorFlow ANNC for graph compilation documentation. </li><li>Added the description for the TensorFlow ANNC static graph fusion feature. </li></ul> |
+| 01 | 2026-03-30 | This is the first official release. Added the TensorFlow KDNN thread passthrough feature usage instructions. |

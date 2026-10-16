@@ -1,26 +1,22 @@
 # Introduction to Kunpeng TensorFlow
 
-<!-- md-trans-meta sourceCommit=ce9dacf78e8286760abd9d08a5f4573f1749dced translatedAt=2026-08-31T03:36:39.719Z pushedAt=2026-09-11T10:56:31.003Z -->
+<!-- md-trans-meta sourceCommit=50c6aa44e4779ee097085a37fd0c469acbb90932 translatedAt=2026-10-12T06:48:54.835Z pushedAt=2026-10-12T08:29:14.144Z -->
 
-English|[简体中文](./README.md)
+[简体中文](./README.md) | English
 
-## Latest Updates
+## Latest News
 
-- \[2026-09-30\]: Introduced the FlashAttentionGraphOptimization (FAGO) static graph fusion feature in TensorFlow V2.20.0, supporting the FlashAttentionForward operator. Added the KEmbedding custom operator library with EmbeddingTableLookup and added KDNN SparseMatmul multithreading optimization in TensorFlow V2.15.0; restructured patch releases into maintained common, KDNN, ANNC static graph fusion, and KEmbedding groups; and froze runtime, the old fused embedding implementation, and old XLA execution features into a standalone Legacy patch.
-
+- \[2026-09-30\]: Introduced the FlashAttentionGraphOptimization (FAGO) static graph fusion feature in TensorFlow V2.20.0, supporting the FlashAttentionForward operator. Added the KEmbedding custom operator library with EmbeddingTableLookup and added KDNN SparseMatmul multithreading optimization in TensorFlow V2.15.0; restructured patch releases into maintained common, KDNN kernel optimizations, ANNC static graph fusion, and KEmbedding custom operator; and froze runtime, the old fused embedding implementation, and old XLA execution features into a standalone Legacy patch.
 - \[2026-06-30\]: Added the TensorFlow ANNC static graph fusion feature in TensorFlow V2.15.0, adapted to the Kunpeng 950 processor and supporting operators such as KPFusedGather and KPFusedSparseReshape. Added constant folding optimization to TensorFlow ANNC for graph compilation, adapted to the Kunpeng 950 processor.
-
 - \[2026-03-30\]: Added the TensorFlow KDNN thread passthrough feature in TensorFlow V2.15.0, supporting operators such as batchmatmul, concat, and softmax.
-
 - \[2025-09-30\]: Added the TensorFlow ANNC for graph compilation optimization feature in TensorFlow V2.15.0, providing optimizations including computational graph optimization, and generation and integration of high-performance fused operators.
-
 - \[2025-06-30\]: Released the TensorFlow Serving thread scheduling optimization feature for the first time.
 
 ## Project Introduction
 
 Kunpeng TensorFlow is a high-performance inference acceleration extension based on open-source TensorFlow, focusing on efficient execution for search, recommendation, and advertising inference workloads.
 
-The maintained patch series covers shared build integration, KDNN kernel optimizations, ANNC static graph fusion, and the KEmbedding custom operator.
+The maintained patch series covers common build integration, KDNN kernel optimizations, ANNC static graph fusion, and the KEmbedding custom operator.
 
 Historical runtime scheduling, the old fused embedding implementation, and old XLA execution changes are frozen into a standalone Legacy patch. It is not part of the maintained default profiles and is not guaranteed to work with the maintained patches.
 
@@ -62,7 +58,7 @@ tensorflow
             ├── installation_guide.md                   # Installation Guide
             └── feature_introduction.md                 # Feature Introduction
     └── en                                              # English documentation directory
-        └── Tensorflow_V2.15.0                          # Tensorflow 2.15.0 directory
+        └── Tensorflow_V2.15.0                          # TensorFlow 2.15.0 directory
             ├── figures                                 # Image resource directory
             ├── api_reference.md                        # API Reference
             ├── quick_start.md                          # Quick Start
@@ -78,9 +74,9 @@ tensorflow
             └── feature_introduction.md                 # Feature Introduction
 ```
 
-## Tensorflow V2.15.0
+## TensorFlow V2.15.0
 
-### Tensorflow V2.15.0 Feature Description
+### TensorFlow V2.15.0 Feature Description
 
 | Feature | Status | Description |
 | --- | --- | --- |
@@ -98,18 +94,18 @@ All patches use the pinned official TensorFlow `v2.15.0` commit `6887368d6d46223
 
 | Profile | Included Patches | When to Use |
 | --- | --- | --- |
-| `common-only` | common | Build and compatibility changes only, with no acceleration features. |
-| `kdnn-core` | common + KDNN | KDNN kernel optimizations; recommended as the basic configuration. |
-| `kdnn-annc` | common + KDNN + ANNC | KDNN plus ANNC static graph fusion. |
-| `full-default` | common + KDNN + ANNC + KEmbedding | All currently maintained features, including KEmbedding. |
+| common-only | common | Build and compatibility changes only, with no acceleration features. |
+| kdnn-core | common + KDNN | KDNN kernel optimizations; recommended as the basic configuration. |
+| kdnn-annc | common + KDNN + ANNC | KDNN plus ANNC static graph fusion. |
+| full-default | common + KDNN + ANNC + KEmbedding | All currently maintained features, including KEmbedding custom operator. |
 
 The maintained series requires generating `tensorflow/feature_copts.bzl` for each feature set. See [README_en](./patches/Tensorflow_V2.15.0/README_en.md) in the `patches` directory to build the source.
 
 The Legacy patch can only be applied independently to the official baseline. It does not depend on the common build integration (common) and is not guaranteed to work with other patches. See [README_en](./patches/Tensorflow_V2.15.0/README_en.md) for details.
 
-## Tensorflow V2.20.0
+## TensorFlow V2.20.0
 
-### Tensorflow V2.20.0 Feature Description
+### TensorFlow V2.20.0 Feature Description
 
 | Feature | Status | Description |
 | --- | --- | --- |
@@ -123,8 +119,8 @@ All patches use the pinned official TensorFlow `v2.20.0` commit `bf5899deaf70fa4
 
 | Profile | Included Patches | When to Use |
 | --- | --- | --- |
-| `common-only` | common | Build and compatibility changes only, with no acceleration features. |
-| `fago` | common+FAGO | FlashAttention fused operator optimization. |
+| common-only | common | Build and compatibility changes only, with no acceleration features. |
+| fago | common+FAGO | FlashAttention fused operator optimization. |
 
 The maintained series requires generating `tensorflow/feature_copts.bzl` for each feature set. See [README_en](./patches/Tensorflow_V2.20.0/README_en.md) in the `patches` directory to build the source.
 

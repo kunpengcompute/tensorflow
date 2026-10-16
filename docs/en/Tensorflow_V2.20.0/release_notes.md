@@ -1,6 +1,6 @@
 # Release Notes
 
-<!-- md-trans-meta sourceCommit=062d2574fdfde12276d08b23b05dc9d9d8b875e2 translatedAt=2026-08-31T03:40:53.361Z pushedAt=2026-09-14T08:06:22.915Z -->
+<!-- md-trans-meta sourceCommit=50c6aa44e4779ee097085a37fd0c469acbb90932 translatedAt=2026-10-12T06:48:25.210Z pushedAt=2026-10-13T02:48:36.518Z -->
 
 ## Version Mapping
 
@@ -85,7 +85,7 @@ For details, see [Installation Guide](./installation_guide.md).
 
 ### Feature Updates
 
-- Added the TensorFlow FlashAttentionGraphOptimization (FAGO) static graph fusion feature, supporting static graph fusion for the FlashAttentionForward operator.
+Added the TensorFlow FlashAttentionGraphOptimization (FAGO) static graph fusion feature, supporting static graph fusion for the FlashAttentionForward operator.
 
 **Modified Features<a name="zh-cn_topic_0000002518399190_section16450949161512"></a>**
 
