@@ -84,8 +84,8 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是基于鲲鹏平�
     ```
 
     >![icon note](public_sys-resources/icon-note.gif) **说明：**
-    >--cpuset-cpus：设置容器绑定的CPU核编号。
-    >--cpuset-mems：设置容器绑定的NUMA内存节点。
+    >- cpuset-cpus：设置容器绑定的CPU核编号。
+    >- cpuset-mems：设置容器绑定的NUMA内存节点。
 
     性能测试启动后，服务端显示“KDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable \`TF\_ENABLE\_KDNN\_OPTS=0\`”字样，即表示使能成功。
 
@@ -113,8 +113,8 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是基于鲲鹏平�
     ```
 
     >![icon note](public_sys-resources/icon-note.gif) **说明：**
-    >--cpuset-cpus：设置容器绑定的CPU核编号。
-    >--cpuset-mems：设置容器绑定的NUMA内存节点。
+    >- cpuset-cpus：设置容器绑定的CPU核编号。
+    >- cpuset-mems：设置容器绑定的NUMA内存节点。
 
 本章节仅为使用样例，由于ANNC静态图融合功能需要模型中包含特定子图，若模型中不包含特定子图，则ANNC静态图融合功能不会生效。可以通过运行benchmark测试，用样例验证是否成功集成了ANNC静态图融合特性。
 
