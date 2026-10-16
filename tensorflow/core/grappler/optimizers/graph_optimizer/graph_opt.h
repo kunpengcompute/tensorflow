@@ -93,6 +93,7 @@ class PatternRewriter {
     return shape.dim_size() == expected_dim_size;
   }
   bool check_const_dims(tensorflow::NodeDef* op, int dim_size) {
+    if (op == nullptr) return false;
     if (!((tensorflow::grappler::IsConstant(*op) || tensorflow::grappler::IsHostConstant(*op)) &&
           HasNodeAttr(*op, "value")))
       return false;
@@ -105,6 +106,7 @@ class PatternRewriter {
   }
 
   bool check_const_shape(tensorflow::NodeDef* op, std::vector<int> dims) {
+    if (op == nullptr) return false;
     if (!((tensorflow::grappler::IsConstant(*op) || tensorflow::grappler::IsHostConstant(*op)) &&
           HasNodeAttr(*op, "value")))
       return false;
@@ -197,6 +199,7 @@ class PatternRewriter {
   }
 
   bool check_int_attr(const tensorflow::NodeDef* op, std::string name, int value) {
+    if (op == nullptr) return false;
     if (HasNodeAttr(*op, name)) {
       tensorflow::AttrValue attr = op->attr().at(name);
       if (attr.value_case() == tensorflow::AttrValue::kI && attr.i() == value) return true;
@@ -215,6 +218,8 @@ class GraphOptimizer {
 
   void register_rewriter(std::unique_ptr<PatternRewriter> rewriter);
 
+  bool has_rewriters() const { return !rewriters_.empty(); }
+
   void optimize();
 
  private:
@@ -223,6 +228,17 @@ class GraphOptimizer {
   std::unordered_map<std::string, int> node_indexes_;
   std::vector<std::unique_ptr<PatternRewriter>> rewriters_;
 };
+
+// True when any ANNC_FUSED_* env var is enabled. Checked live (not cached)
+// because callers may set the env after process start, e.g. from Python
+// before creating a session. Used to skip the whole ANNC pass, including the
+// O(graph) static shape inference, when no fusion is requested.
+bool ANNCAnyFusionEnabled();
+
+// True when the CPU supports SVE, as required by the
+// KPFusedSparseDynamicStitch*Sum/Mean/SqrtN fused kernels. Always false on
+// non-aarch64 platforms.
+bool RuntimeSveSupported();
 
 void run_graph_optimization(tensorflow::GraphDef* graph,
                             tensorflow::grappler::GraphProperties props);

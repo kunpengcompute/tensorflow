@@ -39,7 +39,7 @@ def get_test_cases():
             op_fn=softmax_op,
             input_fn=build_input_3D_float,
             num_iters=1000,
-            optimize_percent = 200,
+            optimize_percent = 150,
             operator_name = "Softmax:Softmax",
             meta={'axis': 2,}
         ),

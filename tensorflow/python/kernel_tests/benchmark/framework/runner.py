@@ -11,8 +11,10 @@ from dataclasses import dataclass, field
 from typing import List, Callable, Dict, Any, Union, Optional
 from tensorflow.python.profiler.internal import _pywrap_profiler
 from tensorflow.python.profiler import profiler_v2 as profiler
-from tensorflow.python.profiler.profiler_v2 import ProfilerOptions
-from tensorflow.core.profiler.protobuf.xplane_pb2 import XSpace
+try:
+    from tensorflow.tsl.profiler.protobuf.xplane_pb2 import XSpace
+except ImportError:
+    from tensorflow.core.profiler.protobuf.xplane_pb2 import XSpace
 import numpy as np
 import multiprocessing as mp
 import pickle
@@ -211,16 +213,11 @@ class UniversalOpBenchmark:
             inter_op_parallelism_threads=16,
             intra_op_parallelism_threads=self.intra_threads
         )
-        options = ProfilerOptions(
-            host_tracer_level=2,
-            device_tracer_level=1,
-            python_tracer_level=0  # 建议保持 0 以减少对 Kernel 测量的干扰
-        )
         with tf.Session(config=config) as sess:
             for _ in range(10):
                 sess.run(res_node, feed_dict=feed_dict)
 
-            profiler.start(self.log_dir, options)
+            profiler.start(self.log_dir)
             time.sleep(3)
             for _ in range(test_case.num_iters):
                 sess.run(res_node, feed_dict=feed_dict)
@@ -305,11 +302,6 @@ class UniversalOpBenchmark:
             config = tf.ConfigProto(
                 inter_op_parallelism_threads=16,
                 intra_op_parallelism_threads=self.intra_threads
-            )
-            options = ProfilerOptions(
-                host_tracer_level=2,
-                device_tracer_level=1,
-                python_tracer_level=0  # 建议保持 0 以减少对 Kernel 测量的干扰
             )
             with tf.Session(config=config) as sess:
                 return sess.run(res_node, feed_dict=feed_dict)

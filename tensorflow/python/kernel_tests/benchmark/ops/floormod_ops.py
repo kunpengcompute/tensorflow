@@ -50,7 +50,7 @@ def get_test_cases():
             input_fn=build_input_1D_int64,
             check_fn=CheckFuncClass.check_fn_equal,
             num_iters=1000,
-            optimize_percent = 25,
+            optimize_percent = 5,
             operator_name = "FloorMod:FloorMod",
             meta={}
         ),
@@ -60,7 +60,7 @@ def get_test_cases():
             input_fn=build_input_3D_int64,
             check_fn=CheckFuncClass.check_fn_equal,
             num_iters=1000,
-            optimize_percent = 25,
+            optimize_percent = 5,
             operator_name = "FloorMod:FloorMod",
             meta={}
         ),

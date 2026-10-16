@@ -61,6 +61,15 @@ public:
     float* output = (float*)output_tensor->tensor_data().data();
 
     const size_t copy_size = output_stride * sizeof(float);
+    for (int64_t i = 0; i < num_elems; ++i) {
+      const int64_t global_id = x_flat(i);
+      OP_REQUIRES(context, global_id >= 0,
+                  errors::InvalidArgument("global_id must be non-negative"));
+      const int64_t table_id = global_id % num_partitions;
+      const int64_t row_id = global_id / num_partitions;
+      OP_REQUIRES(context, row_id < variable_rows[table_id],
+                  errors::InvalidArgument("row_id out of range."));
+    }
 
     auto worker_threads = context->device()->tensorflow_cpu_worker_threads();
     const int64 cost_per_unit = 120; // Actual single cycle execution time 
@@ -69,9 +78,6 @@ public:
         const int64_t global_id = x_flat(i);
         const int64_t table_id = global_id % num_partitions;
         const int64_t row_id = global_id / num_partitions;
-
-        OP_REQUIRES(context, row_id < variable_rows[table_id] && row_id >= 0, errors::InvalidArgument(
-          "row_id out of range."));
 
         std::memcpy(output + i * output_stride,
                     variables[table_id] + row_id * output_stride, copy_size);

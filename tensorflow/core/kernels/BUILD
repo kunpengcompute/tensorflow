@@ -3783,6 +3783,12 @@ tf_kernel_library(
 )
 
 tf_kernel_library(
+    name = "embedding_fused_sparse_dynamic_stitch_reduce_op",
+    srcs = ["embedding_fused_sparse_dynamic_stitch_reduce.cc"],
+    deps = MATH_DEPS,
+)
+
+tf_kernel_library(
     name = "embedding_fused_reshape_op",
     srcs = ["embedding_fused_sparse_reshape.cc"],
     deps = MATH_DEPS + [
@@ -3815,6 +3821,7 @@ cc_library(
         ":embedding_fused_gather_op",
         ":embedding_fused_padding_op",
         ":embedding_fused_sparse_dynamic_stitch_op",
+        ":embedding_fused_sparse_dynamic_stitch_reduce_op",
         ":embedding_fused_reshape_op",
         ":embedding_fused_sparse_segment_reduce_op",
         ":embedding_fused_sparse_segment_reduce_nonzero_op",
@@ -3828,6 +3835,7 @@ tf_cc_test(
     srcs = [
         "embedding_fused_action_id_gather_test.cc",
         "embedding_fused_sparse_dynamic_stitch_test.cc",
+        "embedding_fused_sparse_dynamic_stitch_reduce_test.cc",
         "embedding_fused_sparse_segment_reduce_test.cc",
         "embedding_fused_sparse_segment_reduce_nonzero_test.cc",
         "embedding_fused_padding_test.cc",

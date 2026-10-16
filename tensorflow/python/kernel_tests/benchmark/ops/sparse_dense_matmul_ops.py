@@ -8,21 +8,25 @@ from tensorflow.python.framework import sparse_tensor
 def get_test_cases():
     """sparse_tensor_dense_matmul 算子测试用例
 
-    测试 shape (M x K x N) & 稀疏度 sparsity 的组合:
-        - 128 x 1668 x 400, 0.7
-        - 256 x 1668 x 400, 0.7
-        - 128 x  492 x 400, 0.0
-        - 256 x  492 x 400, 0.0 
     - sp_a: SparseTensor, shape (M, K)
     - b:    DenseTensor,  shape (K, N)
     - out:  DenseTensor,  shape (M, N)
     """
 
+    # shape (M x K x N) & 稀疏度 sparsity 的组合;
+    # 第 5 项为性能门禁 (optimize_percent): GEMM 路径用例要求 KDNN 较 Eigen
+    # 提升 >=5%; 走 sparse 路径的小 shape 用例 KDNN 稀疏核不占优
+    # (CSR 构建开销主导), 仅报告不设门禁 (-10000), 与 embedding 融合
+    # 套件对生产 shape 的处理一致
     SHAPES_SPARSITY = [
-        (128, 1668, 400, 0.7),
-        (256, 1668, 400, 0.7),
-        (128,  492, 400, 0.0),
-        (256,  492, 400, 0.0),
+        (128, 1668, 400, 0.7, 5),
+        (256, 1668, 400, 0.7, 5),
+        (128, 492, 400, 0.0, 60),
+        (256, 492, 400, 0.0, 60),
+        (128, 492, 400, 0.3, 20),
+        (128, 492, 400, 0.5, 20),
+        (128, 128, 20, 0.5, 20),
+        (64, 512, 32, 0.3, 20)
     ]
 
     def build_sparse_input(M, K, N, sparsity, dtype=np.float32):
@@ -78,7 +82,7 @@ def get_test_cases():
 
     test_cases = []
 
-    for M, K, N, sparsity in SHAPES_SPARSITY:
+    for M, K, N, sparsity, gate in SHAPES_SPARSITY:
         sp_str = f'{sparsity}'.replace('.', '_')
 
         # 绑定 shape 参数
@@ -89,7 +93,7 @@ def get_test_cases():
             op_fn=sparse_op_fn,
             input_fn=input_fn,
             num_iters=1000,
-            optimize_percent=5,
+            optimize_percent=gate,
             operator_name='SparseTensorDenseMatMul',
             meta={}
         ))

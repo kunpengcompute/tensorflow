@@ -13,7 +13,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+#include <algorithm>
+#include <numeric>
 #include <random>
+#include <vector>
 
 #include "tensorflow/core/common_runtime/kernel_benchmark_testlib.h"
 #include "tensorflow/core/framework/fake_input.h"
@@ -82,6 +85,8 @@ class SparseMatmulAccuracyTest : public OpsTestBase {
                bool adjoint_a, bool adjoint_b) {
     MakeOp(adjoint_a, adjoint_b);
 
+    inputs_.clear();  // allow RunOp to be called more than once per test
+
     *AddInput(DT_INT64, a_indices.shape()) = a_indices;
     *AddInput(DT_FLOAT, a_values.shape()) = a_values;
     *AddInput(DT_INT64, a_shape.shape()) = a_shape;
@@ -133,6 +138,56 @@ class SparseMatmulAccuracyTest : public OpsTestBase {
       idx_m(i, 1) = col_dist(gen);
       val_v(i) = val_dist(gen);
     }
+  }
+
+  void CreateUniqueSparseMatrix(int rows, int cols, int nnz, int seed,
+                                Tensor* a_indices, Tensor* a_values,
+                                Tensor* a_shape) {
+    CHECK_LE(nnz, rows * cols);
+    std::vector<int64_t> cells(rows * cols);
+    std::iota(cells.begin(), cells.end(), 0);
+    std::mt19937 gen(seed);
+    std::shuffle(cells.begin(), cells.end(), gen);
+
+    *a_indices = Tensor(DT_INT64, TensorShape({nnz, 2}));
+    *a_values = Tensor(DT_FLOAT, TensorShape({nnz}));
+    *a_shape = Tensor(DT_INT64, TensorShape({2}));
+    a_shape->vec<int64_t>()(0) = rows;
+    a_shape->vec<int64_t>()(1) = cols;
+
+    std::uniform_real_distribution<float> val_dist(-1.0, 1.0);
+    auto idx_m = a_indices->matrix<int64_t>();
+    auto val_v = a_values->vec<float>();
+    for (int i = 0; i < nnz; ++i) {
+      idx_m(i, 0) = cells[i] / cols;
+      idx_m(i, 1) = cells[i] % cols;
+      val_v(i) = val_dist(gen);
+    }
+  }
+
+  // Runs the op on a duplicate-free input and compares against the naive
+  // reference.  Fully deterministic (fixed seeds for A and B).
+  void RunAndCheck(int m, int k, int n, int nnz, int seed) {
+    Tensor a_indices, a_values, a_shape;
+    CreateUniqueSparseMatrix(m, k, nnz, seed, &a_indices, &a_values, &a_shape);
+
+    std::mt19937 gen(seed + 1);
+    std::uniform_real_distribution<float> b_dist(-1.0, 1.0);
+    Tensor b(DT_FLOAT, TensorShape({k, n}));
+    auto b_m = b.matrix<float>();
+    for (int i = 0; i < k; ++i) {
+      for (int j = 0; j < n; ++j) b_m(i, j) = b_dist(gen);
+    }
+
+    Tensor ref(DT_FLOAT, TensorShape({m, n}));
+    ReferenceSparseMatmulFn(
+        nnz, a_indices.matrix<int64_t>().data(), a_values.vec<float>().data(),
+        b.matrix<float>().data(), m, k, n,
+        /*adjoint_a=*/false, /*adjoint_b=*/false, ref.matrix<float>().data());
+
+    Tensor result = RunOp(a_indices, a_values, a_shape, b,
+                          /*adjoint_a=*/false, /*adjoint_b=*/false);
+    ExpectClose(result, ref, /*rtol=*/1e-4, /*atol=*/1e-4);
   }
 };
 
@@ -338,6 +393,55 @@ TEST_F(SparseMatmulAccuracyTest, KdnnPathMatchesReference) {
                         /*adjoint_a=*/false, /*adjoint_b=*/false);
 
   ExpectClose(result, ref);
+}
+
+TEST_F(SparseMatmulAccuracyTest, DensifyNnzThresholdBoundary) {
+  RunAndCheck(/*m=*/2, /*k=*/8191, /*n=*/4, /*nnz=*/8191, /*seed=*/11);  // below -> Eigen path
+  RunAndCheck(/*m=*/2, /*k=*/8191, /*n=*/4, /*nnz=*/8192, /*seed=*/12);  // at boundary -> densify path
+}
+
+TEST_F(SparseMatmulAccuracyTest, DensifyDensityThresholdBoundary) {
+  RunAndCheck(/*m=*/128, /*k=*/512, /*n=*/8, /*nnz=*/16384, /*seed=*/21);  // half of m*k/2 -> Eigen
+  RunAndCheck(/*m=*/128, /*k=*/512, /*n=*/8, /*nnz=*/32767, /*seed=*/22);  // one below -> Eigen
+  RunAndCheck(/*m=*/128, /*k=*/512, /*n=*/8, /*nnz=*/32768, /*seed=*/23);  // at boundary -> densify
+}
+
+TEST_F(SparseMatmulAccuracyTest, DensifyBothThresholdsExact) {
+  RunAndCheck(/*m=*/64, /*k=*/256, /*n=*/8, /*nnz=*/8191, /*seed=*/31);  // both fail by one -> Eigen
+  RunAndCheck(/*m=*/64, /*k=*/256, /*n=*/8, /*nnz=*/8192, /*seed=*/32);  // both exact -> densify
+}
+
+TEST_F(SparseMatmulAccuracyTest, DensifyAdjointB) {
+  const int m = 128, k = 512, n = 8;
+  for (int nnz : {16384, 32768}) {
+    Tensor a_indices, a_values, a_shape;
+    CreateUniqueSparseMatrix(m, k, nnz, /*seed=*/41, &a_indices, &a_values,
+                             &a_shape);
+
+    Tensor b(DT_FLOAT, TensorShape({n, k}));
+    b.flat<float>().setRandom();
+
+    Tensor ref(DT_FLOAT, TensorShape({m, n}));
+    auto a_idx = a_indices.matrix<int64_t>();
+    auto a_val = a_values.vec<float>();
+    auto b_m = b.matrix<float>();
+    auto ref_m = ref.matrix<float>();
+    ref_m.setZero();
+    for (int i = 0; i < nnz; ++i) {
+      const int r = a_idx(i, 0), c = a_idx(i, 1);
+      for (int j = 0; j < n; ++j) {
+        ref_m(r, j) += a_val(i) * b_m(j, c);  // B^T(c, j) == B(j, c)
+      }
+    }
+
+    Tensor result = RunOp(a_indices, a_values, a_shape, b,
+                          /*adjoint_a=*/false, /*adjoint_b=*/true);
+    ExpectClose(result, ref, /*rtol=*/1e-4, /*atol=*/1e-4);
+  }
+}
+
+TEST_F(SparseMatmulAccuracyTest, DensifyEnvGate) {
+  RunAndCheck(/*m=*/128, /*k=*/512, /*n=*/8, /*nnz=*/32768, /*seed=*/51);
 }
 
 

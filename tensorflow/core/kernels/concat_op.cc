@@ -177,6 +177,7 @@ class ConcatBaseOp : public OpKernel {
         return;
       }
 #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
+/*
 #if defined(ENABLE_KDNN)
       KDNN::Element::TypeT kdnnType = KDNN::Element::TypeAdapter<T>::value;
       if(IsKDNNEnabled() && kdnnType != KDNN::Element::TypeT::UNDEFINED) {
@@ -184,6 +185,7 @@ class ConcatBaseOp : public OpKernel {
         return;
       }
 #endif
+*/
       ConcatCPU<T>(c->device(), inputs_flat, &output_flat);
     }
   }

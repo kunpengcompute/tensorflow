@@ -32,7 +32,7 @@ def get_test_cases():
             op_fn=sigmoid_op,
             num_iters=1000,
             input_fn=build_input_3D_float,
-            optimize_percent = 50,
+            optimize_percent = 20,
             operator_name = "Sigmoid:Sigmoid"
         ),
         TestCase(

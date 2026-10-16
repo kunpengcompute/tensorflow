@@ -110,6 +110,36 @@ REGISTER_OP("KPFusedSparseDynamicStitch")
     .Attr("N: int >= 1")
     .SetShapeFn(shape_inference::UnknownShape);
 
+#define REGISTER_KP_FUSED_SPARSE_DYNAMIC_STITCH_REDUCE_OP(name) \
+  REGISTER_OP(name)                                             \
+      .Input("x: int64")                                       \
+      .Input("variables: N * float")                           \
+      .Input("slice_input: int64")                             \
+      .Input("begin: int32")                                   \
+      .Input("end: int32")                                     \
+      .Input("strides: int32")                                 \
+      .Output("output: float")                                 \
+      .Attr("N: int >= 1")                                     \
+      .Attr("emb_tables_len: int >= 1")                        \
+      .Attr("begin_mask: int = 0")                             \
+      .Attr("end_mask: int = 0")                               \
+      .Attr("shrink_axis_mask: int = 0")                       \
+      .SetShapeFn(shape_inference::UnknownShape);
+
+REGISTER_KP_FUSED_SPARSE_DYNAMIC_STITCH_REDUCE_OP(
+    "KPFusedSparseDynamicStitchSum");
+REGISTER_KP_FUSED_SPARSE_DYNAMIC_STITCH_REDUCE_OP(
+    "KPFusedSparseDynamicStitchMean");
+REGISTER_KP_FUSED_SPARSE_DYNAMIC_STITCH_REDUCE_OP(
+    "KPFusedSparseDynamicStitchSqrtN");
+REGISTER_KP_FUSED_SPARSE_DYNAMIC_STITCH_REDUCE_OP(
+    "KPFusedSparseDynamicStitchFastSum");
+REGISTER_KP_FUSED_SPARSE_DYNAMIC_STITCH_REDUCE_OP(
+    "KPFusedSparseDynamicStitchFastMean");
+REGISTER_KP_FUSED_SPARSE_DYNAMIC_STITCH_REDUCE_OP(
+    "KPFusedSparseDynamicStitchFastSqrtN");
+#undef REGISTER_KP_FUSED_SPARSE_DYNAMIC_STITCH_REDUCE_OP
+
 REGISTER_OP("KPFusedGather")
     .Input("data: float")
     .Input("slice_input: int64")

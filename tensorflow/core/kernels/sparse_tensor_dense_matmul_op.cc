@@ -32,6 +32,8 @@ limitations under the License.
 
 #if defined(ENABLE_KDNN)
 #include "kdnn_adapter.h"
+
+#include "tensorflow/core/util/env_var.h"
 #endif
 
 namespace tensorflow {
@@ -388,6 +390,25 @@ struct SparseTensorDenseMatMulFunctor<CPUDevice, T, Tindices, ADJ_A, ADJ_B> {
 };
 
 #if defined(ENABLE_KDNN)
+namespace {
+
+inline bool SparseMatmulToDenseEnabled() {
+  static const bool enabled = [] {
+    bool value = true;
+    auto status = ReadBoolFromEnvVar("TF_ENABLE_KDNN_SPARSE_MATMUL_TO_DENSE",
+                                     value, &value);
+    if (!status.ok()) {
+      LOG(WARNING) << "TF_ENABLE_KDNN_SPARSE_MATMUL_TO_DENSE is not set to "
+                   << "either '0', 'false', '1', or 'true'. Using the default "
+                   << "setting: " << value;
+    }
+    return value;
+  }();
+  return enabled;
+}
+
+}  // namespace
+
 template <typename Tindices, bool ADJ_A, bool ADJ_B>
 struct KDNNSparseMatMulFunctor<CPUDevice, float, Tindices, ADJ_A, ADJ_B> {
   static const std::size_t kNumVectorize = 32;
@@ -405,6 +426,32 @@ struct KDNNSparseMatMulFunctor<CPUDevice, float, Tindices, ADJ_A, ADJ_B> {
     const std::size_t lhs_right = (ADJ_B ? b.dimension(1) : b.dimension(0));
     const int lhs_index_a = ADJ_A ? 1 : 0;
     const int rhs_index_a = ADJ_A ? 0 : 1;
+
+    if (SparseMatmulToDenseEnabled() && nnz >= (std::size_t{1} << 13) &&
+        nnz >= out.dimension(0) * lhs_right / 2) {
+      Tensor dense_a;
+      TF_RETURN_IF_ERROR(ctx->allocate_temp(
+          DT_FLOAT, TensorShape({out.dimension(0), lhs_right}), &dense_a));
+
+      const Tensor* indices = &a_indices_tensor;
+      Tensor indices_int64;
+      if (a_indices_tensor.dtype() != DT_INT64) {
+        TF_RETURN_IF_ERROR(ctx->allocate_temp(DT_INT64, a_indices_tensor.shape(),
+                                              &indices_int64));
+        indices_int64.matrix<int64_t>() = a_indices.template cast<int64_t>();
+        indices = &indices_int64;
+      }
+
+      sparse::SparseTensor sparse_a;
+      const std::vector<int64_t> standard_order = {0, 1};
+      TF_RETURN_IF_ERROR(sparse::SparseTensor::Create(
+          *indices, a_values_tensor, dense_a.shape(), standard_order, &sparse_a));
+      if (!sparse_a.ToDense<float>(&dense_a)) {
+        return errors::InvalidArgument("Unable to densify SparseTensor input");
+      }
+      kdnnGemm(ctx, dense_a, b_tensor, out_tensor, false, ADJ_B);
+      return OkStatus();
+    }
 
     out.setZero();
 

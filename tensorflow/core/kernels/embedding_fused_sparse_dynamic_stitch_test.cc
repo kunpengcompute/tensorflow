@@ -91,6 +91,22 @@ TEST_F(KPFusedSparseDynamicStitchOpTest, TestIndicesOutOfBounds) {
   EXPECT_TRUE(absl::StrContains(s.message(),"row_id out of range"));
 }
 
+// A negative global_id must be rejected before any variable_rows[] access:
+// with C++ truncating division -1 % 2 == -1, so the old in-loop check read
+// variable_rows[-1] out of bounds before it could return an error.
+TEST_F(KPFusedSparseDynamicStitchOpTest, TestNegativeGlobalId) {
+  MakeOp(2);
+
+  AddInputFromArray<int64>(TensorShape({4}), {0, -1, -2, -3});
+  AddInputFromArray<float>(TensorShape({3, 2}),
+                           {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f});
+  AddInputFromArray<float>(TensorShape({2, 2}), {7.0f, 8.0f, 9.0f, 10.0f});
+
+  Status s = RunOpKernel();
+  EXPECT_FALSE(s.ok());
+  EXPECT_TRUE(absl::StrContains(s.message(), "global_id must be non-negative"));
+}
+
 TEST_F(KPFusedSparseDynamicStitchOpTest, TestInputDims) {
   MakeOp(2);
 
@@ -102,6 +118,61 @@ TEST_F(KPFusedSparseDynamicStitchOpTest, TestInputDims) {
   Status s = RunOpKernel();
   EXPECT_FALSE(s.ok());
   EXPECT_TRUE(absl::StrContains(s.message(),"input dims must == 2"));
+}
+
+TEST_F(KPFusedSparseDynamicStitchOpTest, TestSinglePartition) {
+  MakeOp(1);  // num_partitions = 1, must be > 1
+
+  AddInputFromArray<int64>(TensorShape({2}), {0, 1});
+  AddInputFromArray<float>(TensorShape({2, 2}), {1.0f, 2.0f, 3.0f, 4.0f});
+
+  Status s = RunOpKernel();
+  EXPECT_FALSE(s.ok());
+  EXPECT_TRUE(absl::StrContains(s.message(),"num partitions must > 1"));
+}
+
+TEST_F(KPFusedSparseDynamicStitchOpTest, TestZeroStride) {
+  MakeOp(2);
+
+  AddInputFromArray<int64>(TensorShape({2}), {0, 1});
+  AddInputFromArray<float>(TensorShape({2, 0}), {});
+  AddInputFromArray<float>(TensorShape({2, 0}), {});
+
+  Status s = RunOpKernel();
+  EXPECT_FALSE(s.ok());
+  EXPECT_TRUE(absl::StrContains(s.message(),"output_stride must > 0"));
+}
+
+TEST_F(KPFusedSparseDynamicStitchOpTest, TestThreeTables) {
+  MakeOp(3);  // num_partitions = 3
+
+  AddInputFromArray<int64>(TensorShape({3}), {0, 1, 2});
+  AddInputFromArray<float>(TensorShape({2, 2}),
+                           {1.0f, 2.0f, 3.0f, 4.0f});
+  AddInputFromArray<float>(TensorShape({2, 2}),
+                           {5.0f, 6.0f, 7.0f, 8.0f});
+  AddInputFromArray<float>(TensorShape({2, 2}),
+                           {9.0f, 10.0f, 11.0f, 12.0f});
+  TF_ASSERT_OK(RunOpKernel());
+
+  Tensor expected(allocator(), DT_FLOAT, TensorShape({3, 2}));
+  test::FillValues<float>(&expected,
+                          {1.0f, 2.0f, 5.0f, 6.0f, 9.0f, 10.0f});
+  test::ExpectTensorEqual<float>(expected, *GetOutput(0));
+}
+
+TEST_F(KPFusedSparseDynamicStitchOpTest, TestEmptyIndices) {
+  MakeOp(2);
+
+  AddInputFromArray<int64>(TensorShape({0}), {});
+  AddInputFromArray<float>(TensorShape({2, 2}),
+                           {1.0f, 2.0f, 3.0f, 4.0f});
+  AddInputFromArray<float>(TensorShape({2, 2}),
+                           {5.0f, 6.0f, 7.0f, 8.0f});
+  TF_ASSERT_OK(RunOpKernel());
+
+  Tensor* output = GetOutput(0);
+  EXPECT_EQ(output->shape(), TensorShape({0, 2}));
 }
 
 }  // namespace
