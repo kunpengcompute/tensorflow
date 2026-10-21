@@ -373,6 +373,24 @@ cuda_py_strict_test(
     ],
 )
 
+cuda_py_strict_test(
+    name = "matmul_model_shapes_test",
+    size = "medium",
+    srcs = ["matmul_model_shapes_test.py"],
+    shard_count = 4,
+    tags = [
+        "no_mac_arm64",
+    ],
+    deps = [
+        "//tensorflow/python/framework:test_lib",
+        "//tensorflow/python/ops:math_ops",
+        "//tensorflow/python/platform:client_testlib",
+        "//tensorflow/python/kernel_tests/benchmark:matmul_cases",
+        "//third_party/py/numpy",
+        "@absl_py//absl/testing:parameterized",
+    ],
+)
+
 cuda_py_benchmark_test(
     name = "reduce_benchmark_test",
     srcs = ["reduce_benchmark_test.py"],
