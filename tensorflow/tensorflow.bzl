@@ -58,6 +58,10 @@ load(
     "if_enable_acl",
 )
 load(
+    "//tensorflow:feature_copts.bzl",
+    "boostsra_feature_copt",
+)
+load(
     "@local_xla//third_party/llvm_openmp:openmp.bzl",
     "windows_llvm_openmp_linkopts",
 )
@@ -469,6 +473,7 @@ def tf_copts(
         if_mkldnn_aarch64_acl(["-DDNNL_AARCH64_USE_ACL=1"]) +
         if_mkldnn_aarch64_acl_openmp(["-DENABLE_ONEDNN_OPENMP"]) +
         if_zendnn(["-DAMD_ZENDNN"]) +
+        boostsra_feature_copt() +
         if_enable_acl(["-DXLA_CPU_USE_ACL=1", "-fexceptions"]) +
         if_llvm_aarch32_available(["-DTF_LLVM_AARCH32_AVAILABLE=1"]) +
         if_llvm_aarch64_available(["-DTF_LLVM_AARCH64_AVAILABLE=1"]) +

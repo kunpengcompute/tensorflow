@@ -55,6 +55,7 @@ tf_gen_op_libs(
         "decode_proto_ops",
         "encode_proto_ops",
         "experimental_dataset_ops",
+        "embedding_fused_ops",
         "filesystem_ops",
         "function_ops",
         "functional_ops",
@@ -367,7 +368,12 @@ cc_library(
     }) + if_mkl([
         ":mkl_array_ops_op_lib",
         ":mkl_nn_ops_op_lib",
-    ]),
+    ]) + select({
+        "@platforms//cpu:aarch64": [
+            ":embedding_fused_ops_op_lib"
+        ],
+        "//conditions:default": [],
+    }),
     alwayslink = 1,
 )
 

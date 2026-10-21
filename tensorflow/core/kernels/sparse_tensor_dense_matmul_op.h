@@ -35,6 +35,16 @@ struct SparseTensorDenseMatMulFunctor {
       typename TTypes<T>::ConstVec a_values, typename TTypes<T>::ConstMatrix b);
 };
 
+#if defined(ENABLE_KDNN)
+template <typename Device, typename T, typename Tindices, bool ADJ_A,
+          bool ADJ_B>
+struct KDNNSparseMatMulFunctor {
+  static EIGEN_ALWAYS_INLINE Status Compute(
+      OpKernelContext* ctx, Tensor* out, const Tensor& a_indices_tensor,
+      const Tensor& a_values_tensor, const Tensor& b_tensor);
+};
+#endif
+
 template <typename MATRIX, bool ADJ>
 class MaybeAdjoint;
 

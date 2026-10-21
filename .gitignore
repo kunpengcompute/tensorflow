@@ -55,3 +55,7 @@ xcuserdata
 
 third_party/KDNN/src
 third_party/KDNN/include
+
+coverage_data
+coverage_test_results
+test_tmp

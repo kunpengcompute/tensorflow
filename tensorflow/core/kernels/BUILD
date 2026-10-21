@@ -45,6 +45,16 @@ load(
     "tf_cuda_tests_tags",
 )
 load("//tensorflow/core/platform:rules_cc.bzl", "cc_library")
+load(
+    "//third_party/KDNN:build_defs.bzl",
+    "if_enable_kdnn",
+    "kdnn_deps",
+)
+load(
+    "@local_config_rocm//rocm:build_defs.bzl",
+    "if_rocm",
+    "if_rocm_hipblaslt",
+)
 
 # Description:
 # Op kernel implementations for TensorFlow.
@@ -915,7 +925,7 @@ ARRAY_DEPS = [
     "//tensorflow/core/profiler/lib:scoped_memory_debug_annotation",
     "//tensorflow/core/util:bad_indices_policy",
     "@eigen_archive//:eigen3",
-]
+] + kdnn_deps()
 
 tf_kernel_library(
     name = "immutable_constant_op",
@@ -3626,7 +3636,7 @@ tf_kernel_library(
         "//tensorflow/core/protobuf:autotuning_proto_cc",
         "//tensorflow/core/util/autotune_maps:conv_parameters",
         "//tensorflow/core/util/proto:proto_utils",
-    ]),
+    ]) + kdnn_deps(),
 )
 
 cc_library(
@@ -3711,7 +3721,7 @@ tf_kernel_library(
     deps = MATH_DEPS + [
         "//tensorflow/core/kernels/mlir_generated:cwise_op",
         "@com_google_absl//absl/base:prefetch",
-    ],
+    ] + kdnn_deps(),
 )
 
 tf_kernel_library(
@@ -3746,6 +3756,105 @@ tf_kernel_library(
         "//tensorflow/core/platform:stream_executor",
         "@local_xla//xla/stream_executor/cuda:cufft_plugin",
     ]) + ["@ducc//:fft_wrapper"],
+)
+
+tf_kernel_library(
+    name = "embedding_fused_action_id_gather_op",
+    srcs = ["embedding_fused_action_id_gather.cc"],
+    deps = MATH_DEPS,
+)
+
+tf_kernel_library(
+    name = "embedding_fused_gather_op",
+    srcs = ["embedding_fused_gather.cc"],
+    deps = MATH_DEPS,
+)
+
+tf_kernel_library(
+    name = "embedding_fused_padding_op",
+    srcs = ["embedding_fused_padding.cc"],
+    deps = MATH_DEPS,
+)
+
+tf_kernel_library(
+    name = "embedding_fused_sparse_dynamic_stitch_op",
+    srcs = ["embedding_fused_sparse_dynamic_stitch.cc"],
+    deps = MATH_DEPS,
+)
+
+tf_kernel_library(
+    name = "embedding_fused_sparse_dynamic_stitch_reduce_op",
+    srcs = ["embedding_fused_sparse_dynamic_stitch_reduce.cc"],
+    deps = MATH_DEPS,
+)
+
+tf_kernel_library(
+    name = "embedding_fused_reshape_op",
+    srcs = ["embedding_fused_sparse_reshape.cc"],
+    deps = MATH_DEPS + [
+        ":reshape_util",
+    ],
+)
+
+tf_kernel_library(
+    name = "embedding_fused_sparse_segment_reduce_op",
+    srcs = ["embedding_fused_sparse_segment_reduce.cc"],
+    deps = MATH_DEPS,
+)
+
+tf_kernel_library(
+    name = "embedding_fused_sparse_segment_reduce_nonzero_op",
+    srcs = ["embedding_fused_sparse_segment_reduce_nonzero.cc"],
+    deps = MATH_DEPS + ["@com_google_absl//absl/container:flat_hash_map"],
+)
+
+tf_kernel_library(
+    name = "embedding_fused_sparse_select_op",
+    srcs = ["embedding_fused_sparse_select.cc"],
+    deps = MATH_DEPS,
+)
+
+cc_library(
+    name = "embedding_fused_ops",
+    deps = [
+        ":embedding_fused_action_id_gather_op",
+        ":embedding_fused_gather_op",
+        ":embedding_fused_padding_op",
+        ":embedding_fused_sparse_dynamic_stitch_op",
+        ":embedding_fused_sparse_dynamic_stitch_reduce_op",
+        ":embedding_fused_reshape_op",
+        ":embedding_fused_sparse_segment_reduce_op",
+        ":embedding_fused_sparse_segment_reduce_nonzero_op",
+        ":embedding_fused_sparse_select_op",
+    ],
+)
+
+tf_cc_test(
+    name = "embedding_fused_ops_test",
+    size = "small",
+    srcs = [
+        "embedding_fused_action_id_gather_test.cc",
+        "embedding_fused_sparse_dynamic_stitch_test.cc",
+        "embedding_fused_sparse_dynamic_stitch_reduce_test.cc",
+        "embedding_fused_sparse_segment_reduce_test.cc",
+        "embedding_fused_sparse_segment_reduce_nonzero_test.cc",
+        "embedding_fused_padding_test.cc",
+        "embedding_fused_sparse_select_test.cc",
+        "embedding_fused_gather_test.cc",
+        "embedding_fused_sparse_reshape_test.cc",
+    ],
+    deps = [
+        ":ops_testutil",
+        ":ops_util",
+        ":embedding_fused_ops",
+        "//tensorflow/core:core_cpu",
+        "//tensorflow/core:framework",
+        "//tensorflow/core:lib",
+        "//tensorflow/core:protos_all_cc",
+        "//tensorflow/core:test",
+        "//tensorflow/core:test_main",
+        "//tensorflow/core:testlib",
+    ],
 )
 
 tf_kernel_library(
@@ -4395,7 +4504,7 @@ tf_kernel_library(
     ]) + [
         ":gpu_prim_hdrs",
         ":loose_headers",
-    ],
+    ] + kdnn_deps(),
 )
 
 tf_kernel_library(
@@ -5254,7 +5363,7 @@ tf_kernel_library(
         "//tensorflow/core/framework:bounds_check",
         "//tensorflow/core/util:determinism_for_kernels",
         "@eigen_archive//:eigen3",
-    ],
+    ] + kdnn_deps(),
 )
 
 tf_kernel_library(

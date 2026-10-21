@@ -339,7 +339,12 @@ py_strict_library(
         "//tensorflow/python/util:tf_decorator_export",
         "//tensorflow/python/util:tf_export",
         "//third_party/py/numpy",
-    ] + if_cuda(["//tensorflow/python/ops:flash_attn_ops_gen"]),
+    ] + select({
+        "@platforms//cpu:aarch64": [
+            "//tensorflow/python/ops:embedding_fused_ops_gen",
+        ],
+        "//conditions:default": [],
+    }) + if_cuda(["//tensorflow/python/ops:flash_attn_ops_gen"]),
 )
 
 py_strict_library(
@@ -484,7 +489,12 @@ py_strict_library(
         "//tensorflow/python/util:tf_decorator_py",
         "//tensorflow/python/util:tf_export",
         "//tensorflow/python/util:tf_inspect",
-    ] + if_cuda(["//tensorflow/python/ops:flash_attn_ops_gen"]),
+    ] + select({
+        "@platforms//cpu:aarch64": [
+            "//tensorflow/python/ops:embedding_fused_ops_gen",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 tf_python_pybind_extension(
