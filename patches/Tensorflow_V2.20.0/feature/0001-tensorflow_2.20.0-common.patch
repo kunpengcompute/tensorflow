@@ -1,15 +1,188 @@
+diff --git a/.gitignore b/.gitignore
+index 3287d52aedb292d9a03d138215a7b99f859f7e58..c93a42b1ed51a6c6199baa9e40d0f81800714c89 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,3 +1,4 @@
++/output/
+ .DS_Store
+ .ipynb_checkpoints
+ node_modules
+@@ -51,3 +52,10 @@ gradleBuild
+ Podfile.lock
+ Pods
+ xcuserdata
++
++third_party/KDNN/src
++third_party/KDNN/include
++
++coverage_data
++coverage_test_results
++test_tmp
+\ No newline at end of file
+diff --git a/Dockerfile.ci b/Dockerfile.ci
+new file mode 100644
+index 0000000000000000000000000000000000000000..5b9215d4c3ed4a004d707061172cfe9a3024cfb6
+--- /dev/null
++++ b/Dockerfile.ci
+@@ -0,0 +1,59 @@
++FROM openeuler/openeuler:24.03-lts-sp3
++
++ARG TARGETARCH
++ARG HTTP_PROXY=
++ARG HTTPS_PROXY=
++ARG NO_PROXY=localhost,127.0.0.1
++
++ENV HTTP_PROXY=${HTTP_PROXY}
++ENV HTTPS_PROXY=${HTTPS_PROXY}
++ENV http_proxy=${HTTP_PROXY}
++ENV https_proxy=${HTTPS_PROXY}
++ENV NO_PROXY=${NO_PROXY}
++ENV no_proxy=${NO_PROXY}
++
++RUN dnf update -y &&     dnf install -y         gcc-toolset-14-*         java-21-openjdk-devel         wget         unzip         zip         git         git-lfs         which         findutils         python         python3         python3-pip         openssl-devel         snappy-devel         ca-certificates     && dnf clean all
++
++ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk
++ENV PATH=/opt/openEuler/gcc-toolset-14/root/usr/bin:${PATH}
++ENV LD_LIBRARY_PATH=/opt/openEuler/gcc-toolset-14/root/usr/lib64:${LD_LIBRARY_PATH}
++
++RUN gcc --version && g++ --version && java -version
++
++ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple
++ARG PIP_TRUSTED_HOST=mirrors.aliyun.com
++
++RUN python3 -m pip config set global.index-url ${PIP_INDEX_URL} &&     python3 -m pip config set global.trusted-host ${PIP_TRUSTED_HOST}
++
++RUN python3 -m pip install --no-cache-dir --upgrade setuptools wheel &&     python3 -m pip install --no-cache-dir --prefer-binary         atomgit         protobuf==5.28.3
++
++ARG BAZEL_VERSION=7.4.1
++
++RUN case "${TARGETARCH:-$(uname -m)}" in         amd64|x86_64) bazel_arch=x86_64 ;;         arm64|aarch64) bazel_arch=arm64 ;;         *) echo "Unsupported architecture: ${TARGETARCH:-$(uname -m)}" >&2; exit 1 ;;     esac &&     wget https://mirrors.huaweicloud.com/bazel/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-${bazel_arch}         -O /usr/local/bin/bazel &&     chmod +x /usr/local/bin/bazel
++
++RUN bazel --version
++
++WORKDIR /workspace/tensorflow
++COPY . .
++
++ARG BAZEL_JOBS=64
++
++RUN mkdir -p /workspace/download
++
++# 构建 TensorFlow wheel 和 predictor_server 测试框架
++RUN bazel         --output_user_root=./output         build         --jobs=${BAZEL_JOBS}         --experimental_repo_remote_exec         --repository_cache=/workspace/repo_cache         --distdir=/workspace/download         --cxxopt=-std=c++17         --host_cxxopt=-std=c++17         --copt=-march=armv8.5-a         --host_copt=-march=armv8.5-a         --linkopt=-Wl,--stub-group-size=0x2000000         --linkopt=-lssl         --linkopt=-lcrypto         --linkopt=-lsnappy         --action_env=http_proxy=http://127.0.0.1:11082         --action_env=https_proxy=http://127.0.0.1:11082         --action_env=no_proxy=localhost,127.0.0.1         --action_env=TF_SYSTEM_LIBS=boringssl,snappy         --define=use_system_libs=openssl         --repo_env=PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/         --repo_env=PIP_TRUSTED_HOST=mirrors.aliyun.com         --check_direct_dependencies=off         -c opt         //tensorflow/tools/pip_package:wheel         //:predictor_server         //:brpc_client
++
++# 复制 wheel 和测试框架二进制到输出目录
++RUN mkdir -p /workspace/dist &&     find ./output -name "tensorflow-*.whl" -exec cp {} /workspace/dist/ \; &&     cp -L bazel-bin/predictor_server bazel-bin/brpc_client /workspace/dist/
++
++# 清除整个 tensorflow 目录（保留 repo_cache 在 /workspace）
++RUN rm -rf /workspace/tensorflow &&     echo "清理完成，repo_cache 已保存在 /workspace/repo_cache"
++
++ENV HTTP_PROXY=
++ENV HTTPS_PROXY=
++ENV http_proxy=
++ENV https_proxy=
++ENV NO_PROXY=
++ENV no_proxy=
++
++WORKDIR /workspace
+diff --git a/ci_build.sh b/ci_build.sh
+new file mode 100755
+index 0000000000000000000000000000000000000000..920edad66cd5b7692e3e89ce49268947b87b6bdb
+--- /dev/null
++++ b/ci_build.sh
+@@ -0,0 +1,88 @@
++#!/bin/bash
++# TensorFlow CI Build Script for Kunpeng Platform
++
++set -e
++
++TF_DIR="/workspace/tensorflow"
++OUTPUT_BASE="${TF_DIR}/output"
++REPO_CACHE="/workspace/repo_cache"
++DISTDIR="/workspace/download"
++BUILD_LOG="${TF_DIR}/build_$(date +%Y%m%d_%H%M%S).log"
++
++PIP_INDEX_URL="https://mirrors.aliyun.com/pypi/simple/"
++PIP_TRUSTED_HOST="mirrors.aliyun.com"
++NO_PROXY="localhost,127.0.0.1"
++
++# 移除 -O3，使用 bazelrc 中的默认设置
++CXXOPT="-std=c++17"
++COPT="-march=armv8.5-a"
++BAZEL_JOBS="${BAZEL_JOBS:-64}"
++BAZEL_TARGETS=(
++    "//tensorflow/tools/pip_package:wheel"
++    "//:predictor_server"
++    "//:brpc_client"
++)
++
++log_info() { echo -e "\033[32m[INFO]\033[0m $1" | tee -a "${BUILD_LOG}"; }
++log_warn() { echo -e "\033[33m[WARN]\033[0m $1" | tee -a "${BUILD_LOG}"; }
++log_error() { echo -e "\033[31m[ERROR]\033[0m $1" | tee -a "${BUILD_LOG}"; }
++
++log_info "创建构建目录..."
++mkdir -p "${OUTPUT_BASE}" "${REPO_CACHE}" "${DISTDIR}" "${TF_DIR}/dist"
++
++if [ "${CLEAN_CACHE:-false}" = "true" ]; then
++    log_warn "清理旧缓存..."
++    rm -rf "${OUTPUT_BASE:?}/*"
++    log_info "缓存清理完成"
++fi
++
++cd "${TF_DIR}"
++
++log_info "开始构建 TensorFlow wheel 和 predictor_server 测试框架..."
++log_info "构建日志: ${BUILD_LOG}"
++log_info "构建目标: ${BAZEL_TARGETS[*]}"
++
++bazel --output_user_root="${OUTPUT_BASE}" build \
++    --jobs="${BAZEL_JOBS}" \
++    --experimental_repo_remote_exec \
++    --repository_cache="${REPO_CACHE}" \
++    --distdir="${DISTDIR}" \
++    --cxxopt="${CXXOPT}" \
++    --host_cxxopt="${CXXOPT}" \
++    --copt="${COPT}" \
++    --host_copt="${COPT}" \
++    --linkopt=-Wl,--stub-group-size=0x2000000 \
++    --linkopt=-lssl \
++    --linkopt=-lcrypto \
++    --linkopt=-lsnappy \
++    --action_env=http_proxy="${HTTP_PROXY}" \
++    --action_env=https_proxy="${HTTPS_PROXY}" \
++    --action_env=no_proxy="${NO_PROXY}" \
++    --action_env=TF_SYSTEM_LIBS="boringssl,snappy" \
++    --define=use_system_libs=openssl \
++    --repo_env=PIP_INDEX_URL="${PIP_INDEX_URL}" \
++    --repo_env=PIP_TRUSTED_HOST="${PIP_TRUSTED_HOST}" \
++    --check_direct_dependencies=off \
++    -c opt \
++    "${BAZEL_TARGETS[@]}" 2>&1 | tee -a "${BUILD_LOG}"
++
++BUILD_STATUS=${PIPESTATUS[0]}
++
++if [ $BUILD_STATUS -ne 0 ]; then
++    log_error "构建失败，状态码: $BUILD_STATUS"
++    exit 1
++fi
++
++log_info "构建成功！"
++WHEEL_FILE=$(find "${OUTPUT_BASE}" -name "tensorflow-*.whl" -type f 2>/dev/null | head -1)
++if [ -n "${WHEEL_FILE}" ]; then
++    log_info "Wheel 包位置: ${WHEEL_FILE}"
++    cp "${WHEEL_FILE}" "${TF_DIR}/dist/"
++    log_info "已复制到: ${TF_DIR}/dist/"
++fi
++cp -L \
++    "${TF_DIR}/bazel-bin/predictor_server" \
++    "${TF_DIR}/bazel-bin/brpc_client" \
++    "${TF_DIR}/dist/"
++log_info "已保存 predictor_server 和 brpc_client 构建产物"
++ls -lh "${TF_DIR}/dist/"
 diff --git a/tensorflow/dtensor/mlir/shape_utils.cc b/tensorflow/dtensor/mlir/shape_utils.cc
-index 27f9fc5f7..8cb02fc2c 100644
+index 27f9fc5f7f0a7037bba4ab12607387fc9d0804ae..6ab204539854f4efb00fa9b16b6ef5467abbcb56 100644
 --- a/tensorflow/dtensor/mlir/shape_utils.cc
 +++ b/tensorflow/dtensor/mlir/shape_utils.cc
-@@ -1,4 +1,5 @@
--/* Copyright 2022 The TensorFlow Authors. All Rights Reserved.
-+/* Copyright (c) Huawei Technologies Co., Ltd. 2026.
-+Copyright 2022 The TensorFlow Authors. All Rights Reserved.
- 
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
-@@ -73,7 +74,7 @@ StatusOr<llvm::ArrayRef<int64_t>> ExtractGlobalInputShape(
+@@ -73,7 +73,7 @@ StatusOr<llvm::ArrayRef<int64_t>> ExtractGlobalInputShape(
          return errors::Internal("global_shape does not have static rank");
        return *global_shape;
      }
@@ -19,17 +192,10 @@ index 27f9fc5f7..8cb02fc2c 100644
  
    // If we reach this point, we're working with a function argument.
 diff --git a/tensorflow/dtensor/mlir/spmd_expansion.cc b/tensorflow/dtensor/mlir/spmd_expansion.cc
-index 434bf869a..9248c890b 100644
+index 434bf869a4ebc7924bd7aec059088caa1f4878f8..ebf00189fae4ca9b1a016f8be8f7b3c535be4f17 100644
 --- a/tensorflow/dtensor/mlir/spmd_expansion.cc
 +++ b/tensorflow/dtensor/mlir/spmd_expansion.cc
-@@ -1,4 +1,5 @@
--/* Copyright 2022 The TensorFlow Authors. All Rights Reserved.
-+/* Copyright (c) Huawei Technologies Co., Ltd. 2026.
-+Copyright 2022 The TensorFlow Authors. All Rights Reserved.
- 
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
-@@ -188,7 +189,7 @@ bool GetResourceArgIndexIfUsedInAssignmentOp(
+@@ -188,7 +188,7 @@ bool GetResourceArgIndexIfUsedInAssignmentOp(
            GetForwardedDTensorLayoutInput(assign_variable_op.getResource());
        if (llvm::isa<mlir::BlockArgument>(resource)) {
          *resource_argument_index_for_assign_variable =
@@ -38,7 +204,7 @@ index 434bf869a..9248c890b 100644
          return true;
        }
      }
-@@ -221,7 +222,7 @@ mlir::LogicalResult UpdateFunctionArgsUsingLayout(mlir::func::FuncOp function) {
+@@ -221,7 +221,7 @@ mlir::LogicalResult UpdateFunctionArgsUsingLayout(mlir::func::FuncOp function) {
  
      // If argument is a resource type update the subtype shape information
      // to reflect local shape of resources.
@@ -48,7 +214,7 @@ index 434bf869a..9248c890b 100644
          return mlir::failure();
        continue;
 diff --git a/tensorflow/python/client/BUILD b/tensorflow/python/client/BUILD
-index 807a94def..7d4d1dbc5 100644
+index 807a94def6ac25e641a2f37adab5a8dc17a624a6..7d4d1dbc5950dc56c98491c4bf0276308ae4f204 100644
 --- a/tensorflow/python/client/BUILD
 +++ b/tensorflow/python/client/BUILD
 @@ -29,7 +29,10 @@ py_strict_library(
@@ -64,7 +230,7 @@ index 807a94def..7d4d1dbc5 100644
          if_false = [
              "tf_session_helper.h",
 diff --git a/tensorflow/python/util/BUILD b/tensorflow/python/util/BUILD
-index 26de739df..01e4ea774 100644
+index 26de739df068b9e8cfe3153f82e383bbca0c7331..01e4ea77410725f7e0f9590f75459f61c2347fd0 100644
 --- a/tensorflow/python/util/BUILD
 +++ b/tensorflow/python/util/BUILD
 @@ -437,7 +437,11 @@ py_strict_library(
@@ -80,8 +246,31 @@ index 26de739df..01e4ea774 100644
      hdrs = [
          "//tensorflow/c:headers",
          "//tensorflow/c/eager:headers",
+diff --git a/tensorflow/tensorflow.bzl b/tensorflow/tensorflow.bzl
+index f28f12927dba445c4423730d0adcf6c5164cd778..a37735be52d52481431a8a436de81113c561ed93 100644
+--- a/tensorflow/tensorflow.bzl
++++ b/tensorflow/tensorflow.bzl
+@@ -57,6 +57,10 @@ load(
+     "@local_xla//third_party/compute_library:build_defs.bzl",
+     "if_enable_acl",
+ )
++load(
++    "//tensorflow:feature_copts.bzl",
++    "boostsra_feature_copt",
++)
+ load(
+     "@local_xla//third_party/llvm_openmp:openmp.bzl",
+     "windows_llvm_openmp_linkopts",
+@@ -469,6 +473,7 @@ def tf_copts(
+         if_mkldnn_aarch64_acl(["-DDNNL_AARCH64_USE_ACL=1"]) +
+         if_mkldnn_aarch64_acl_openmp(["-DENABLE_ONEDNN_OPENMP"]) +
+         if_zendnn(["-DAMD_ZENDNN"]) +
++        boostsra_feature_copt() +
+         if_enable_acl(["-DXLA_CPU_USE_ACL=1", "-fexceptions"]) +
+         if_llvm_aarch32_available(["-DTF_LLVM_AARCH32_AVAILABLE=1"]) +
+         if_llvm_aarch64_available(["-DTF_LLVM_AARCH64_AVAILABLE=1"]) +
 diff --git a/tensorflow/workspace2.bzl b/tensorflow/workspace2.bzl
-index 9e49ab40b..dcab09daf 100644
+index 9e49ab40b25dd83136999316898ce6c75683700f..dcab09daf6c4657aac1ed6aa269df7d82d1b790d 100644
 --- a/tensorflow/workspace2.bzl
 +++ b/tensorflow/workspace2.bzl
 @@ -788,6 +788,9 @@ def _tf_repositories():
@@ -96,7 +285,7 @@ index 9e49ab40b..dcab09daf 100644
      tf_http_archive(
 diff --git a/third_party/py/rules_python_no_isolated.patch b/third_party/py/rules_python_no_isolated.patch
 new file mode 100644
-index 000000000..ea0de8996
+index 0000000000000000000000000000000000000000..ea0de8996d33ab15d2f575db68efd0cb1d2c167c
 --- /dev/null
 +++ b/third_party/py/rules_python_no_isolated.patch
 @@ -0,0 +1,14 @@
@@ -116,7 +305,7 @@ index 000000000..ea0de8996
 +     )
 diff --git a/third_party/pybind11_protobuf/link_protobuf.patch b/third_party/pybind11_protobuf/link_protobuf.patch
 new file mode 100644
-index 000000000..8cb6dd4ea
+index 0000000000000000000000000000000000000000..8cb6dd4eaa6dd6dc00e2351909b46dabce688bf2
 --- /dev/null
 +++ b/third_party/pybind11_protobuf/link_protobuf.patch
 @@ -0,0 +1,82 @@
@@ -203,7 +392,7 @@ index 000000000..8cb6dd4ea
 + }  // namespace pybind11_protobuf
 ++#pragma GCC visibility pop
 diff --git a/third_party/xla/third_party/py/python_init_rules.bzl b/third_party/xla/third_party/py/python_init_rules.bzl
-index 0cabd24e7..54ebca7bb 100644
+index 0cabd24e780251c8e61cf92496df66056d6de8a2..54ebca7bb8f57994e25506fad706dcc6d0bbe21b 100644
 --- a/third_party/xla/third_party/py/python_init_rules.bzl
 +++ b/third_party/xla/third_party/py/python_init_rules.bzl
 @@ -13,5 +13,6 @@ def python_init_rules():
@@ -215,7 +404,7 @@ index 0cabd24e7..54ebca7bb 100644
      )
 diff --git a/third_party/xla/third_party/py/rules_python_no_isolated.patch b/third_party/xla/third_party/py/rules_python_no_isolated.patch
 new file mode 100644
-index 000000000..ea0de8996
+index 0000000000000000000000000000000000000000..ea0de8996d33ab15d2f575db68efd0cb1d2c167c
 --- /dev/null
 +++ b/third_party/xla/third_party/py/rules_python_no_isolated.patch
 @@ -0,0 +1,14 @@
@@ -235,7 +424,7 @@ index 000000000..ea0de8996
 +     )
 diff --git a/third_party/xla/third_party/pybind11_abseil/link_abseil.patch b/third_party/xla/third_party/pybind11_abseil/link_abseil.patch
 new file mode 100644
-index 000000000..fe0f9580b
+index 0000000000000000000000000000000000000000..fe0f9580bdca4002b49f38ba32504532e1183a23
 --- /dev/null
 +++ b/third_party/xla/third_party/pybind11_abseil/link_abseil.patch
 @@ -0,0 +1,85 @@
@@ -325,7 +514,7 @@ index 000000000..fe0f9580b
 + }  // namespace pybind11
 ++#pragma GCC visibility pop
 diff --git a/third_party/xla/third_party/pybind11_abseil/workspace.bzl b/third_party/xla/third_party/pybind11_abseil/workspace.bzl
-index c12f0ba77..5117c0af6 100644
+index c12f0ba77f820ad8141062ab172d0ba6c0ffa88c..5117c0af60da8c0c450c81e5a4b534a0c2dfadf2 100644
 --- a/third_party/xla/third_party/pybind11_abseil/workspace.bzl
 +++ b/third_party/xla/third_party/pybind11_abseil/workspace.bzl
 @@ -16,5 +16,5 @@ def repo():
@@ -336,17 +525,10 @@ index c12f0ba77..5117c0af6 100644
 +        patch_file = ["//third_party/pybind11_abseil:remove_license.patch", "//third_party/pybind11_abseil:link_abseil.patch"],
      )
 diff --git a/third_party/xla/xla/tsl/profiler/utils/group_events.cc b/third_party/xla/xla/tsl/profiler/utils/group_events.cc
-index fc8c041c6..3746c910e 100644
+index fc8c041c640185a91fa8fe964b81e5951b78a5d5..159484e09494be6dc162addc40c2c5700f411f35 100644
 --- a/third_party/xla/xla/tsl/profiler/utils/group_events.cc
 +++ b/third_party/xla/xla/tsl/profiler/utils/group_events.cc
-@@ -1,4 +1,5 @@
--/* Copyright 2020 The TensorFlow Authors. All Rights Reserved.
-+/* Copyright (c) Huawei Technologies Co., Ltd. 2026.
-+Copyright 2020 The TensorFlow Authors. All Rights Reserved.
- 
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
-@@ -167,8 +168,9 @@ void ConnectContextGroups(const ContextGroupMap& context_groups) {
+@@ -167,8 +167,9 @@ void ConnectContextGroups(const ContextGroupMap& context_groups) {
  }
  
  bool IsImplicitRootEvent(const XEventVisitor& event) {
@@ -357,3 +539,2309 @@ index fc8c041c6..3746c910e 100644
            HostEventType::kFunctionRun,
            HostEventType::kSessionRun,
            HostEventType::kRunGraph,
+diff --git a/tools/coverage_test/README.md b/tools/coverage_test/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..924c69c4072cb18e3ef8d3ed2fe7f568a8d84132
+--- /dev/null
++++ b/tools/coverage_test/README.md
+@@ -0,0 +1,80 @@
++# TensorFlow 增量覆盖率测试工具
++
++对 TensorFlow 特性增量做单元测试 + 增量代码覆盖率分析。入口是 `run_coverage.py`，特性在 `features/<name>/config.json` 里声明。
++
++## 快速开始
++
++```bash
++# 列出可用特性
++python3 tools/coverage_test/run_coverage.py --list
++
++# 跑某个特性的单元测试（不收集覆盖率，快）
++python3 tools/coverage_test/run_coverage.py --feature annc
++
++# 收集覆盖率并分析增量（<ref> 到 HEAD 的变更，含该 commit）
++python3 tools/coverage_test/run_coverage.py --feature annc \
++    --since 086c065e758 --enable-coverage
++```
++
++## 命令行选项
++
++| 选项 | 说明 |
++|---|---|
++| `--feature <name>` | 只跑指定特性 |
++| `--all` | 跑所有特性，汇总一份增量覆盖率 |
++| `--list` | 列出所有特性 |
++| `--enable-coverage` | 收集覆盖率（需要 lcov） |
++| `--since <ref>` | 增量范围：`<ref>`（含）到 HEAD |
++| `--commit <ref>` | 增量范围：单个 commit |
++| `--patch <file>` | 增量范围：patch 文件 |
++| `--base-ref <r> --target-ref <r>` | 增量范围：两个 ref 之间的 diff |
++
++四种增量来源（`--since` / `--commit` / `--patch` / `--base-ref`+`--target-ref`）四选一。
++
++## 输出
++
++```
++coverage_test_results/<feature>/
++├── report.json                # 测试结果 + 增量覆盖率（机器可读）
++├── incremental_coverage.csv   # 每一条变更行的覆盖状态
++├── file_coverage.csv          # 按文件汇总
++├── directory_coverage.csv     # 按目录汇总（含子目录，父子的数字重叠不可相加）
++└── html/
++    ├── index.html             # 目录树 + 全局增量覆盖率 + 测试结果 + 诊断
++    ├── directories/           # 每个目录一页：面包屑导航、子目录与文件列表
++    └── files/                 # 每个文件一页：变更行标记、命中次数、覆盖状态
++```
++
++增量覆盖率在 `report.json` 的 `incremental_coverage.summary`，核心字段 `coverage_rate`；
++网页入口 `html/index.html` 浏览器直接打开，不需要启动服务。覆盖率 =
++covered / (covered + uncovered)：绿色 = 新增行已覆盖，红色 = 新增行未覆盖，
++黄色 = 未插桩（unknown，单列不进分母），灰色 = 空行/注释/预处理行。
++
++## 新增一个特性
++
++1. 建目录 `features/<name>/`，写 `config.json`：
++
++```json
++{
++  "name": "<name>",
++  "description": "...",
++  "bazel_args": ["--config=v2"],
++  "bazel_build_flags": ["-fexceptions"],
++  "test_targets": [
++    {"id": "xxx-ut", "target": "//tensorflow/core/kernels:xxx_test",
++     "kind": "gtest", "gtest_filter": "*", "enabled": true}
++  ]
++}
++```
++
++2. 直接运行即可：`python3 tools/coverage_test/run_coverage.py --feature <name>`。
++
++字段说明：
++- `bazel_args` / `bazel_build_flags`：特性级 bazel 参数 / 编译选项（后者自动加 `--copt=`）。
++- `test_targets[].env` / `bazel_build_flags`：目标级环境变量 / 编译选项。
++- `kind` 目前只支持 `gtest`（benchmark 会跳过）。
++
++## 常见问题
++
++- **覆盖率 0%**：确认加了 `--enable-coverage`、`lcov` 已装、增量来源选对了。
++- **KDNN 链接失败**：KDNN 库与编译选项不匹配（`third_party/KDNN/src/*.a` 需与 `--define=enable_kdnn=true` 构建配套）。
+diff --git a/tools/coverage_test/common/__init__.py b/tools/coverage_test/common/__init__.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..ff546843eaa1c6c2bec57b5d3561c8560cbfd78c
+--- /dev/null
++++ b/tools/coverage_test/common/__init__.py
+@@ -0,0 +1,11 @@
++"""Common utilities for TensorFlow coverage testing framework."""
++
++from .config import load_feature_config, FeatureConfig
++from .runner import TestRunner, TestResult
++
++__all__ = [
++    "load_feature_config",
++    "FeatureConfig",
++    "TestRunner",
++    "TestResult",
++]
+diff --git a/tools/coverage_test/common/config.py b/tools/coverage_test/common/config.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..ad42df393638cba6f4e39d6af0cfeba2cacfd2d6
+--- /dev/null
++++ b/tools/coverage_test/common/config.py
+@@ -0,0 +1,82 @@
++#!/usr/bin/env python3
++"""Configuration loading and validation for coverage testing."""
++
++from __future__ import annotations
++
++import json
++from dataclasses import dataclass
++from pathlib import Path
++from typing import Any
++
++
++class ConfigError(RuntimeError):
++    """Configuration validation error."""
++
++
++@dataclass
++class TestTarget:
++    """Single test target configuration."""
++    id: str
++    target: str
++    kind: str  # "gtest" or "benchmark"
++    gtest_filter: str = "*"
++    env: dict[str, str] | None = None
++    enabled: bool = True
++    bazel_build_flags: list[str] | None = None  # Target-specific build flags
++
++    def __post_init__(self):
++        if self.env is None:
++            self.env = {}
++        if self.bazel_build_flags is None:
++            self.bazel_build_flags = []
++
++
++@dataclass
++class FeatureConfig:
++    """Feature-specific test configuration."""
++    name: str
++    description: str
++    test_targets: list[TestTarget]
++    bazel_args: list[str]
++    bazel_build_flags: list[str]  # Feature-level build flags (e.g., -fexceptions)
++    platform: str = "linux-*"
++
++    @classmethod
++    def from_dict(cls, data: dict[str, Any]) -> FeatureConfig:
++        """Load configuration from dictionary."""
++        targets = [
++            TestTarget(
++                id=t["id"],
++                target=t["target"],
++                kind=t["kind"],
++                gtest_filter=t.get("gtest_filter", "*"),
++                env=t.get("env"),
++                enabled=t.get("enabled", True),
++                bazel_build_flags=t.get("bazel_build_flags", []),
++            )
++            for t in data.get("test_targets", [])
++        ]
++
++        return cls(
++            name=data["name"],
++            description=data["description"],
++            test_targets=targets,
++            bazel_args=data.get("bazel_args", []),
++            bazel_build_flags=data.get("bazel_build_flags", []),
++        )
++
++
++def load_feature_config(feature_dir: Path) -> FeatureConfig:
++    """Load feature configuration from config.json."""
++    config_path = feature_dir / "config.json"
++    if not config_path.exists():
++        raise ConfigError(f"Config not found: {config_path}")
++
++    try:
++        with config_path.open("r", encoding="utf-8") as f:
++            data = json.load(f)
++        return FeatureConfig.from_dict(data)
++    except json.JSONDecodeError as e:
++        raise ConfigError(f"Invalid JSON in {config_path}: {e}")
++    except KeyError as e:
++        raise ConfigError(f"Missing required field in {config_path}: {e}")
+diff --git a/tools/coverage_test/common/coverage.py b/tools/coverage_test/common/coverage.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..3e60dbaf68c38f20b613c6e7e299ae5dabafc4b7
+--- /dev/null
++++ b/tools/coverage_test/common/coverage.py
+@@ -0,0 +1,639 @@
++#!/usr/bin/env python3
++"""Incremental coverage analysis for git patches and commits.
++
++LCOV and unified-diff parsing (``PathMapper``, ``parse_lcov_file``,
++``merge_lcov_data``, ``load_and_merge_lcov``, ``parse_unified_diff``) and the
++incremental line classification (``analyze_incremental_coverage``) are ported
++from ``tools/incremental_coverage/analysis.py`` in the ``dev_2.15.0_gtest``
++branch, so path normalization, merge semantics and the coverage denominator
++stay consistent with that implementation.
++"""
++
++from __future__ import annotations
++
++import ast
++import fnmatch
++import re
++import subprocess
++from collections import defaultdict
++from pathlib import Path, PurePosixPath
++from typing import Iterable, Mapping, Sequence
++
++HUNK_RE = re.compile(
++    r"^@@ -(?P<old>\d+)(?:,(?P<old_count>\d+))? \+(?P<new>\d+)(?:,(?P<new_count>\d+))? @@"
++)
++
++# Only these file kinds are meaningful for C/C++ coverage. Everything else in a
++# git diff (BUILD files, *.py wrappers, *.pbtxt api_def, docs, *.lcov output,
++# .gitignore, etc.) must be ignored.
++CPP_EXTENSIONS = {
++    ".c", ".cc", ".cp", ".cpp", ".cxx",
++    ".h", ".hh", ".hpp", ".hxx", ".inc",
++}
++
++# Ported from tools/incremental_coverage/config/excludes.txt. These rules only
++# affect the coverage report; test binaries still build and run.
++DEFAULT_EXCLUDES = (
++    "*test.cc", "*_test.cc", "*_test.cpp", "*_test.c", "*_test.h", "*_test.hpp",
++    "*_benchmark.cc",
++    "test/*", "*/test/*", "tests/*", "*/tests/*", "testing/*", "*/testing/*",
++)
++
++
++class CoverageToolError(RuntimeError):
++    """A user-actionable failure in the coverage workflow."""
++
++
++def is_cpp_source(path: str) -> bool:
++    """Return True if ``path`` is a C/C++ source or header file."""
++    return PurePosixPath(path).suffix.lower() in CPP_EXTENSIONS
++
++
++def is_excluded(path: str, patterns: Iterable[str]) -> tuple[bool, str | None]:
++    """Apply the basename/full-relative-path glob semantics of the original tool.
++
++    A pattern without ``/`` matches the basename; a pattern with ``/`` matches
++    the full repository-relative path.
++    """
++    normalized = path.replace("\\", "/").lstrip("./")
++    basename = PurePosixPath(normalized).name
++    for pattern in patterns:
++        pattern = str(pattern).strip()
++        if not pattern:
++            continue
++        candidate = normalized if "/" in pattern else basename
++        if fnmatch.fnmatchcase(candidate, pattern):
++            return True, pattern
++    return False, None
++
++
++def _decode_diff_path(value: str) -> str:
++    """Decode Git's optional C-style quoted path and strip a/ or b/ prefix."""
++    value = value.strip()
++    if value.startswith('"') and value.endswith('"'):
++        try:
++            decoded = ast.literal_eval(value)
++            if isinstance(decoded, str):
++                value = decoded
++        except (SyntaxError, ValueError):
++            pass
++    if value.startswith(("a/", "b/")):
++        value = value[2:]
++    value = value.replace("\\", "/")
++    return value[2:] if value.startswith("./") else value
++
++
++def _header_path(value: str) -> str | None:
++    value = value.strip()
++    if value == "/dev/null":
++        return None
++    return _decode_diff_path(value.split("\t", 1)[0])
++
++
++def parse_unified_diff(diff: str | Path) -> dict:
++    """Parse final-side changed line numbers from a unified diff.
++
++    Ported from ``analysis.parse_unified_diff``. Added and modified lines both
++    appear as ``+`` lines; deleted lines are retained as metadata but have no
++    executable final location.
++    """
++    if isinstance(diff, Path):
++        content = diff.read_text(encoding="utf-8", errors="replace")
++    else:
++        content = diff
++
++    entries: dict[str, dict] = {}
++    diagnostics: list[str] = []
++    old_path: str | None = None
++    new_path: str | None = None
++    current: dict | None = None
++    new_line: int | None = None
++    old_line: int | None = None
++    pending_binary_paths: tuple[str | None, str | None] = (None, None)
++
++    def ensure_entry(path: str) -> dict:
++        entry = entries.get(path)
++        if entry is None:
++            entry = {
++                "path": path,
++                "old_path": old_path,
++                "added_lines": set(),
++                "deleted_lines": set(),
++                "binary": False,
++            }
++            entries[path] = entry
++        elif entry.get("old_path") is None and old_path is not None:
++            entry["old_path"] = old_path
++        return entry
++
++    for raw in content.splitlines():
++        if raw.startswith("diff --git "):
++            pending_binary_paths = (None, None)
++            old_path = None
++            new_path = None
++            current = None
++            new_line = None
++            old_line = None
++            fields = raw.split(" ", 3)
++            if len(fields) == 4:
++                try:
++                    pair = ast.literal_eval("[" + fields[2].replace(" ", ", ", 1) + "]")
++                    if isinstance(pair, list) and len(pair) == 2:
++                        pending_binary_paths = (_decode_diff_path(pair[0]), _decode_diff_path(pair[1]))
++                except (SyntaxError, ValueError):
++                    pass
++            continue
++        if raw.startswith("--- "):
++            old_path = _header_path(raw[4:])
++            current = None
++            new_line = None
++            old_line = None
++            continue
++        if raw.startswith("+++ ") and new_line is None:
++            new_path = _header_path(raw[4:])
++            current = ensure_entry(new_path) if new_path else None
++            new_line = None
++            old_line = None
++            continue
++        if raw.startswith("Binary files ") or raw.startswith("GIT binary patch"):
++            binary_path = new_path or pending_binary_paths[1] or old_path or pending_binary_paths[0]
++            if binary_path:
++                entry = ensure_entry(binary_path)
++                entry["binary"] = True
++            continue
++        match = HUNK_RE.match(raw)
++        if match:
++            if current is None and new_path:
++                current = ensure_entry(new_path)
++            new_line = int(match.group("new"))
++            old_line = int(match.group("old"))
++            continue
++        if current is None or new_line is None:
++            continue
++        if raw.startswith("+"):
++            current["added_lines"].add(new_line)
++            new_line += 1
++        elif raw.startswith("-"):
++            if old_line is not None:
++                current["deleted_lines"].add(old_line)
++                old_line += 1
++        elif raw.startswith("\\ No newline at end of file"):
++            continue
++        else:
++            new_line += 1
++            if old_line is not None:
++                old_line += 1
++
++    files: list[dict] = []
++    for path, item in sorted(entries.items()):
++        if not path:
++            diagnostics.append("ignored diff entry without a final path")
++            continue
++        files.append({
++            "path": path,
++            "old_path": item["old_path"],
++            "added_lines": sorted(item["added_lines"]),
++            "deleted_lines": sorted(line for line in item["deleted_lines"] if line),
++            "binary": bool(item["binary"]),
++        })
++    return {"schema_version": 1, "files": files, "diagnostics": diagnostics}
++
++
++class PathMapper:
++    """Map LCOV ``SF:`` values to validated repository-relative paths.
++
++    Ported from ``analysis.PathMapper``. A path is accepted only when it
++    resolves to an existing source file in the repository, avoiding unsafe
++    string truncation of arbitrary paths containing ``/tensorflow/``.
++    """
++
++    def __init__(self, source_root: Path, *, repository_root: Path | None = None):
++        self.source_root = source_root.resolve()
++        self.repository_root = repository_root.resolve() if repository_root else None
++
++    def _relative_if_source(self, candidate: Path) -> str | None:
++        try:
++            relative = candidate.resolve().relative_to(self.source_root)
++        except ValueError:
++            return None
++        if candidate.is_file():
++            return relative.as_posix()
++        return None
++
++    def normalize(self, source: str) -> str | None:
++        raw = source.strip().replace("\\", "/")
++        if not raw:
++            return None
++        source_path = Path(raw)
++        if source_path.is_absolute():
++            mapped = self._relative_if_source(source_path)
++            if mapped:
++                return mapped
++            if self.repository_root:
++                try:
++                    relative = source_path.resolve().relative_to(self.repository_root)
++                    candidate = self.source_root / relative
++                    if candidate.is_file():
++                        return relative.as_posix()
++                except ValueError:
++                    pass
++            pieces = source_path.parts
++            if "execroot" in pieces:
++                index = pieces.index("execroot")
++                if len(pieces) > index + 2:
++                    relative = Path(*pieces[index + 2:])
++                    candidate = self.source_root / relative
++                    if candidate.is_file():
++                        return relative.as_posix()
++            for marker, root in (
++                ("/external/local_tsl/tsl/", "third_party/xla/third_party/tsl/tsl"),
++                ("/external/local_xla/", "third_party/xla"),
++            ):
++                if marker in raw:
++                    relative = Path(root) / raw.split(marker, 1)[1]
++                    mapped = self._relative_if_source(self.source_root / relative)
++                    if mapped:
++                        return mapped
++            return None
++
++        relative = Path(raw.lstrip("./"))
++        candidate = self.source_root / relative
++        if candidate.is_file():
++            return relative.as_posix()
++        for prefix, root in (
++            ("external/local_tsl/", "third_party/xla/third_party/tsl"),
++            ("external/local_xla/", "third_party/xla"),
++        ):
++            if raw.startswith(prefix):
++                mapped = self._relative_if_source(self.source_root / root / raw.removeprefix(prefix))
++                if mapped:
++                    return mapped
++        return None
++
++
++def parse_lcov_file(path: Path, *, mapper: PathMapper) -> dict:
++    """Read an LCOV file and merge duplicate source records by line hit count.
++
++    Ported from ``analysis.parse_lcov_file``.
++    """
++    records: dict[str, dict[int, int]] = {}
++    diagnostics: list[dict] = []
++    source: str | None = None
++    counts: dict[int, int] = {}
++    source_line = 0
++
++    def flush() -> None:
++        nonlocal source, counts
++        if source is None:
++            counts = {}
++            return
++        normalized = mapper.normalize(source)
++        if normalized is None:
++            diagnostics.append({"kind": "unmapped_source", "source": source, "report": str(path)})
++        else:
++            target = records.setdefault(normalized, {})
++            for line, hits in counts.items():
++                target[line] = target.get(line, 0) + hits
++        source = None
++        counts = {}
++
++    try:
++        stream = path.open("r", encoding="utf-8", errors="replace")
++    except OSError as error:
++        raise CoverageToolError(f"cannot read LCOV file {path}: {error}") from error
++    with stream:
++        for source_line, raw in enumerate(stream, 1):
++            line = raw.rstrip("\n")
++            if line.startswith("SF:"):
++                flush()
++                source = line[3:]
++                counts = {}
++            elif line.startswith("DA:"):
++                if source is None:
++                    diagnostics.append({"kind": "orphan_da", "line": source_line, "report": str(path)})
++                    continue
++                pieces = line[3:].split(",", 2)
++                if len(pieces) < 2:
++                    diagnostics.append({"kind": "invalid_da", "line": source_line, "report": str(path)})
++                    continue
++                try:
++                    number = int(pieces[0])
++                    hits = int(pieces[1])
++                    if number <= 0 or hits < 0:
++                        raise ValueError
++                except ValueError:
++                    diagnostics.append({"kind": "invalid_da", "line": source_line, "report": str(path)})
++                    continue
++                counts[number] = counts.get(number, 0) + hits
++            elif line == "end_of_record":
++                flush()
++    flush()
++    return {
++        "schema_version": 1,
++        "records": {key: dict(sorted(value.items())) for key, value in sorted(records.items())},
++        "diagnostics": diagnostics,
++        "inputs": [str(path)],
++    }
++
++
++def merge_lcov_data(reports: Iterable[Mapping]) -> dict:
++    """Merge several parsed LCOV reports, summing hit counts per line."""
++    records: dict[str, dict[int, int]] = {}
++    diagnostics: list[dict] = []
++    inputs: list[str] = []
++    for report in reports:
++        inputs.extend(str(item) for item in report.get("inputs", []))
++        diagnostics.extend(dict(item) for item in report.get("diagnostics", []))
++        for path, counts in report.get("records", {}).items():
++            target = records.setdefault(str(path), {})
++            for number, hits in counts.items():
++                line = int(number)
++                target[line] = target.get(line, 0) + int(hits)
++    return {
++        "schema_version": 1,
++        "records": {path: dict(sorted(counts.items())) for path, counts in sorted(records.items())},
++        "diagnostics": diagnostics,
++        "inputs": inputs,
++    }
++
++
++def load_and_merge_lcov(
++    paths: Iterable[Path], *, source_root: Path, repository_root: Path | None = None
++) -> dict:
++    mapper = PathMapper(source_root, repository_root=repository_root)
++    return merge_lcov_data(parse_lcov_file(path, mapper=mapper) for path in paths)
++
++
++def _non_executable_lines(lines: Sequence[str]) -> dict[int, str]:
++    """Return only lines that are definitely blank/comment/preprocessor lines.
++
++    Anything remotely ambiguous stays absent so missing LCOV data becomes
++    ``unknown`` instead of being silently removed from the denominator.
++    """
++    result: dict[int, str] = {}
++    in_block_comment = False
++    for number, line in enumerate(lines, 1):
++        stripped = line.strip()
++        if not stripped:
++            result[number] = "blank"
++            continue
++        if not in_block_comment and line.lstrip().startswith("#"):
++            result[number] = "preprocessor"
++            continue
++
++        visible: list[str] = []
++        saw_comment = False
++        index = 0
++        string_delimiter: str | None = None
++        while index < len(line):
++            if in_block_comment:
++                saw_comment = True
++                close = line.find("*/", index)
++                if close < 0:
++                    index = len(line)
++                    break
++                in_block_comment = False
++                index = close + 2
++                continue
++            if string_delimiter:
++                visible.append("x")
++                break
++            if line.startswith("//", index):
++                saw_comment = True
++                break
++            if line.startswith("/*", index):
++                in_block_comment = True
++                saw_comment = True
++                index += 2
++                continue
++            char = line[index]
++            if char in {'"', "'"}:
++                string_delimiter = char
++                visible.append("x")
++                break
++            if not char.isspace():
++                visible.append(char)
++            index += 1
++        if not visible and saw_comment:
++            result[number] = "comment"
++    return result
++
++
++def _state_counts(lines: Iterable[Mapping]) -> dict[str, int]:
++    counts: dict[str, int] = defaultdict(int)
++    for item in lines:
++        counts[str(item["state"])] += 1
++    return dict(sorted(counts.items()))
++
++
++def _rate(covered: int, executable: int) -> float | None:
++    return None if not executable else round(covered * 100.0 / executable, 4)
++
++
++def _directory_summaries(files: Sequence[Mapping]) -> list[dict]:
++    """Roll up filtered files once per ancestor, including repository root (.).
++
++    Ported from ``analysis._directory_summaries``. A directory total includes
++    all files in its subdirectories; parent and child rows overlap and must
++    not be added together.
++    """
++    directories: dict[str, dict] = {}
++    for file_data in files:
++        for directory in PurePosixPath(str(file_data["path"])).parents:
++            path = directory.as_posix()
++            item = directories.setdefault(path, {
++                "path": path,
++                "parent": None if path == "." else directory.parent.as_posix(),
++                "changed_files": 0,
++                "changed_lines": 0,
++                "counts": {},
++            })
++            item["changed_files"] += 1
++            item["changed_lines"] += file_data["added_lines"]
++            for state, count in file_data["counts"].items():
++                item["counts"][state] = item["counts"].get(state, 0) + count
++
++    results = []
++    for path in sorted(directories, key=lambda value: PurePosixPath(value).parts):
++        item = directories[path]
++        counts = dict(sorted(item["counts"].items()))
++        covered = counts.get("covered", 0)
++        uncovered = counts.get("uncovered", 0)
++        unknown = counts.get("unknown", 0)
++        executable = covered + uncovered
++        item.update({
++            "counts": counts,
++            "covered_lines": covered,
++            "uncovered_lines": uncovered,
++            "executable_lines": executable,
++            "unmeasured_lines": unknown,
++            "coverage_complete": unknown == 0,
++            "coverage_rate": _rate(covered, executable),
++            "denominator_reason": (
++                None if executable else
++                "no LCOV line data for the changed lines in this directory" if unknown else
++                "no executable changed lines in this directory for the selected configuration"
++            ),
++        })
++        results.append(item)
++    return results
++
++
++def analyze_incremental_coverage(
++    changes: Mapping,
++    lcov: Mapping,
++    *,
++    source_root: Path,
++    exclude_patterns: Sequence[str] = (),
++) -> dict:
++    """Classify every final-side changed line using explicit LCOV semantics.
++
++    Ported from ``analysis.analyze_incremental_coverage``. Coverage is
++    ``covered / (covered + uncovered)``, i.e. over changed lines that have an
++    LCOV ``DA`` record. Blank/comment/preprocessor lines are ``non_executable``
++    and lines whose executable status cannot be confirmed are ``unknown``;
++    neither is silently folded into the denominator.
++    """
++    source_root = source_root.resolve()
++    records = {
++        str(path): {int(number): int(hits) for number, hits in counts.items()}
++        for path, counts in lcov.get("records", {}).items()
++    }
++    output_files: list[dict] = []
++    excluded_files: list[dict] = []
++
++    for change in sorted(changes.get("files", []), key=lambda item: str(item["path"])):
++        path = str(change["path"]).replace("\\", "/").lstrip("./")
++        excluded, matched_rule = is_excluded(path, exclude_patterns)
++        if excluded or not is_cpp_source(path) or bool(change.get("binary")):
++            reason = (
++                f"matched exclusion rule {matched_rule!r}" if excluded else
++                "outside C/C++ coverage scope" if not is_cpp_source(path) else
++                "binary file"
++            )
++            excluded_files.append({"path": path, "reason": reason})
++            continue
++
++        added = sorted({int(number) for number in change.get("added_lines", [])})
++        source_path = source_root / path
++        source_lines: list[str] | None = None
++        source_error: str | None = None
++        if source_path.is_file():
++            try:
++                source_lines = source_path.read_text(encoding="utf-8", errors="replace").splitlines()
++            except OSError as error:
++                source_error = str(error)
++        else:
++            source_error = "source file is unavailable in the repository"
++
++        non_executable = _non_executable_lines(source_lines or [])
++        coverage_lines = records.get(path, {})
++        classified: list[dict] = []
++        for number in added:
++            item: dict = {"line": number, "hits": None}
++            if number in coverage_lines:
++                hits = coverage_lines[number]
++                item.update({"state": "covered" if hits > 0 else "uncovered", "hits": hits})
++            elif number in non_executable:
++                item.update({"state": "non_executable", "reason": non_executable[number]})
++            else:
++                reason = source_error or (
++                    "source file has no LCOV record" if path not in records else "line has no LCOV DA record"
++                )
++                item.update({"state": "unknown", "reason": reason})
++            classified.append(item)
++
++        counts = _state_counts(classified)
++        executable = counts.get("covered", 0) + counts.get("uncovered", 0)
++        output_files.append({
++            "path": path,
++            "added_lines": len(added),
++            "line_results": classified,
++            "counts": counts,
++            "executable_lines": executable,
++            "covered_lines": counts.get("covered", 0),
++            "uncovered_lines": counts.get("uncovered", 0),
++            "unmeasured_lines": counts.get("unknown", 0),
++            "coverage_complete": counts.get("unknown", 0) == 0,
++            "coverage_rate": _rate(counts.get("covered", 0), executable),
++        })
++
++    all_lines = [line for file_data in output_files for line in file_data["line_results"]]
++    counts = _state_counts(all_lines)
++    executable = counts.get("covered", 0) + counts.get("uncovered", 0)
++    summary = {
++        "changed_files": len(output_files),
++        "changed_lines": len(all_lines),
++        "counts": counts,
++        "executable_lines": executable,
++        "covered_lines": counts.get("covered", 0),
++        "uncovered_lines": counts.get("uncovered", 0),
++        "unmeasured_lines": counts.get("unknown", 0),
++        "coverage_rate": _rate(counts.get("covered", 0), executable),
++        "coverage_complete": counts.get("unknown", 0) == 0,
++    }
++    return {
++        "schema_version": 1,
++        "summary": summary,
++        "files": output_files,
++        "directories": _directory_summaries(output_files),
++        "exclude_patterns": list(exclude_patterns),
++        "excluded_files": excluded_files,
++        "lcov_diagnostics": list(lcov.get("diagnostics", [])),
++        "lcov_inputs": list(lcov.get("inputs", [])),
++    }
++
++
++class IncrementalCoverageAnalyzer:
++    """Analyze incremental coverage for git changes."""
++
++    def __init__(self, repo_root: Path):
++        self.repo_root = repo_root
++
++    def _git_diff(self, args: Sequence[str]) -> dict:
++        try:
++            result = subprocess.run(
++                list(args), cwd=self.repo_root, capture_output=True, text=True, check=True
++            )
++        except subprocess.CalledProcessError as e:
++            raise RuntimeError(f"Failed to get diff: {e.stderr}")
++        return parse_unified_diff(result.stdout)
++
++    def analyze_patch_coverage(
++        self, patch_file: Path, lcov_files: Sequence[Path]
++    ) -> dict:
++        """Analyze coverage for a patch file."""
++        if not patch_file.exists():
++            raise FileNotFoundError(f"Patch file not found: {patch_file}")
++        return self._analyze(parse_unified_diff(patch_file), lcov_files)
++
++    def diff_files(self, base_ref: str, target_ref: str) -> list[dict]:
++        """Return the changed-file list for ``base_ref..target_ref``."""
++        return self._git_diff(["git", "diff", base_ref, target_ref, "--unified=0"])["files"]
++
++    def commit_files(self, commit_ref: str) -> list[dict]:
++        """Return the changed-file list introduced by ``commit_ref``."""
++        return self._git_diff(["git", "show", commit_ref, "--unified=0"])["files"]
++
++    def analyze_commit_coverage(
++        self, commit_ref: str, lcov_files: Sequence[Path]
++    ) -> dict:
++        """Analyze coverage for a git commit."""
++        diff = self._git_diff(["git", "show", commit_ref, "--unified=0"])
++        return self._analyze(diff, lcov_files)
++
++    def analyze_diff_coverage(
++        self, base_ref: str, target_ref: str, lcov_files: Sequence[Path]
++    ) -> dict:
++        """Analyze coverage for a git diff."""
++        diff = self._git_diff(["git", "diff", base_ref, target_ref, "--unified=0"])
++        return self._analyze(diff, lcov_files)
++
++    def _analyze(self, diff: Mapping, lcov_files: Sequence[Path]) -> dict:
++        lcov = load_and_merge_lcov(list(lcov_files), source_root=self.repo_root)
++        return analyze_incremental_coverage(
++            diff,
++            lcov,
++            source_root=self.repo_root,
++            exclude_patterns=list(DEFAULT_EXCLUDES),
++        )
+diff --git a/tools/coverage_test/common/render.py b/tools/coverage_test/common/render.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..33ac0329bc834237aacdc954509add7847b35ad1
+--- /dev/null
++++ b/tools/coverage_test/common/render.py
+@@ -0,0 +1,469 @@
++#!/usr/bin/env python3
++"""Generate CSV and fully offline HTML incremental coverage reports.
++
++Ported from ``tools/incremental_coverage/report.py`` in the
++``dev_2.15.0_gtest`` branch, adapted to this tool's data model: the coverage
++input is the analysis result of ``common.coverage.analyze_incremental_coverage``
++(which already carries per-line states and directory rollups) and the
++execution table comes from the serialized ``TestResult`` dicts instead of the
++branch's per-scenario execution archives.
++
++Outputs, relative to the feature result directory:
++``html/index.html`` (repository coverage tree + test executions + diagnostics),
++``html/directories/<...>.html`` (per-directory rollups), ``html/files/<...>.html``
++(per-file changed-line detail), and the CSVs ``incremental_coverage.csv`` /
++``file_coverage.csv`` / ``directory_coverage.csv``.
++"""
++
++from __future__ import annotations
++
++import csv
++import html
++import os
++import re
++from collections import defaultdict
++from datetime import datetime, timezone
++from pathlib import Path, PurePosixPath
++from typing import Any, Mapping, Sequence
++
++
++def _safe_component(value: str) -> str:
++    value = re.sub(r"[^A-Za-z0-9_.-]+", "-", value).strip(".-")
++    return value or "item"
++
++
++def _link(from_path: Path, target: Path) -> str:
++    return os.path.relpath(target, from_path.parent).replace(os.sep, "/")
++
++
++def _format_rate(value: float | None) -> str:
++    return "N/A" if value is None else f"{value:.2f}%"
++
++
++def _state_css(state: str | None) -> str:
++    return {
++        "covered": "covered",
++        "uncovered": "uncovered",
++        "unknown": "unknown",
++        "non_executable": "neutral",
++        "excluded": "neutral",
++    }.get(state or "", "")
++
++
++CSS = """
++:root { color-scheme: light; --ink:#1f2933; --muted:#52616b; --line:#d5dde3; --panel:#fff; --page:#f4f7f8; --good:#d8f3dc; --bad:#ffe0df; --warn:#fff1bc; --neutral:#e7edf0; }
++* { box-sizing:border-box; } body { margin:0; background:var(--page); color:var(--ink); font:14px/1.45 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
++header { background:#18323f; color:#fff; padding:22px max(20px, calc((100vw - 1460px) / 2)); } header h1 { margin:0 0 8px; font-size:24px; font-weight:650; letter-spacing:0; } header p { margin:0; color:#d9e5e9; }
++main { max-width:1460px; margin:0 auto; padding:20px; } h2 { font-size:17px; margin:26px 0 10px; } h3 { font-size:14px; margin:0 0 8px; } a { color:#075f7a; } .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; margin:16px 0; }
++.metric,.panel { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:14px; } .metric b { font-size:20px; display:block; } .metric span { color:var(--muted); font-size:12px; }.panel { margin:10px 0; overflow:auto; }
++table { width:100%; border-collapse:collapse; } th,td { padding:7px 9px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; } th { background:#edf2f4; font-size:12px; } td.path { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
++.status { display:inline-block; padding:1px 6px; border-radius:3px; font-size:12px; font-weight:600; background:var(--neutral); } .covered { background:var(--good); } .uncovered { background:var(--bad); } .unknown { background:var(--warn); } .neutral { background:var(--neutral); }
++.note { color:var(--muted); } .warning { border-left:4px solid #d79500; padding:9px 12px; background:#fff7dc; }
++.source { font:12px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace; table-layout:fixed; } .source .number { width:64px; text-align:right; color:var(--muted); } .source .marker { width:26px; text-align:center; font-weight:bold; } .source .hits { width:70px; text-align:right; } .source .state { width:145px; font:11px system-ui,sans-serif; font-weight:600; } .source pre { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; }
++.source tr.covered td { background:var(--good); }.source tr.uncovered td { background:var(--bad); }.source tr.unknown td { background:var(--warn); }.source tr.neutral td { background:var(--neutral); }
++code { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; } .foot { margin:28px 0 6px; color:var(--muted); font-size:12px; }
++.coverage-tree { min-width:940px; } .tree-row { display:grid; grid-template-columns:minmax(310px,1fr) 115px 155px 85px 85px 85px 65px; border-bottom:1px solid var(--line); align-items:start; }
++.tree-row > span { padding:7px 9px; } .tree-header { background:#edf2f4; font-size:12px; font-weight:600; } .tree-row .tree-name { padding-left:calc(9px + var(--depth, 0) * 18px); font-family:ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
++summary.tree-row { list-style:none; cursor:pointer; background:#f6f9fa; } summary.tree-row::-webkit-details-marker { display:none; } .tree-name::before { content:""; display:inline-block; width:18px; } summary.tree-row .tree-name::before { content:"\\25b6"; } details[open] > summary.tree-row .tree-name::before { content:"\\25bc"; }
++"""
++
++
++def _utc_now() -> str:
++    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
++
++
++def _page(title: str, body: str, *, subtitle: str = "") -> str:
++    return (
++        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
++        f"<title>{html.escape(title)}</title><style>{CSS}</style></head><body>"
++        f"<header><h1>{html.escape(title)}</h1><p>{html.escape(subtitle)}</p></header>"
++        f"<main>{body}<p class=\"foot\">Generated {_utc_now()}. This report is self-contained and can be opened directly from disk.</p></main>"
++        "</body></html>"
++    )
++
++
++def _write_line_csv(path: Path, coverage: Mapping[str, Any]) -> None:
++    path.parent.mkdir(parents=True, exist_ok=True)
++    with path.open("w", newline="", encoding="utf-8") as handle:
++        writer = csv.DictWriter(handle, fieldnames=["path", "line", "state", "hits", "reason"])
++        writer.writeheader()
++        for file_data in coverage.get("files", []):
++            for line in file_data.get("line_results", []):
++                writer.writerow({
++                    "path": file_data["path"],
++                    "line": line["line"],
++                    "state": line["state"],
++                    "hits": "" if line.get("hits") is None else line["hits"],
++                    "reason": line.get("reason", ""),
++                })
++
++
++def _write_file_summary_csv(path: Path, coverage: Mapping[str, Any]) -> None:
++    fields = [
++        "path", "added_lines", "covered_lines", "uncovered_lines", "executable_lines",
++        "coverage_rate", "unmeasured_lines", "coverage_complete",
++    ]
++    with path.open("w", newline="", encoding="utf-8") as handle:
++        writer = csv.DictWriter(handle, fieldnames=fields)
++        writer.writeheader()
++        for item in coverage.get("files", []):
++            writer.writerow({field: item.get(field) for field in fields})
++
++
++def _write_directory_summary_csv(path: Path, coverage: Mapping[str, Any]) -> None:
++    fields = [
++        "path", "parent", "changed_files", "changed_lines", "covered_lines", "uncovered_lines",
++        "executable_lines", "coverage_rate", "unmeasured_lines", "coverage_complete", "denominator_reason",
++    ]
++    with path.open("w", newline="", encoding="utf-8") as handle:
++        writer = csv.DictWriter(handle, fieldnames=fields)
++        writer.writeheader()
++        for item in coverage.get("directories", []):
++            writer.writerow({field: item.get(field) for field in fields})
++
++
++def _coverage_note(data: Mapping[str, Any]) -> str:
++    if data.get("denominator_reason"):
++        return str(data["denominator_reason"])
++    unknown = data.get("counts", {}).get("unknown", 0)
++    if unknown:
++        return f"Partial data: {unknown} changed lines have no coverage record."
++    return "All changed lines have a confirmed state."
++
++
++def _coverage_pages(
++    html_dir: Path, category: str, items: Sequence[Mapping[str, Any]],
++) -> dict[str, Path]:
++    return {
++        str(item["path"]): html_dir / category / f"{index:04d}-{_safe_component(str(item['path']))}.html"
++        for index, item in enumerate(items)
++    }
++
++
++def _breadcrumbs(
++    destination: Path, index_path: Path, directory: str, directory_pages: Mapping[str, Path],
++) -> str:
++    links = [f'<a href="{html.escape(_link(destination, index_path))}">Back to overview</a>']
++    current = PurePosixPath(directory)
++    for parent in [*reversed(current.parents), current]:
++        path = parent.as_posix()
++        label = "Repository root" if path == "." else parent.name
++        links.append(
++            f'<a href="{html.escape(_link(destination, directory_pages[path]))}">{html.escape(label)}</a>'
++        )
++    return '<nav aria-label="Source directories">' + " / ".join(links) + "</nav>"
++
++
++def _file_page(
++    *,
++    destination: Path,
++    index_path: Path,
++    source_root: Path,
++    file_data: Mapping[str, Any],
++    directory_pages: Mapping[str, Path],
++) -> None:
++    path = str(file_data["path"])
++    source_path = source_root / path
++    try:
++        source_lines = source_path.read_text(encoding="utf-8", errors="replace").splitlines()
++    except OSError:
++        source_lines = []
++    line_results = {int(item["line"]): item for item in file_data.get("line_results", [])}
++    rows: list[str] = []
++    if not source_lines:
++        rows.append("<tr><td colspan=5>Source is unavailable in this checkout.</td></tr>")
++    for number, source in enumerate(source_lines, 1):
++        result = line_results.get(number)
++        state = str(result.get("state")) if result else ""
++        marker = "+" if result else ""
++        status = state.replace("_", " ") if result else ""
++        reason = str(result.get("reason", "")) if result else ""
++        hits = "" if not result or result.get("hits") is None else str(result["hits"])
++        label = html.escape(status + (f": {reason}" if reason else ""))
++        rows.append(
++            f"<tr id=\"L{number}\" class=\"{_state_css(state)}\"><td class=\"number\">{number}</td>"
++            f"<td class=\"marker\">{marker}</td><td class=\"state\">{label}</td><td class=\"hits\">{hits}</td>"
++            f"<td><pre>{html.escape(source)}</pre></td></tr>"
++        )
++    counts = file_data.get("counts", {})
++    body = (
++        _breadcrumbs(destination, index_path, PurePosixPath(path).parent.as_posix(), directory_pages) +
++        "<div class=\"metrics\">"
++        f"<div class=\"metric\"><b>{_format_rate(file_data.get('coverage_rate'))}</b><span>File incremental line coverage</span></div>"
++        f"<div class=\"metric\"><b>{file_data.get('covered_lines', 0)} / {file_data.get('executable_lines', 0)}</b><span>Covered / executable changed lines</span></div>"
++        f"<div class=\"metric\"><b>{counts.get('uncovered', 0)}</b><span>Uncovered changed lines</span></div>"
++        f"<div class=\"metric\"><b>{counts.get('unknown', 0)}</b><span>Unknown changed lines</span></div></div>"
++        f"<p class=\"note\">{html.escape(_coverage_note(file_data))}</p>"
++        "<p class=\"note\">Coverage = covered executable changed lines / all confirmed executable changed lines. "
++        "Only changed lines count toward this percentage; unknown lines are reported separately.</p>"
++        "<p><span class=\"status covered\">+ Covered</span> <span class=\"status uncovered\">+ Uncovered</span> "
++        "<span class=\"status unknown\">+ Unknown</span> <span class=\"status neutral\">+ Non-executable</span></p>"
++        f"<div class=\"panel\"><h2>{html.escape(path)}</h2>"
++        "<table class=\"source\"><thead><tr><th>Line</th><th>New</th><th>Status</th><th>Hits</th><th>Source</th>"
++        f"</tr></thead><tbody>{''.join(rows)}</tbody></table></div>"
++    )
++    destination.parent.mkdir(parents=True, exist_ok=True)
++    destination.write_text(_page(f"Incremental Coverage: {path}", body, subtitle="Changed source line detail"), encoding="utf-8")
++
++
++def _coverage_table(
++    files: Sequence[Mapping[str, Any]], page_path: Path, file_pages: Mapping[str, Path],
++) -> str:
++    rows: list[str] = []
++    for file_data in files:
++        path = str(file_data["path"])
++        href = html.escape(_link(page_path, file_pages[path]))
++        state_counts = file_data.get("counts", {})
++        rows.append(
++            "<tr>"
++            f"<td class=\"path\"><a href=\"{href}\">{html.escape(path)}</a></td>"
++            f"<td><b>{_format_rate(file_data.get('coverage_rate'))}</b>"
++            f"<div class=\"note\">{html.escape(_coverage_note(file_data))}</div></td>"
++            f"<td>{file_data.get('covered_lines', 0)} / {file_data.get('executable_lines', 0)}</td>"
++            f"<td>{state_counts.get('uncovered', 0)}</td><td>{state_counts.get('unknown', 0)}</td>"
++            f"<td>{file_data.get('added_lines', 0)}</td></tr>"
++        )
++    return (
++        "<div class=\"panel\"><table id=\"file-coverage\"><thead><tr><th>C/C++ file</th><th>Incremental coverage</th>"
++        "<th>Covered / executable changed lines</th><th>Uncovered</th><th>Unknown</th><th>Changed</th></tr></thead>"
++        f"<tbody>{''.join(rows) or '<tr><td colspan=6>No C/C++ files in this list.</td></tr>'}</tbody></table></div>"
++    )
++
++
++def _directory_table(
++    directories: Sequence[Mapping[str, Any]], page_path: Path, directory_pages: Mapping[str, Path],
++) -> str:
++    rows = []
++    for item in directories:
++        path = str(item["path"])
++        label = "./ (repository total)" if path == "." else path + "/"
++        href = html.escape(_link(page_path, directory_pages[path]))
++        rows.append(
++            "<tr>"
++            f'<td class="path"><a href="{href}">{html.escape(label)}</a></td>'
++            f"<td>{item['changed_files']}</td><td><b>{_format_rate(item['coverage_rate'])}</b>"
++            f'<div class="note">{html.escape(_coverage_note(item))}</div></td>'
++            f"<td>{item['covered_lines']} / {item['executable_lines']}</td>"
++            f"<td>{item['uncovered_lines']}</td><td>{item['unmeasured_lines']}</td>"
++            f"<td>{item['changed_lines']}</td></tr>"
++        )
++    return (
++        '<div class="panel"><table id="directory-coverage"><thead><tr><th>Directory</th><th>Files</th>'
++        "<th>Incremental coverage</th><th>Covered / executable changed lines</th>"
++        "<th>Uncovered</th><th>Unknown</th><th>Changed</th></tr></thead>"
++        f"<tbody>{''.join(rows) or '<tr><td colspan=7>No directories in this list.</td></tr>'}</tbody></table></div>"
++    )
++
++
++def _coverage_tree(
++    coverage: Mapping[str, Any], page_path: Path, file_pages: Mapping[str, Path],
++    directory_pages: Mapping[str, Path], *, root_label: str,
++) -> str:
++    directories = {item["path"]: item for item in coverage["directories"]}
++    if not directories:
++        return '<div class="panel">No C/C++ files remain after filtering.</div>'
++    children = defaultdict(list)
++    files = defaultdict(list)
++    for item in directories.values():
++        children[item["parent"]].append(item)
++    for item in coverage["files"]:
++        files[PurePosixPath(item["path"]).parent.as_posix()].append(item)
++
++    def row(item: Mapping[str, Any], depth: int, *, is_directory: bool) -> str:
++        path = str(item["path"])
++        name = (root_label if path == "." else PurePosixPath(path).name) + ("/" if is_directory else "")
++        pages = directory_pages if is_directory else file_pages
++        href = html.escape(_link(page_path, pages[path]))
++        tag = "summary" if is_directory else "div"
++        changed = item["changed_lines"] if is_directory else item["added_lines"]
++        file_count = item["changed_files"] if is_directory else 1
++        partial = '<br><small class="note">Partial data</small>' if not item["coverage_complete"] else ""
++        return (
++            f'<{tag} class="tree-row" style="--depth:{depth}">'
++            f'<span class="tree-name"><a href="{href}">{html.escape(name)}</a></span>'
++            f'<span title="{html.escape(_coverage_note(item))}"><b>{_format_rate(item["coverage_rate"])}</b>{partial}</span>'
++            f'<span>{item["covered_lines"]} / {item["executable_lines"]}</span>'
++            f'<span>{item["uncovered_lines"]}</span><span>{item["unmeasured_lines"]}</span>'
++            f'<span>{changed}</span><span>{file_count}</span></{tag}>'
++        )
++
++    def directory_node(item: Mapping[str, Any], depth: int) -> str:
++        path = str(item["path"])
++        content = "".join(directory_node(child, depth + 1) for child in children[path])
++        content += "".join(row(child, depth + 1, is_directory=False) for child in files[path])
++        return '<details open>' + row(item, depth, is_directory=True) + content + '</details>'
++
++    return (
++        '<div class="panel"><div class="coverage-tree" id="coverage-tree">'
++        '<div class="tree-row tree-header"><span>Directory / file</span><span>Incremental coverage</span>'
++        '<span>Covered / executable</span><span>Uncovered</span><span>Unknown</span><span>Changed</span><span>Files</span></div>'
++        + directory_node(directories["."], 0) + '</div></div>'
++    )
++
++
++def _directory_page(
++    *,
++    destination: Path,
++    index_path: Path,
++    directory: Mapping[str, Any],
++    subdirectories: Sequence[Mapping[str, Any]],
++    files: Sequence[Mapping[str, Any]],
++    directory_pages: Mapping[str, Path],
++    file_pages: Mapping[str, Path],
++) -> None:
++    path = str(directory["path"])
++    body = (
++        _breadcrumbs(destination, index_path, path, directory_pages) +
++        '<div class="metrics">'
++        f'<div class="metric"><b>{_format_rate(directory["coverage_rate"])}</b><span>Directory incremental line coverage</span></div>'
++        f'<div class="metric"><b>{directory["covered_lines"]} / {directory["executable_lines"]}</b><span>Covered / executable changed lines</span></div>'
++        f'<div class="metric"><b>{directory["changed_files"]}</b><span>C/C++ files, including subdirectories</span></div>'
++        f'<div class="metric"><b>{directory["uncovered_lines"]}</b><span>Uncovered changed lines</span></div>'
++        f'<div class="metric"><b>{directory["unmeasured_lines"]}</b><span>Unknown changed lines</span></div></div>'
++        f'<p class="note">{html.escape(_coverage_note(directory))}</p>'
++        '<p class="note">Totals include all nested subdirectories after filtering. '
++        "Coverage = total covered executable changed lines / total confirmed executable changed lines. "
++        "Unknown lines are listed separately; file percentages are not averaged.</p>"
++        "<h2>Subdirectories</h2>" + _directory_table(subdirectories, destination, directory_pages) +
++        "<h2>Files in this directory</h2>" + _coverage_table(files, destination, file_pages)
++    )
++    destination.parent.mkdir(parents=True, exist_ok=True)
++    destination.write_text(
++        _page(f"Directory Coverage: {path}/", body, subtitle="Incremental totals including all subdirectories"),
++        encoding="utf-8",
++    )
++
++
++def _execution_table(results: Sequence[Mapping[str, Any]], html_dir: Path) -> str:
++    rows: list[str] = []
++    for item in results:
++        status = "passed" if item.get("passed") else "failed"
++        coverage_file = item.get("coverage_file")
++        coverage_link = ""
++        if coverage_file and Path(coverage_file).is_file():
++            href = os.path.relpath(coverage_file, html_dir).replace(os.sep, "/")
++            coverage_link = f'<a href="{html.escape(href)}">coverage.info</a>'
++        rows.append(
++            "<tr>"
++            f"<td>{html.escape(str(item.get('target_id', '')))}</td>"
++            f"<td class=\"path\">{html.escape(str(item.get('target', '')))}</td>"
++            f"<td><span class=\"status {_state_css('covered' if item.get('passed') else 'uncovered')}\">{status}</span></td>"
++            f"<td>{item.get('cases_run', '')}</td><td>{item.get('cases_failed', '')}</td>"
++            f"<td>{item.get('duration', 0):.2f}</td>"
++            f"<td>{coverage_link}</td></tr>"
++        )
++    return (
++        "<div class=\"panel\"><table><thead><tr><th>Target</th><th>Bazel target</th><th>Status</th>"
++        "<th>Cases</th><th>Failed</th><th>Seconds</th><th>Coverage data</th></tr></thead>"
++        f"<tbody>{''.join(rows) or '<tr><td colspan=7>No test execution results.</td></tr>'}</tbody></table></div>"
++    )
++
++
++def generate_report(
++    *,
++    analysis: Mapping[str, Any],
++    results: Sequence[Mapping[str, Any]],
++    output_dir: Path,
++    source_root: Path,
++    exclude_patterns: Sequence[str] = (),
++    title: str = "TensorFlow Incremental Coverage",
++    subtitle: str = "Offline report for changed C/C++ production lines",
++) -> dict[str, Any]:
++    """Create the HTML tree, per-directory/per-file pages and CSVs."""
++
++    output_dir = output_dir.resolve()
++    source_root = source_root.resolve()
++    html_dir = output_dir / "html"
++    html_dir.mkdir(parents=True, exist_ok=True)
++    # html/files/ and html/directories/ are owned by this generator; remove
++    # stale pages from a previous report so renames/filters do not leave
++    # orphaned source pages behind.
++    for category in ("files", "directories"):
++        category_dir = html_dir / category
++        if category_dir.is_dir():
++            for stale in category_dir.glob("*.html"):
++                stale.unlink()
++
++    _write_line_csv(output_dir / "incremental_coverage.csv", analysis)
++    _write_file_summary_csv(output_dir / "file_coverage.csv", analysis)
++    _write_directory_summary_csv(output_dir / "directory_coverage.csv", analysis)
++
++    index_path = html_dir / "index.html"
++    file_pages = _coverage_pages(html_dir, "files", analysis["files"])
++    directory_pages = _coverage_pages(html_dir, "directories", analysis["directories"])
++    files_by_directory = defaultdict(list)
++    directories_by_parent = defaultdict(list)
++    for file_data in analysis["files"]:
++        files_by_directory[PurePosixPath(file_data["path"]).parent.as_posix()].append(file_data)
++        _file_page(
++            destination=file_pages[file_data["path"]],
++            index_path=index_path,
++            source_root=source_root,
++            file_data=file_data,
++            directory_pages=directory_pages,
++        )
++    for directory in analysis["directories"]:
++        directories_by_parent[directory["parent"]].append(directory)
++    for directory in analysis["directories"]:
++        _directory_page(
++            destination=directory_pages[directory["path"]],
++            index_path=index_path,
++            directory=directory,
++            subdirectories=directories_by_parent[directory["path"]],
++            files=files_by_directory[directory["path"]],
++            directory_pages=directory_pages,
++            file_pages=file_pages,
++        )
++
++    coverage_summary = analysis["summary"]
++    state_counts = coverage_summary.get("counts", {})
++    metrics = (
++        "<div class=\"metrics\">"
++        f"<div class=\"metric\"><b>{_format_rate(coverage_summary.get('coverage_rate'))}</b><span>incremental line coverage</span></div>"
++        f"<div class=\"metric\"><b>{coverage_summary.get('covered_lines', 0)} / {coverage_summary.get('executable_lines', 0)}</b><span>covered / confirmed executable</span></div>"
++        f"<div class=\"metric\"><b>{state_counts.get('unknown', 0)}</b><span>unknown changed lines</span></div>"
++        f"<div class=\"metric\"><b>{len(analysis.get('files', []))}</b><span>C/C++ files in coverage scope</span></div></div>"
++    )
++    completeness = (
++        "<div class=\"panel warning\">Coverage data is partial: one or more changed lines have no reliable LCOV DA record. "
++        "They are displayed as UNKNOWN and are not silently treated as non-executable.</div>"
++        if not coverage_summary.get("coverage_complete") else
++        "<div class=\"panel\">All included changed lines have a confirmed state for this report.</div>"
++    )
++    filtered = "".join(
++        f"<li><code>{html.escape(str(item['path']))}</code>: {html.escape(str(item['reason']))}</li>"
++        for item in analysis.get("excluded_files", [])
++    )
++    diagnostic_items = "".join(
++        f"<li>{html.escape(repr(item))}</li>"
++        for item in analysis.get("lcov_diagnostics", [])
++    )
++    body = (
++        f"{metrics}{completeness}"
++        "<h2>Repository Coverage Tree</h2><p class=\"note\">Expand or collapse directories with the arrows. "
++        "Click a directory name to browse it, or a file name to see its source coverage. "
++        "Each directory includes all files in its subdirectories, "
++        "after C/C++ and configured exclusions. Coverage = total covered / total confirmed executable changed lines. "
++        "Parent and child rows overlap; do not add them together.</p>"
++        + _coverage_tree(analysis, index_path, file_pages, directory_pages, root_label=source_root.name) +
++        "<details><summary>Coverage by File — flat list</summary><p class=\"note\">Only C/C++ sources and headers are included. "
++        "Script, build and configured test files are excluded. Click a file to see changed lines and coverage hits.</p>"
++        + _coverage_table(analysis["files"], index_path, file_pages) +
++        "</details><h2>Test Executions</h2>" + _execution_table(results, html_dir) +
++        "<h2>Filtering and Diagnostics</h2>"
++        f"<div class=\"panel\"><h3>Exclude patterns</h3><p>{html.escape(', '.join(exclude_patterns) or '(none)')}</p>"
++        f"<details><summary>Excluded files ({len(analysis.get('excluded_files', []))})</summary><ul>{filtered or '<li>None</li>'}</ul></details>"
++        f"<h3>LCOV diagnostics</h3><ul>{diagnostic_items or '<li>None</li>'}</ul></div>"
++        "<h2>Artifacts</h2><div class=\"panel\"><ul>"
++        "<li><a href=\"../report.json\">report.json</a></li>"
++        "<li><a href=\"../incremental_coverage.csv\">incremental_coverage.csv — per changed line</a></li>"
++        "<li><a href=\"../file_coverage.csv\">file_coverage.csv — coverage by file</a></li>"
++        "<li><a href=\"../directory_coverage.csv\">directory_coverage.csv — coverage by directory</a></li>"
++        "</ul></div>"
++    )
++    index_path.write_text(_page(title, body, subtitle=subtitle), encoding="utf-8")
++    return {
++        "html_index": str(index_path),
++        "file_pages": len(file_pages),
++        "directory_pages": len(directory_pages),
++    }
+diff --git a/tools/coverage_test/common/runner.py b/tools/coverage_test/common/runner.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..cb6d4cdee6a42e6ed6abb7470bae7e43b572e0ef
+--- /dev/null
++++ b/tools/coverage_test/common/runner.py
+@@ -0,0 +1,269 @@
++#!/usr/bin/env python3
++"""Test runner for gtest and benchmark targets with coverage support."""
++
++from __future__ import annotations
++
++import os
++import subprocess
++import time
++from dataclasses import dataclass
++from pathlib import Path
++from typing import Any
++
++
++@dataclass
++class TestResult:
++    """Result of running a single test target."""
++    target_id: str
++    target: str
++    kind: str
++    success: bool
++    duration: float
++    output: str
++    error: str = ""
++    cases_run: int = 0
++    cases_failed: int = 0
++    coverage_file: Path | None = None  # Path to lcov file if coverage enabled
++
++    @property
++    def passed(self) -> bool:
++        return self.success and self.cases_failed == 0
++
++
++class TestRunner:
++    """Execute test targets and collect results with optional coverage."""
++
++    def __init__(
++        self,
++        repository_root: Path,
++        bazel_bin: str = "bazel",
++        enable_coverage: bool = False,
++    ):
++        self.repository_root = repository_root
++        self.bazel_bin = bazel_bin
++        self.output_base = repository_root / "output"
++        self.enable_coverage = enable_coverage
++        self.coverage_output_dir = repository_root / "coverage_data"
++
++        if self.enable_coverage:
++            self.coverage_output_dir.mkdir(parents=True, exist_ok=True)
++
++    def build_target(
++        self,
++        target: str,
++        bazel_args: list[str] | None = None,
++    ) -> tuple[bool, str]:
++        """Build a single Bazel target with optional coverage instrumentation."""
++        args = bazel_args or []
++
++        # Add coverage flags if enabled
++        if self.enable_coverage:
++            coverage_args = [
++                "--collect_code_coverage",
++                "--instrumentation_filter=//tensorflow/...,//third_party/...",
++                "--combined_report=lcov",
++            ]
++            args = coverage_args + args
++
++        cmd = [
++            self.bazel_bin,
++            "--batch",
++            f"--output_base={self.output_base}",
++            "build" if not self.enable_coverage else "coverage",
++        ] + args + [target]
++
++        print(f"Building: {target}")
++        if self.enable_coverage:
++            print("Coverage collection enabled")
++        print(f"Command: {' '.join(cmd)}")
++
++        try:
++            result = subprocess.run(
++                cmd,
++                cwd=self.repository_root,
++                capture_output=True,
++                text=True,
++                timeout=1800,  # 30 minutes
++            )
++            return result.returncode == 0, result.stdout + result.stderr
++        except subprocess.TimeoutExpired:
++            return False, "Build timeout (30 minutes)"
++        except Exception as e:
++            return False, f"Build error: {e}"
++
++    def find_test_binary(self, target: str) -> Path | None:
++        """Find the compiled test binary."""
++        # Extract binary name from target
++        # //tensorflow/core/kernels:test_name -> test_name
++        target_name = target.split(":")[-1]
++
++        # Search in common Bazel output paths
++        search_paths = [
++            self.output_base / "execroot" / "*" / "bazel-out" / "*" / "bin",
++        ]
++
++        import glob
++        for pattern in search_paths:
++            for base_path in glob.glob(str(pattern)):
++                # Recursively search for the binary
++                for root, _, files in os.walk(base_path):
++                    if target_name in files:
++                        binary_path = Path(root) / target_name
++                        if binary_path.is_file() and os.access(binary_path, os.X_OK):
++                            return binary_path
++
++        return None
++
++    def run_gtest(
++        self,
++        target_id: str,
++        target: str,
++        binary_path: Path,
++        gtest_filter: str = "*",
++        env: dict[str, str] | None = None,
++    ) -> TestResult:
++        """Run a gtest binary and optionally collect coverage."""
++        start_time = time.time()
++
++        test_env = os.environ.copy()
++        if env:
++            test_env.update(env)
++
++        # Add required test directories
++        test_tmpdir = self.repository_root / "test_tmp"
++        test_tmpdir.mkdir(exist_ok=True)
++        test_env["TEST_TMPDIR"] = str(test_tmpdir)
++        test_env["TMPDIR"] = str(test_tmpdir)
++
++        cmd = [str(binary_path), f"--gtest_filter={gtest_filter}"]
++
++        print(f"Running gtest: {target_id}")
++        print(f"Command: {' '.join(cmd)}")
++
++        coverage_file = None
++
++        try:
++            result = subprocess.run(
++                cmd,
++                cwd=self.repository_root,
++                capture_output=True,
++                text=True,
++                env=test_env,
++                timeout=600,  # 10 minutes
++            )
++
++            duration = time.time() - start_time
++            output = result.stdout
++
++            # Collect coverage data if enabled
++            if self.enable_coverage:
++                coverage_file = self._collect_coverage_data(target_id, target)
++
++            # Parse gtest output
++            cases_run = 0
++            cases_failed = 0
++            for line in output.split("\n"):
++                if " tests from " in line or " test from " in line:
++                    # [==========] Running 10 tests from 2 test suites.
++                    parts = line.split()
++                    if "Running" in parts:
++                        idx = parts.index("Running")
++                        if idx + 1 < len(parts):
++                            try:
++                                cases_run = int(parts[idx + 1])
++                            except ValueError:
++                                pass
++                elif "[  FAILED  ]" in line and " tests" in line:
++                    # [  FAILED  ] 2 tests
++                    parts = line.split()
++                    for i, part in enumerate(parts):
++                        if part == "FAILED" and i + 2 < len(parts):
++                            try:
++                                cases_failed = int(parts[i + 2])
++                            except ValueError:
++                                pass
++
++            return TestResult(
++                target_id=target_id,
++                target=target,
++                kind="gtest",
++                success=result.returncode == 0,
++                duration=duration,
++                output=output,
++                error=result.stderr,
++                cases_run=cases_run,
++                cases_failed=cases_failed,
++                coverage_file=coverage_file,
++            )
++
++        except subprocess.TimeoutExpired:
++            duration = time.time() - start_time
++            return TestResult(
++                target_id=target_id,
++                target=target,
++                kind="gtest",
++                success=False,
++                duration=duration,
++                output="",
++                error="Test timeout (10 minutes)",
++                coverage_file=coverage_file,
++            )
++        except Exception as e:
++            duration = time.time() - start_time
++            return TestResult(
++                target_id=target_id,
++                target=target,
++                kind="gtest",
++                success=False,
++                duration=duration,
++                output="",
++                error=f"Test execution error: {e}",
++                coverage_file=coverage_file,
++            )
++
++    def _collect_coverage_data(self, target_id: str, target: str) -> Path | None:
++        """Collect coverage data after test execution."""
++        try:
++            # Find the coverage.dat file generated by bazel
++            # Bazel puts it in execroot/org_tensorflow/bazel-out/_coverage/_coverage_report.dat
++            coverage_dat = (
++                self.output_base
++                / "execroot"
++                / "org_tensorflow"
++                / "bazel-out"
++                / "_coverage"
++                / "_coverage_report.dat"
++            )
++
++            if not coverage_dat.exists():
++                print(f"⚠️  Coverage data not found at: {coverage_dat}")
++                # Try to find it
++                import glob
++
++                for root, dirs, files in os.walk(self.output_base / "execroot"):
++                    if "_coverage_report.dat" in files:
++                        coverage_dat = Path(root) / "_coverage_report.dat"
++                        print(f"   Found at: {coverage_dat}")
++                        break
++
++            if not coverage_dat.exists():
++                print(f"⚠️  Coverage data not found for {target_id}")
++                return None
++
++            # Copy coverage data (it's already in lcov-compatible format)
++            output_file = self.coverage_output_dir / f"{target_id}.lcov"
++            subprocess.run(
++                ["cp", str(coverage_dat), str(output_file)],
++                check=True,
++            )
++
++            print(f"✅ Coverage data saved: {output_file}")
++            return output_file
++
++        except Exception as e:
++            print(f"⚠️  Failed to collect coverage data: {e}")
++            import traceback
++
++            traceback.print_exc()
++            return None
++
+diff --git a/tools/coverage_test/features/annc/config.json b/tools/coverage_test/features/annc/config.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..837d65e77ab9f3c24c444a2f89e8fe626bfa059f
+--- /dev/null
++++ b/tools/coverage_test/features/annc/config.json
+@@ -0,0 +1,24 @@
++{
++  "name": "annc",
++  "description": "Embedding fusion operators tests",
++  "bazel_args": [
++    "--config=v2",
++    "--copt=-Wno-sign-compare"
++  ],
++  "test_targets": [
++    {
++      "id": "embedding-fused-ops-ut",
++      "target": "//tensorflow/core/kernels:embedding_fused_ops_test",
++      "kind": "gtest",
++      "gtest_filter": "*",
++      "enabled": true
++    },
++    {
++      "id": "graph-opt-ut",
++      "target": "//tensorflow/core/grappler/optimizers/graph_optimizer:graph_opt_test",
++      "kind": "gtest",
++      "gtest_filter": "*",
++      "enabled": true
++    }
++  ]
++}
+diff --git a/tools/coverage_test/features/kdnn/config.json b/tools/coverage_test/features/kdnn/config.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..6a791e3834654975d9b9ef2e5ef522291ac26a24
+--- /dev/null
++++ b/tools/coverage_test/features/kdnn/config.json
+@@ -0,0 +1,33 @@
++{
++  "name": "kdnn",
++  "description": "KDNN operator optimization tests",
++  "bazel_args": [
++    "--config=v2",
++    "--define=enable_kdnn=true",
++    "--copt=-Wno-sign-compare"
++  ],
++  "test_targets": [
++    {
++      "id": "sparse-matmul-ut-serial",
++      "target": "//tensorflow/core/kernels:sparse_tensor_dense_matmul_op_test_cpu",
++      "kind": "gtest",
++      "gtest_filter": "*",
++      "env": {
++        "TF_ENABLE_KDNN_OPTS": "1",
++        "TF_ENABLE_KDNN_SPARSE_MATMUL_PARALLEL": "0"
++      },
++      "enabled": true
++    },
++    {
++      "id": "sparse-matmul-ut-parallel",
++      "target": "//tensorflow/core/kernels:sparse_tensor_dense_matmul_op_test_cpu",
++      "kind": "gtest",
++      "gtest_filter": "*",
++      "env": {
++        "TF_ENABLE_KDNN_OPTS": "1",
++        "TF_ENABLE_KDNN_SPARSE_MATMUL_PARALLEL": "1"
++      },
++      "enabled": true
++    }
++  ]
++}
+diff --git a/tools/coverage_test/features/kembedding/config.json b/tools/coverage_test/features/kembedding/config.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..2a2fc24013963269ad359c064e414ffd1b58705e
+--- /dev/null
++++ b/tools/coverage_test/features/kembedding/config.json
+@@ -0,0 +1,23 @@
++{
++  "name": "kembedding",
++  "description": "Embedding table lookup custom operator tests",
++  "bazel_args": [
++    "--config=v2",
++    "--copt=-Wno-sign-compare"
++  ],
++  "test_targets": [
++    {
++      "id": "embedding-table-lookup-ut",
++      "target": "//third_party/kembedding:embedding_table_lookup_op_test",
++      "kind": "gtest",
++      "gtest_filter": "*",
++      "enabled": true
++    },
++    {
++      "id": "embedding-table-lookup-bench",
++      "target": "//third_party/kembedding:embedding_table_lookup_benchmark",
++      "kind": "benchmark",
++      "enabled": true
++    }
++  ]
++}
+diff --git a/tools/coverage_test/run_coverage.py b/tools/coverage_test/run_coverage.py
+new file mode 100755
+index 0000000000000000000000000000000000000000..b750dcdb1d0efe667e51d6c4d512a6a50ad359e2
+--- /dev/null
++++ b/tools/coverage_test/run_coverage.py
+@@ -0,0 +1,603 @@
++#!/usr/bin/env python3
++"""Main entry point for TensorFlow incremental coverage testing framework.
++
++This script provides a unified interface to run coverage tests for different
++TensorFlow features with incremental coverage analysis support.
++
++Usage:
++    # Run tests for a feature (no coverage)
++    python3 tools/coverage_test/run_coverage.py --feature kembedding
++
++    # Run tests with incremental coverage from patch file
++    python3 tools/coverage_test/run_coverage.py --feature kembedding \
++        --patch path/to/feature.patch \
++        --enable-coverage
++
++    # Run tests with incremental coverage from commit
++    python3 tools/coverage_test/run_coverage.py --feature kembedding \
++        --commit 716b3149563 \
++        --enable-coverage
++
++    # Run tests with incremental coverage from git diff
++    python3 tools/coverage_test/run_coverage.py --feature kembedding \
++        --base-ref HEAD~1 --target-ref HEAD \
++        --enable-coverage
++
++    # Run tests with incremental coverage since a commit (shorthand)
++    python3 tools/coverage_test/run_coverage.py --feature kembedding \
++        --since 716b3149563 \
++        --enable-coverage
++
++    # Run all features and report ONE aggregate incremental coverage number
++    python3 tools/coverage_test/run_coverage.py --all \
++        --since 086c065e75843cddaa17188cd84943ad2d9d74f1 --enable-coverage
++"""
++
++import argparse
++import json
++import sys
++from pathlib import Path
++
++# Add common directory to path
++SCRIPT_DIR = Path(__file__).resolve().parent
++sys.path.insert(0, str(SCRIPT_DIR))
++
++from common.coverage import DEFAULT_EXCLUDES, IncrementalCoverageAnalyzer
++from common.render import generate_report
++from common.config import load_feature_config
++from common.runner import TestRunner
++from datetime import datetime
++
++
++FEATURES_DIR = SCRIPT_DIR / "features"
++
++
++def discover_features():
++    """Auto-discover feature directories under FEATURES_DIR.
++
++    Each subdirectory (excluding hidden/private dirs like ``__pycache__``)
++    is treated as one feature. Returns a sorted list of feature names.
++    """
++    if not FEATURES_DIR.is_dir():
++        return []
++    return sorted(
++        p.name
++        for p in FEATURES_DIR.iterdir()
++        if p.is_dir() and not p.name.startswith(".")
++        and not p.name.startswith("__")
++    )
++
++
++AVAILABLE_FEATURES = discover_features()
++
++
++def list_features():
++    """List all available features."""
++    print("Available features:")
++    for feature in AVAILABLE_FEATURES:
++        feature_dir = FEATURES_DIR / feature
++        config_file = feature_dir / "config.json"
++        if config_file.exists():
++            config = load_feature_config(feature_dir)
++            print(f"  ✓ {feature:<15} - {config.description}")
++        else:
++            print(f"  ✗ {feature:<15} (config missing)")
++
++
++def _print_incremental_report(report: dict) -> None:
++    """Print the incremental coverage report (summary + per-file)."""
++    summary = report["summary"]
++    rate = summary.get("coverage_rate")
++    rate_str = f"{rate:.2f}%" if rate is not None else "n/a"
++
++    print(f"\n📊 Incremental Coverage Summary")
++    print(f"  Changed files: {summary['changed_files']}")
++    print(f"  Changed lines: {summary['changed_lines']}")
++    print(f"  Executable lines: {summary['executable_lines']}")
++    print(f"  Covered lines: {summary['covered_lines']}")
++    print(f"  Uncovered lines: {summary['uncovered_lines']}")
++    print(f"  Unmeasured (unknown) lines: {summary['unmeasured_lines']}")
++    print(f"  Coverage: {rate_str}")
++    print(f"  Coverage complete: {summary['coverage_complete']}")
++
++    print(f"\n📋 Per-File Coverage:")
++    for file_data in report["files"]:
++        fr = file_data.get("coverage_rate")
++        fr_str = f"{fr:.2f}%" if fr is not None else "n/a"
++        print(f"  {file_data['path']}")
++        print(
++            f"    Added: {file_data['added_lines']}, "
++            f"Executable: {file_data['executable_lines']}, "
++            f"Covered: {file_data['covered_lines']}, "
++            f"Uncovered: {file_data['uncovered_lines']}, "
++            f"Unmeasured: {file_data['unmeasured_lines']}"
++        )
++        print(f"    Coverage: {fr_str}")
++
++    excluded = report.get("excluded_files", [])
++    if excluded:
++        print(f"\n📌 Excluded files ({len(excluded)}):")
++        for item in excluded:
++            print(f"  - {item['path']} ({item['reason']})")
++
++
++def _mode_note(
++    patch_file: Path | None, commit_ref: str | None,
++    base_ref: str | None, target_ref: str | None, since_ref: str | None,
++) -> str:
++    if patch_file:
++        return f"patch {patch_file}"
++    if commit_ref:
++        return f"commit {commit_ref}"
++    if since_ref:
++        return f"since {since_ref} (inclusive) to HEAD"
++    if base_ref and target_ref:
++        return f"diff {base_ref}..{target_ref}"
++    return "no incremental range selected"
++
++
++def _generate_incremental_html(
++    incremental_report: dict | None,
++    results: list,
++    output_dir: Path,
++    mode_note: str,
++) -> None:
++    """Render the incremental coverage HTML tree + CSVs.
++
++    Ported from tools/incremental_coverage/report.py in the dev_2.15.0_gtest
++    branch: html/index.html (repository coverage tree, test executions,
++    diagnostics), html/directories/ (per-directory rollups), html/files/
++    (per-file changed-line detail). Unlike a genhtml dump of the merged LCOV
++    (total coverage of every executed file, third-party dependencies
++    included), only changed C++ files and their changed lines are reported.
++    """
++    if not incremental_report:
++        return
++    repo_root = SCRIPT_DIR.parent.parent
++    try:
++        info = generate_report(
++            analysis=incremental_report,
++            results=results,
++            output_dir=output_dir,
++            source_root=repo_root,
++            exclude_patterns=list(DEFAULT_EXCLUDES),
++            subtitle=f"Offline incremental coverage report — {mode_note}",
++        )
++        print(f"Incremental report: {info['html_index']}")
++    except Exception as e:
++        print(f"⚠️  Failed to render incremental HTML: {e}")
++        import traceback
++        traceback.print_exc()
++
++
++def run_feature_tests(
++    feature: str,
++    enable_coverage: bool,
++):
++    """Build and run all gtest targets for one feature.
++
++    Returns ``(config, results, coverage_files, failed_count)``.
++    """
++    feature_dir = FEATURES_DIR / feature
++    config = load_feature_config(feature_dir)
++    repo_root = SCRIPT_DIR.parent.parent
++
++    print(f"\n{'=' * 70}")
++    print(f"Feature: {config.name}")
++    print(f"Description: {config.description}")
++    print(f"Coverage enabled: {enable_coverage}")
++    print(f"{'=' * 70}\n")
++
++    runner = TestRunner(repository_root=repo_root, enable_coverage=enable_coverage)
++
++    results = []
++    coverage_files = []
++
++    for test_config in config.test_targets:
++        if not test_config.enabled:
++            print(f"⏭️  Skipping disabled target: {test_config.id}")
++            continue
++
++        if test_config.kind != "gtest":
++            # Benchmarks are out of scope: skip without recording a result so
++            # they don't drag the pass/fail count down.
++            print(f"⏭️  Skipping benchmark target: {test_config.id}")
++            continue
++
++        print(f"\n{'=' * 70}")
++        print(f"Target: {test_config.id}")
++        print(f"Bazel: {test_config.target}")
++        print(f"{'=' * 70}\n")
++
++        # Merge bazel args: feature-level + target-level build flags
++        merged_bazel_args = config.bazel_args.copy()
++
++        for flag in config.bazel_build_flags:
++            merged_bazel_args.append(f"--copt={flag}")
++        for flag in test_config.bazel_build_flags:
++            merged_bazel_args.append(f"--copt={flag}")
++
++        success, build_output = runner.build_target(
++            test_config.target,
++            bazel_args=merged_bazel_args,
++        )
++        if not success:
++            print(f"❌ Build failed")
++            print(build_output[-1000:])
++            results.append({
++                "target_id": test_config.id,
++                "passed": False,
++                "error": "Build failed",
++            })
++            continue
++
++        print(f"✅ Build succeeded\n")
++
++        binary_path = runner.find_test_binary(test_config.target)
++        if not binary_path:
++            print(f"❌ Test binary not found")
++            results.append({
++                "target_id": test_config.id,
++                "passed": False,
++                "error": "Binary not found",
++            })
++            continue
++
++        print(f"Binary: {binary_path}\n")
++
++        result = runner.run_gtest(
++            test_config.id,
++            test_config.target,
++            binary_path,
++            gtest_filter=test_config.gtest_filter,
++            env=test_config.env,
++        )
++
++        print(f"\nCompleted in {result.duration:.2f}s")
++        print(f"Cases: {result.cases_run}, Failed: {result.cases_failed}")
++
++        if result.passed:
++            print(f"✅ PASSED")
++        else:
++            print(f"❌ FAILED: {result.error}")
++
++        if result.coverage_file:
++            coverage_files.append(result.coverage_file)
++            print(f"📊 Coverage: {result.coverage_file}")
++
++        results.append({
++            "target_id": result.target_id,
++            "target": result.target,
++            "passed": result.passed,
++            "duration": result.duration,
++            "cases_run": result.cases_run,
++            "cases_failed": result.cases_failed,
++            "coverage_file": str(result.coverage_file) if result.coverage_file else None,
++        })
++
++    failed_count = sum(1 for r in results if not r.get("passed"))
++    return config, results, coverage_files, failed_count
++
++
++def run_feature_with_coverage(
++    feature: str,
++    patch_file: Path | None = None,
++    commit_ref: str | None = None,
++    base_ref: str | None = None,
++    target_ref: str | None = None,
++    since_ref: str | None = None,
++    enable_coverage: bool = False,
++) -> int:
++    """Run tests for a single feature with per-feature incremental analysis."""
++
++    repo_root = SCRIPT_DIR.parent.parent
++    _, results, coverage_files, failed_count = run_feature_tests(
++        feature, enable_coverage
++    )
++
++    # Analyze incremental coverage over the whole diff
++    incremental_report = None
++    if enable_coverage and coverage_files:
++        print(f"\n{'=' * 70}")
++        print("Incremental Coverage Analysis")
++        print(f"{'=' * 70}\n")
++
++        analyzer = IncrementalCoverageAnalyzer(repo_root)
++        try:
++            if patch_file:
++                print(f"Analyzing patch: {patch_file}")
++                incremental_report = analyzer.analyze_patch_coverage(
++                    patch_file, coverage_files
++                )
++            elif commit_ref:
++                print(f"Analyzing commit: {commit_ref}")
++                incremental_report = analyzer.analyze_commit_coverage(
++                    commit_ref, coverage_files
++                )
++            elif since_ref:
++                # --since is inclusive: diff from the parent of the given
++                # commit so the commit's own changes are included.
++                inclusive_base = f"{since_ref}^"
++                print(f"Analyzing changes since: {since_ref}..HEAD (inclusive)")
++                incremental_report = analyzer.analyze_diff_coverage(
++                    inclusive_base, "HEAD", coverage_files
++                )
++            elif base_ref and target_ref:
++                print(f"Analyzing diff: {base_ref}..{target_ref}")
++                incremental_report = analyzer.analyze_diff_coverage(
++                    base_ref, target_ref, coverage_files
++                )
++
++            if incremental_report:
++                _print_incremental_report(incremental_report)
++        except Exception as e:
++            print(f"⚠️  Coverage analysis failed: {e}")
++            import traceback
++            traceback.print_exc()
++
++    # Generate report
++    output_dir = repo_root / "coverage_test_results" / feature
++    output_dir.mkdir(parents=True, exist_ok=True)
++
++    report_data = {
++        "feature": feature,
++        "timestamp": datetime.now().isoformat(),
++        "coverage_enabled": enable_coverage,
++        "patch_file": str(patch_file) if patch_file else None,
++        "commit_ref": commit_ref,
++        "since_ref": since_ref,
++        "base_ref": base_ref,
++        "target_ref": target_ref,
++        "total_targets": len(results),
++        "passed_targets": len(results) - failed_count,
++        "failed_targets": failed_count,
++        "results": results,
++        "incremental_coverage": incremental_report,
++    }
++
++    report_file = output_dir / "report.json"
++    with open(report_file, 'w') as f:
++        json.dump(report_data, f, indent=2)
++
++    if enable_coverage and coverage_files:
++        _generate_incremental_html(
++            incremental_report, results, output_dir,
++            _mode_note(patch_file, commit_ref, base_ref, target_ref, since_ref),
++        )
++
++    print(f"\n{'=' * 70}")
++    print("Summary")
++    print(f"{'=' * 70}")
++    print(f"Total targets: {len(results)}")
++    print(f"Passed: {len(results) - failed_count}")
++    print(f"Failed: {failed_count}")
++    print(f"Report: {report_file}")
++    print(f"{'=' * 70}\n")
++
++    return 0 if failed_count == 0 else 1
++
++
++def run_all_with_coverage(
++    patch_file: Path | None = None,
++    commit_ref: str | None = None,
++    base_ref: str | None = None,
++    target_ref: str | None = None,
++    since_ref: str | None = None,
++    enable_coverage: bool = False,
++) -> int:
++    """Run every feature's tests, then report ONE aggregate incremental
++    coverage total computed over the whole diff with all collected lcov data.
++    """
++    repo_root = SCRIPT_DIR.parent.parent
++    analyzer = IncrementalCoverageAnalyzer(repo_root)
++
++    all_results = []
++    all_coverage_files = []
++    failed_features = []
++    ran_features = []
++
++    for feature in AVAILABLE_FEATURES:
++        ran_features.append(feature)
++        _, results, coverage_files, failed_count = run_feature_tests(
++            feature, enable_coverage
++        )
++        all_results.extend(results)
++        all_coverage_files.extend(coverage_files)
++        if failed_count:
++            failed_features.append(feature)
++
++    # Single aggregate incremental coverage across all features.
++    incremental_report = None
++    if enable_coverage and all_coverage_files:
++        print(f"\n{'=' * 70}")
++        print("Aggregate Incremental Coverage Analysis (all features)")
++        print(f"{'=' * 70}\n")
++        try:
++            if patch_file:
++                print(f"Analyzing patch: {patch_file}")
++                incremental_report = analyzer.analyze_patch_coverage(
++                    patch_file, all_coverage_files
++                )
++            elif commit_ref:
++                print(f"Analyzing commit: {commit_ref}")
++                incremental_report = analyzer.analyze_commit_coverage(
++                    commit_ref, all_coverage_files
++                )
++            elif since_ref:
++                print(f"Analyzing changes since: {since_ref}..HEAD (inclusive)")
++                incremental_report = analyzer.analyze_diff_coverage(
++                    f"{since_ref}^", "HEAD", all_coverage_files
++                )
++            elif base_ref and target_ref:
++                print(f"Analyzing diff: {base_ref}..{target_ref}")
++                incremental_report = analyzer.analyze_diff_coverage(
++                    base_ref, target_ref, all_coverage_files
++                )
++
++            if incremental_report:
++                _print_incremental_report(incremental_report)
++        except Exception as e:
++            print(f"⚠️  Coverage analysis failed: {e}")
++            import traceback
++            traceback.print_exc()
++
++    # Generate aggregate report
++    output_dir = repo_root / "coverage_test_results" / "all"
++    output_dir.mkdir(parents=True, exist_ok=True)
++
++    passed_count = sum(1 for r in all_results if r.get("passed"))
++    failed_count = len(all_results) - passed_count
++
++    report_data = {
++        "feature": "all",
++        "timestamp": datetime.now().isoformat(),
++        "coverage_enabled": enable_coverage,
++        "patch_file": str(patch_file) if patch_file else None,
++        "commit_ref": commit_ref,
++        "since_ref": since_ref,
++        "base_ref": base_ref,
++        "target_ref": target_ref,
++        "features_ran": ran_features,
++        "total_targets": len(all_results),
++        "passed_targets": passed_count,
++        "failed_targets": failed_count,
++        "results": all_results,
++        "incremental_coverage": incremental_report,
++    }
++
++    report_file = output_dir / "report.json"
++    with open(report_file, 'w') as f:
++        json.dump(report_data, f, indent=2)
++
++    if enable_coverage and all_coverage_files:
++        _generate_incremental_html(
++            incremental_report, all_results, output_dir,
++            _mode_note(patch_file, commit_ref, base_ref, target_ref, since_ref),
++        )
++
++    print(f"\n{'=' * 70}")
++    print("Summary")
++    print(f"{'=' * 70}")
++    print(f"Features run: {', '.join(ran_features) if ran_features else '(none)'}")
++    print(f"Total targets: {len(all_results)}")
++    print(f"Passed: {passed_count}")
++    print(f"Failed: {failed_count}")
++    print(f"Report: {report_file}")
++    print(f"{'=' * 70}\n")
++
++    return 0 if failed_count == 0 else 1
++
++
++def main():
++    parser = argparse.ArgumentParser(
++        description="TensorFlow incremental coverage testing framework",
++        formatter_class=argparse.RawDescriptionHelpFormatter,
++        epilog=__doc__,
++    )
++
++    parser.add_argument(
++        "--feature",
++        choices=AVAILABLE_FEATURES,
++        help="Feature to test",
++    )
++
++    parser.add_argument(
++        "--all",
++        action="store_true",
++        help="Run all features",
++    )
++
++    parser.add_argument(
++        "--list",
++        action="store_true",
++        help="List available features",
++    )
++
++    # Coverage options
++    parser.add_argument(
++        "--enable-coverage",
++        action="store_true",
++        help="Enable coverage collection (requires lcov)",
++    )
++
++    parser.add_argument(
++        "--patch",
++        type=Path,
++        help="Patch file for incremental coverage analysis",
++    )
++
++    parser.add_argument(
++        "--commit",
++        help="Git commit reference for incremental coverage",
++    )
++
++    parser.add_argument(
++        "--base-ref",
++        help="Base git reference for diff-based coverage",
++    )
++
++    parser.add_argument(
++        "--target-ref",
++        help="Target git reference for diff-based coverage",
++    )
++
++    parser.add_argument(
++        "--since",
++        help="Git reference to compare from, INCLUSIVE of that commit "
++             "(diff from <ref>^ to HEAD)",
++    )
++
++    args = parser.parse_args()
++
++    if args.list:
++        list_features()
++        return 0
++
++    # Validate coverage options
++    coverage_sources = sum([
++        args.patch is not None,
++        args.commit is not None,
++        args.since is not None,
++        args.base_ref is not None or args.target_ref is not None,
++    ])
++
++    if coverage_sources > 1:
++        print("Error: Specify only one of --patch, --commit, --since, or --base-ref/--target-ref")
++        return 1
++
++    if (args.base_ref is None) != (args.target_ref is None):
++        print("Error: Both --base-ref and --target-ref must be specified together")
++        return 1
++
++    if args.enable_coverage and coverage_sources == 0:
++        print("Warning: --enable-coverage specified without --patch, --commit, --since, or --base-ref/--target-ref")
++        print("Coverage will be collected but no incremental analysis will be performed")
++
++    if args.all:
++        print("Running all features...")
++        return run_all_with_coverage(
++            patch_file=args.patch,
++            commit_ref=args.commit,
++            base_ref=args.base_ref,
++            target_ref=args.target_ref,
++            since_ref=args.since,
++            enable_coverage=args.enable_coverage,
++        )
++
++    if args.feature:
++        return run_feature_with_coverage(
++            args.feature,
++            patch_file=args.patch,
++            commit_ref=args.commit,
++            base_ref=args.base_ref,
++            target_ref=args.target_ref,
++            since_ref=args.since,
++            enable_coverage=args.enable_coverage,
++        )
++
++    parser.print_help()
++    return 1
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+
+diff --git a/tensorflow/feature_copts.bzl b/tensorflow/feature_copts.bzl
+new file mode 100644
+--- /dev/null
++++ b/tensorflow/feature_copts.bzl
+@@ -0,0 +1,7 @@
++# Generated by patches/patch_manager.py from patches/manifest.json.
++# Do not edit this file directly.
++
++def boostsra_feature_copt():
++    return (
++        []
++    )
