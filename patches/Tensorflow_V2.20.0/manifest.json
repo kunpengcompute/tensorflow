@@ -8,66 +8,171 @@
     {
       "name": "common",
       "output": "0001-tensorflow_2.20.0-common.patch",
-      "description": "Shared build integration and repository-level tooling required by the feature patches.",
-      "patterns": [      
+      "description": "Shared build integration, CI tooling, and the gtest/lcov incremental-coverage test framework required by the feature patches.",
+      "patterns": [
+        ".gitignore",
+        "Dockerfile.ci",
+        "ci_build.sh",
+        "tools/coverage_test/**",
         "tensorflow/dtensor/mlir/shape_utils.cc",
         "tensorflow/dtensor/mlir/spmd_expansion.cc",
         "tensorflow/python/client/BUILD",
         "tensorflow/python/util/BUILD",
+        "tensorflow/tensorflow.bzl",
         "tensorflow/workspace2.bzl",
+        "third_party/py/rules_python_no_isolated.patch",
         "third_party/pybind11_protobuf/link_protobuf.patch",
+        "third_party/xla/third_party/py/python_init_rules.bzl",
+        "third_party/xla/third_party/py/rules_python_no_isolated.patch",
         "third_party/xla/third_party/pybind11_abseil/link_abseil.patch",
         "third_party/xla/third_party/pybind11_abseil/workspace.bzl",
         "third_party/xla/xla/tsl/profiler/utils/group_events.cc"
       ]
     },
     {
-      "name": "fago",
-      "output": "0002-tensorflow_2.20.0-fago.patch",
-      "description": "FlashAttention fused optimization",
+      "name": "kdnn",
+      "output": "0002-tensorflow_2.20.0-kdnn.patch",
+      "description": "KDNN acceleration library integration and sparse matrix multiplication fast path",
+      "feature_copts": [
+        {
+          "load": "//tensorflow/patch_features:kdnn_copts.bzl",
+          "symbol": "kdnn_copts"
+        }
+      ],
+      "patterns": [
+        "third_party/KDNN/**",
+        "tensorflow/patch_features/BUILD",
+        "tensorflow/patch_features/kdnn_copts.bzl",
+        "tensorflow/core/kernels/BUILD",
+        "tensorflow/core/kernels/concat_op.cc",
+        "tensorflow/core/kernels/cwise_ops_common.h",
+        "tensorflow/core/kernels/linalg/einsum_op_impl.h",
+        "tensorflow/core/kernels/matmul_op_fused.cc",
+        "tensorflow/core/kernels/matmul_op_impl.h",
+        "tensorflow/core/kernels/softmax_op.cc",
+        "tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc",
+        "tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h",
+        "tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc",
+        "tensorflow/core/util/BUILD",
+        "tensorflow/core/util/port.cc",
+        "tensorflow/core/util/port.h",
+        "tensorflow/python/kernel_tests/benchmark/**"
+      ]
+    },
+    {
+      "name": "annc",
+      "output": "0003-tensorflow_2.20.0-annc.patch",
+      "description": "KPFused embedding fusion operators (embedding_fused_*), FlashAttention fused optimization (FAGO) and graph optimization",
       "patterns": [
         "tensorflow/cc/BUILD",
         "tensorflow/cc/gradients/flash_attn_grad.cc",
         "tensorflow/core/BUILD",
         "tensorflow/core/api_def/base_api/api_def_FlashAttentionBackward.pbtxt",
         "tensorflow/core/api_def/base_api/api_def_FlashAttentionForward.pbtxt",
+        "tensorflow/core/api_def/base_api/api_def_KPFused*.pbtxt",
         "tensorflow/core/api_def/python_api/api_def_FlashAttentionBackward.pbtxt",
         "tensorflow/core/api_def/python_api/api_def_FlashAttentionForward.pbtxt",
+        "tensorflow/core/api_def/python_api/api_def_KPFused*.pbtxt",
         "tensorflow/core/grappler/optimizers/BUILD",
         "tensorflow/core/grappler/optimizers/graph_optimizer/BUILD",
         "tensorflow/core/grappler/optimizers/graph_optimizer/flash_attn_graph_opt.cc",
         "tensorflow/core/grappler/optimizers/graph_optimizer/flash_attn_graph_opt.h",
+        "tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.cc",
+        "tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.h",
+        "tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt_test.cc",
         "tensorflow/core/grappler/optimizers/remapper.cc",
-        "tensorflow/core/kernels/BUILD",
+        "tensorflow/core/kernels/embedding_fused_*.cc",
+        "tensorflow/core/kernels/embedding_fused_*_test.cc",
         "tensorflow/core/kernels/flash_attn_op.cc",
         "tensorflow/core/kernels/flash_attn_op.h",
         "tensorflow/core/kernels/flash_attn_op_gpu.cu.cc",
         "tensorflow/core/ops/BUILD",
+        "tensorflow/core/ops/embedding_fused_ops.cc",
         "tensorflow/core/ops/flash_attn_ops.cc",
         "tensorflow/python/BUILD",
+        "tensorflow/python/grappler/embedding_fused_test/**",
         "tensorflow/python/grappler/flash_attn_opt_test/framework/runner.py",
         "tensorflow/python/grappler/flash_attn_opt_test/main.py",
         "tensorflow/python/grappler/flash_attn_opt_test/ops/FlashAttn_op.py",
         "tensorflow/python/ops/BUILD"
+      ]
+    },
+    {
+      "name": "kembedding",
+      "output": "0004-tensorflow_2.20.0-kembedding.patch",
+      "description": "KEmbedding embedding index-to-value table operators and benchmark tooling",
+      "patterns": [
+        "third_party/kembedding/**",
+        "experiment_scripts/**"
       ]
     }
   ],
   "profiles": [
     {
       "name": "common-only",
-      "groups": ["common"]
+      "groups": [
+        "common"
+      ]
     },
     {
-      "name": "fago-core",
-      "groups": ["common", "fago"]
+      "name": "kdnn-core",
+      "groups": [
+        "common",
+        "kdnn"
+      ]
+    },
+    {
+      "name": "kdnn-annc",
+      "groups": [
+        "common",
+        "kdnn",
+        "annc"
+      ]
     },
     {
       "name": "full-default",
-      "groups": ["common", "fago"],
+      "groups": [
+        "common",
+        "kdnn",
+        "annc",
+        "kembedding"
+      ],
       "full_source": true
     }
   ],
   "tooling_patterns": [
-    "patches/Tensorflow_V2.20.0/**"
+    "patches/Tensorflow_V2.20.0/**",
+    ".dockerignore",
+    ".env.tmp",
+    "BUILD",
+    "BUILD_GUIDE.md",
+    "Dockerfile",
+    "WORKSPACE",
+    "build.sh",
+    "compose-infer.sh",
+    "docker-compose.infer.yml",
+    "brpc_client.cc",
+    "brpc_client_utils.cc",
+    "brpc_client_utils.h",
+    "dummy.proto",
+    "dummy_tf_func.h",
+    "dummy_tf_utils.cc",
+    "dummy_tf_utils.h",
+    "predictor_server.cc",
+    "benchmark_utest/**",
+    "third_party/brpc/**",
+    "tools/README.md",
+    "tools/README.zh.md",
+    "tools/collect_serving_timeline.py",
+    "tools/run_serving_benchmark.sh",
+    "tools/runmetadata_to_timeline.py"
+  ],
+  "generated_files": [
+    {
+      "path": "tensorflow/feature_copts.bzl",
+      "owner_group": "common",
+      "kind": "feature_copts",
+      "function": "boostsra_feature_copt"
+    }
   ]
 }

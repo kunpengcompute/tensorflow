@@ -12,17 +12,21 @@ bf5899deaf70fa45173c5c7b8dc9ace8824dc980
 
 | 顺序 | 分组 | 说明 |
 | --- | --- | --- |
-| 1 | common | 公共Bazel仓库集成和通用编译修复 |
-| 2 | fago | FAGO静态图融合算子及测试 |
+| 1 | common | 公共Bazel仓库集成、通用编译修复及gtest覆盖率测试框架 |
+| 2 | kdnn | KDNN加速库集成及稀疏矩阵乘快路径 |
+| 3 | annc | ANNC静态图融合算子及图优化 |
+| 4 | kembedding | KEmbedding Embedding表查找算子及基准测试 |
 
 支持以下构建组合。
 
 | Profile | 分组 | 用途 |
 | --- | --- | --- |
 | common-only | common | 检查公共改动 |
-| common-fago | common+fago | FAGO静态图融合特性 |
+| kdnn-core | common+kdnn | KDNN加速特性（CPU） |
+| kdnn-annc | common+kdnn+annc | KDNN加速及ANNC静态图融合 |
+| full-default | common+kdnn+annc+kembedding | 全部特性 |
 
-`tensorflow/feature_copts.bzl`会根据特性组合动态生成。请使用`prepare_source.py`创建可构建源码，不要仅按顺序手工应用补丁。
+`tensorflow/feature_copts.bzl` 会根据特性组合动态生成。请使用`prepare_source.py`创建可构建源码，不要仅按顺序手工应用补丁。
 
 ```bash
 git clone -b master https://gitcode.com/boostkit/tensorflow.git kunpeng-tensorflow
@@ -31,8 +35,8 @@ git remote add tensorflow-upstream https://github.com/tensorflow/tensorflow.git
 git fetch tensorflow-upstream refs/tags/v2.20.0:refs/tags/v2.20.0
 
 python3 patches/Tensorflow_V2.20.0/prepare_source.py \
-  --feature-set fago-core \
-  --output-dir ../tensorflow-fago-core
+  --feature-set full-default \
+  --output-dir ../tensorflow-full-default
 ```
 
 切换`--feature-set`即可创建其他组合。
