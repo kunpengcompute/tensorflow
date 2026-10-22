@@ -63,6 +63,7 @@ bazel --output_user_root="${OUTPUT_BASE}" build \
     --repo_env=PIP_INDEX_URL="${PIP_INDEX_URL}" \
     --repo_env=PIP_TRUSTED_HOST="${PIP_TRUSTED_HOST}" \
     --check_direct_dependencies=off \
+    --define=enable_kdnn=true \
     -c opt \
     "${BAZEL_TARGETS[@]}" 2>&1 | tee -a "${BUILD_LOG}"
 
