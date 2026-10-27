@@ -37,8 +37,8 @@ git remote add tensorflow-upstream https://github.com/tensorflow/tensorflow.git
 git fetch tensorflow-upstream refs/tags/v2.20.0:refs/tags/v2.20.0
 
 python3 patches/Tensorflow_V2.20.0/prepare_source.py \
-  --feature-set fago-core \
-  --output-dir ../tensorflow-fago-core
+  --feature-set full-default \
+  --output-dir ../tensorflow-full-default
 ```
 
 Change `--feature-set` to create another profile.

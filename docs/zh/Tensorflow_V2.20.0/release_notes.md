@@ -13,7 +13,7 @@
 </tr>
 <tr id="row24726251"><th class="firstcol" valign="top" width="42.17%" id="mcps1.1.3.2.1"><p id="p56669300"><a name="p56669300"></a><a name="p56669300"></a>产品版本</p>
 </th>
-<td class="cellrowborder" valign="top" width="57.830000000000005%" headers="mcps1.1.3.2.1 "><p id="p11923034"><a name="p11923034"></a><a name="p11923034"></a><span id="text14311218114"><a name="text14311218114"></a><a name="text14311218114"></a>26.2.RC1</span></p>
+<td class="cellrowborder" valign="top" width="57.830000000000005%" headers="mcps1.1.3.2.1 "><p id="p11923034"><a name="p11923034"></a><a name="p11923034"></a><span id="text14311218114"><a name="text14311218114"></a><a name="text14311218114"></a>26.3.0</span></p>
 </td>
 </tr>
 <tr id="row1930811171892"><th class="firstcol" valign="top" width="42.17%" id="mcps1.1.3.3.1"><p id="p2030912172097"><a name="p2030912172097"></a><a name="p2030912172097"></a>软件名称</p>
@@ -23,7 +23,7 @@
 </tr>
 <tr id="row19308111718"><th class="firstcol" valign="top" width="42.17%" id="mcps1.1.3.3.1"><p id="p2030912172097"><a name="p2030912172097"></a><a name="p2030912172097"></a>软件版本</p>
 </th>
-<td class="cellrowborder" valign="top" width="57.830000000000005%" headers="mcps1.1.3.3.1 "><p id="p1730912179911"><a name="p1730912179911"></a><a name="p1730912179911"></a><span id="text17191017111119"><a name="text17191017111119"></a><a name="text17191017111119"></a>V1.4.0</span></p>
+<td class="cellrowborder" valign="top" width="57.830000000000005%" headers="mcps1.1.3.3.1 "><p id="p1730912179911"><a name="p1730912179911"></a><a name="p1730912179911"></a><span id="text17191017111119"><a name="text17191017111119"></a><a name="text17191017111119"></a>V1.3.0</span></p>
 </td>
 </tr>
 </tbody>
@@ -79,11 +79,11 @@
 
 版本详细使用注意事项请参见《[安装指南](./installation_guide.md)》。
 
-## V1.4.0
+## V1.3.0
 
 ### 更新说明
 
-- 新增TensorFlow KDNN算子优化特性，支持batchmatmul、softmax、einsum、floormod、sigmoid和sparsematmul等算子对接KDNN，其中sparsematmul会根据实际稀疏度自适应选择稀疏快路径或转稠密GEMM计算。
+- 新增TensorFlow KDNN算子优化特性，支持batchmatmul、softmax、einsum、floormod、sigmoid和SparseMatMul等算子对接KDNN，其中SparseMatMul会根据实际稀疏度自适应选择稀疏快路径或转稠密GEMM计算。
 - 新增TensorFlow ANNC静态图融合特性，适配鲲鹏950 7592C处理器，支持KPFusedEmbeddingActionIdGather、KPFusedSparseDynamicStitchSum/Mean/SqrtN等算子静态图融合。
 - 新增KEmbedding算子库中的EmbeddingTableLookup算子，进一步丰富推理模型的特征处理能力。
 

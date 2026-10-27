@@ -95,7 +95,7 @@
       Configuration finished
       ```
 
-   4.2. 打开`.tf_configure.bazelrc`，在`build --action_env LD_LIBRARY_PATH=...`行前添加以下build 配置。
+   4.2. 打开`.tf_configure.bazelrc`，在`build --action_env LD_LIBRARY_PATH=...`行前添加以下build配置。
 
       ```bash
       build:cuda --repo_env TF_NEED_CUDA=1
@@ -115,6 +115,7 @@
       --copt=-march=armv8.5-a --linkopt=-fuse-ld=gold \
       --config=opt \
       --define=enable_kdnn=true \
+      --linkopt=-Wl,--stub-group-size=0x2000000 \
       --action_env=CLANG_CUDA=0 \
       --repo_env=CLANG_CUDA=0 \
       --repo_env=PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ \
@@ -147,7 +148,7 @@
      python3 -c "import tensorflow; print(tensorflow.sysconfig.get_lib())"
      ```
 
-如果在编译过程中遇到任何问题，请参见《[TensorFlow 移植指南](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0001.html)》。
+如果在编译过程中遇到任何问题，请参见《[TensorFlow移植指南](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0001.html)》。
 
 ## 运行推理服务
 
@@ -184,7 +185,7 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 
     KDNN默认使能，可以通过设置环境变量TF\_ENABLE\_KDNN\_OPTS=0关闭KDNN。
 
-    其中SparseMatmul算子的转稠密路径默认开启，可以通过设置环境变量TF\_ENABLE\_KDNN\_SPARSE\_MATMUL\_TO\_DENSE=0单独关闭，具体说明参见《[API参考](./api_reference.md)》。
+    其中SparseMatMul算子的转稠密路径默认开启，可以通过设置环境变量TF\_ENABLE\_KDNN\_SPARSE\_MATMUL\_TO\_DENSE=0单独关闭，具体说明参见《[API参考](./api_reference.md)》。
 
     ![1 zh cn image 0000002504453619](figures/1_zh-cn_image_0000002504453619.png)
 
@@ -217,5 +218,4 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 
 | 文档版本 | 发布日期 | 修改说明 |
 | ---- | ---- | ---- |
-| 02 | 2026-12-30 | 第二次正式发布。<ul><li>新增基于TensorFlow Serving的推理服务使用指导，提供KDNN算子优化和ANNC静态图融合的使用样例。</li></ul> |
-| 01 | 2026-09-30 | 第一次正式发布。<ul><li>新增TensorFlow 2.20.0的安装与调用指导内容。</li></ul> |
+| 01 | 2026-12-30 | 第一次正式发布。<ul><li>新增基于TensorFlow Serving的推理服务使用指导，提供KDNN算子优化和ANNC静态图融合的使用样例。</li></ul> |

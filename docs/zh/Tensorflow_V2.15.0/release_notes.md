@@ -42,7 +42,7 @@
 </tr>
 </thead>
 <tbody>
-<tr id="row207032381509"><td class="cellrowborder" valign="top" width="31.009999999999998%" headers="mcps1.1.4.1.1 "><p id="p177041382017"><a name="p177041382017"></a><a name="p177041382017"></a>openEuler 22.03 LTS SP3</p>
+<tr id="row207032381509"><td class="cellrowborder" valign="top" width="31.009999999999998%" headers="mcps1.1.4.1.1 "><p id="p177041382017"><a name="p177041382017"></a><a name="p177041382017"></a>openEuler 24.03 LTS SP3</p>
 </td>
 <td class="cellrowborder" valign="top" width="34.72%" headers="mcps1.1.4.1.2 "><p id="p173654366528"><a name="p173654366528"></a><a name="p173654366528"></a>鲲鹏920 7282C处理器</p>
 </td>
