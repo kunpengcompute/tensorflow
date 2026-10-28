@@ -44,8 +44,15 @@ def _build_graph_core(inputs, meta, include_shape_output):
     table_indices = tf.dynamic_partition(
         chunk_indices, group_ids, num_partitions=num_tables
     )
+    swap_gather = meta.get("swap_gather", False)
     gathered = [
-        tf.gather(emb_tables[index], table_indices[index], axis=0)
+        tf.gather(
+            emb_tables[index],
+            table_indices[(index + 1) % num_tables]
+            if swap_gather
+            else table_indices[index],
+            axis=0,
+        )
         for index in range(num_tables)
     ]
     stitched = tf.raw_ops.ParallelDynamicStitch(
@@ -100,8 +107,25 @@ def _build_input(meta):
     if num_segments > num_ids:
         raise ValueError("num_segments cannot exceed num_ids")
 
-    total_ids = num_tables * rows
-    request_x = rng.randint(0, total_ids, size=num_ids).astype(np.int64)
+    if meta.get("swap_gather", False):
+        # swapped 布线要求表侧各端口等长: data[t] 取自端口 (t+1)%N, 但
+        # ParallelDynamicStitch 仍要求它与 indices[t] 等长
+        per_port = num_ids // num_tables
+        if per_port * num_tables != num_ids or per_port > rows:
+            raise ValueError(
+                "swap_gather requires num_ids divisible by num_tables and "
+                "at most num_tables * table_rows distinct ids"
+            )
+        request_x = np.concatenate(
+            [
+                residue + num_tables * rng.permutation(rows)[:per_port]
+                for residue in range(num_tables)
+            ]
+        ).astype(np.int64)
+        rng.shuffle(request_x)
+    else:
+        total_ids = num_tables * rows
+        request_x = rng.randint(0, total_ids, size=num_ids).astype(np.int64)
     request_groups = rng.randint(0, num_segments, size=num_ids).astype(
         np.int64
     )
@@ -179,4 +203,36 @@ def get_test_cases():
                         init_fn=lambda: tf.compat.v1.global_variables_initializer(),
                     )
                 )
+    cases.append(
+        TestCase(
+            name="KPFusedSparseDynamicStitchReduce_swapped_gather_nofuse",
+            op_fn=_build_graph,
+            input_fn=_build_input,
+            fused_op_name="KPFusedSparseDynamicStitchFastSum",
+            is_fused=False,
+            num_iters=0,
+            meta={
+                "num_tables": 2,
+                "table_rows": 64,
+                "embedding_width": 4,
+                "num_ids": 128,
+                "num_segments": 16,
+                "reduce_mode": "sum",
+                "swap_gather": True,
+            },
+            fused_env={
+                "ANNC_FUSED_ALL": "0",
+                "ANNC_FUSED_SPS_STITCH_REDUCE": "1",
+                "ANNC_FUSED_SPS_STITCH": "0",
+                "ANNC_FUSED_SPS_REDUCE": "0",
+            },
+            unfused_env={
+                "ANNC_FUSED_ALL": "0",
+                "ANNC_FUSED_SPS_STITCH_REDUCE": "0",
+                "ANNC_FUSED_SPS_STITCH": "0",
+                "ANNC_FUSED_SPS_REDUCE": "0",
+            },
+            init_fn=lambda: tf.compat.v1.global_variables_initializer(),
+        )
+    )
     return cases

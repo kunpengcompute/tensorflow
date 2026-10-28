@@ -4,7 +4,8 @@
   "bazel_args": [
     "--config=v2",
     "--define=enable_kdnn=true",
-    "--copt=-Wno-sign-compare"
+    "--copt=-Wno-sign-compare",
+    "--local_test_jobs=1"
   ],
   "test_targets": [
     {
@@ -26,6 +27,36 @@
       "env": {
         "TF_ENABLE_KDNN_OPTS": "1",
         "TF_ENABLE_KDNN_SPARSE_MATMUL_PARALLEL": "1"
+      },
+      "enabled": true
+    },
+    {
+      "id": "matmul-op-ut",
+      "target": "//tensorflow/core/kernels:matmul_op_test_cpu",
+      "kind": "gtest",
+      "gtest_filter": "*",
+      "env": {
+        "TF_ENABLE_KDNN_OPTS": "1"
+      },
+      "enabled": true
+    },
+    {
+      "id": "batch-matmul-op-ut",
+      "target": "//tensorflow/core/kernels:batch_matmul_op_test",
+      "kind": "gtest",
+      "gtest_filter": "*",
+      "env": {
+        "TF_ENABLE_KDNN_OPTS": "1"
+      },
+      "enabled": true
+    },
+    {
+      "id": "softmax-op-ut",
+      "target": "//tensorflow/core/kernels:softmax_op_test",
+      "kind": "gtest",
+      "gtest_filter": "*",
+      "env": {
+        "TF_ENABLE_KDNN_OPTS": "1"
       },
       "enabled": true
     }

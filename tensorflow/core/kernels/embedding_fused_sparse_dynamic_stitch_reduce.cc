@@ -1,4 +1,4 @@
-/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
+/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -133,6 +133,8 @@ class KPFusedSparseDynamicStitchReduceOp : public OpKernel {
     const int64_t input_size = x_flat.size();
     int64_t previous_segment = -1;
     if (input_size > 0) {
+      OP_REQUIRES(context, segment_ids(0, column) >= 0,
+                  errors::InvalidArgument("segment_ids must be non-negative"));
       previous_segment = segment_ids(input_size - 1, column);
       OP_REQUIRES(context, previous_segment >= 0,
                   errors::InvalidArgument("segment_ids must be non-negative"));
@@ -156,6 +158,9 @@ class KPFusedSparseDynamicStitchReduceOp : public OpKernel {
     float* group_result = nullptr;
     for (int64_t index = 0; index < input_size; ++index) {
       const int64_t segment_id = segment_ids(index, column);
+      OP_REQUIRES(context, segment_id <= previous_segment,
+                  errors::InvalidArgument(
+                      "segment id exceeds the final segment id"));
       OP_REQUIRES(context, segment_id >= current_segment,
                   errors::InvalidArgument(
                       "segment_ids must be sorted for fused reduction"));

@@ -73,6 +73,7 @@ class EmbeddingTableReader {
   Status ReadHeader(sparse_embedding_table::TableInfo* info);
 
   std::string file_path_;
+  uint64_t file_size_ = 0;
   Status status_;
   std::unique_ptr<RandomAccessFile> file_;
   std::unique_ptr<io::InputBuffer> input_buffer_;

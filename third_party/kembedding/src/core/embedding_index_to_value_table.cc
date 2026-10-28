@@ -33,6 +33,7 @@ EmbeddingTableReader::EmbeddingTableReader(const std::string& file_path,
   FileStatistics stat;
   status_ = env->Stat(file_path, &stat);
   if (!status_.ok()) return;
+  file_size_ = static_cast<uint64_t>(stat.length);
 
   status_ = env->NewRandomAccessFile(file_path, &file_);
   if (!status_.ok()) return;
@@ -54,11 +55,7 @@ Status EmbeddingTableReader::ReadHeader(
     return s;
   }
 
-  uint64_t file_size = 0;
-  s = Env::Default()->GetFileSize(file_path_, &file_size);
-  if (!s.ok()) {
-    return s;
-  }
+  const uint64_t file_size = file_size_;
   if (file_size < sizeof(header_size) ||
       static_cast<uint64_t>(header_size) > file_size - sizeof(header_size)) {
     return errors::DataLoss("Invalid embedding table header size ",
