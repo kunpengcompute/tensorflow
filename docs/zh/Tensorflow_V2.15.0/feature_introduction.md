@@ -1,5 +1,7 @@
 # 特性介绍
 
+本文档介绍鲲鹏BoostKit TensorFlow推理优化特性，涵盖KDNN线程直通、SparseMatmul多线程优化、EmbeddingTableLookup算子、ANNC静态图融合、ANNC图编译优化及TF Serving线程调度优化，适用于需要提升TensorFlow推理吞吐量、降低推理时延的用户。
+
 ## TensorFlow KDNN线程直通
 
 ### 简介
@@ -16,7 +18,7 @@ KDNN对接TensorFlow软件架构图如[图1](#fig4919356464)所示。
 
 **图 1**  KDNN对接TensorFlow软件架构图<a name="fig4919356464"></a>
 
-![KDNN对接TensorFlow软件架构图](figures/KDNN对接TensorFlow软件架构图.png "KDNN对接TensorFlow软件架构图")
+![KDNN对接TensorFlow的软件架构分层图，展示Kernels实现层经dispatch组件将算子分发至KDNN后端、计算任务提交框架线程池的调用关系](figures/KDNN对接TensorFlow软件架构图.png "KDNN对接TensorFlow软件架构图")
 
 ### 规格
 
@@ -114,15 +116,15 @@ TensorFlow KDNN线程直通优化特性主要在高并发推理场景中使用�
 
 **图 2**  OMP并行<a name="fig19954351104320"></a><a id="OMP并行示意图"></a>
 
-![OMP并行](figures/OMP并行.png "OMP并行")
+![OMP版本KDNN的线程创建示意图，每个算子创建N个OMP线程，M个Kernel并发时线程数膨胀为M×N](figures/OMP并行.png "OMP并行")
 
-如[**图 2**  OMP并行](#OMP并行示意图)所示，OMP版本的KDNN中，每个算子将创建N个OMP线程计算，M个Kernel并发则会创建M*N个OMP线程。
+如[**图 2** OMP并行](#OMP并行示意图)所示，OMP版本的KDNN中，每个算子将创建N个OMP线程计算，M个Kernel并发则会创建M*N个OMP线程。
 
 **图 3**  Threadpool线程直通<a name="fig1203165984517"></a><a id="Threadpool线程直通示意图"></a>
 
-![Threadpool线程直通](figures/Threadpool线程直通.png "Threadpool线程直通")
+![线程直通模式下KDNN复用框架线程池的示意图，计算任务统一提交框架线程池调度，线程数不随Kernel并发膨胀](figures/Threadpool线程直通.png "Threadpool线程直通")
 
-如[**图 3**  Threadpool线程直通](#Threadpool线程直通示意图)所示，使能线程直通后，会复用框架线程池，KDNN将计算任务提交到框架线程池统一调度，降低了线程创建的损耗同时避免了线程数爆炸的问题。
+如[**图 3** Threadpool线程直通](#Threadpool线程直通示意图)所示，使能线程直通后，会复用框架线程池，KDNN将计算任务提交到框架线程池统一调度，降低了线程创建的损耗同时避免了线程数爆炸的问题。
 
 ## SparseMatmul多线程优化
 
@@ -193,25 +195,25 @@ Embedding表文件由两部分组成。
 
 ### 示例说明
 
-假设构建为以下内容。
+1. 假设构建为以下内容。
 
-- key `101` -> `(0, 1.0)`、`(2, 3.0)`
-- key `202` -> `(1, 2.5)`
+   - key `101` -> `(0, 1.0)`、`(2, 3.0)`
+   - key `202` -> `(1, 2.5)`
 
-使用如下输入进行查找。
+2. 使用如下输入进行查找。
 
-```python
-keys = [101, 202, 999]  
-emb_dim = 4
-```
+   ```python
+   keys = [101, 202, 999]  
+   emb_dim = 4
+   ```
 
-输出结果为。
+   输出结果如下。
 
-```python
-indices = [[0, 0], [0, 2], [1, 1]]
-values = [1.0, 3.0, 2.5]
-dense_shape = [3, 4]  
-```
+   ```output
+   indices = [[0, 0], [0, 2], [1, 1]]
+   values = [1.0, 3.0, 2.5]
+   dense_shape = [3, 4]  
+   ```
 
 ### ARM优化设计
 
@@ -259,7 +261,7 @@ ANNC静态图融合软件架构图如[图4](#fig4919356463)所示。
 
 **图 4**  ANNC静态图融合软件架构图<a name="fig4919356463"></a>
 
-![ANNC静态图融合软件架构](figures/ANNC静态图融合软件架构.png "ANNC静态图融合软件架构图")
+![ANNC静态图融合的软件架构分层图，展示图优化阶段经remapper机制将匹配子图替换为鲲鹏自定义算子的位置](figures/ANNC静态图融合软件架构.png "ANNC静态图融合软件架构图")
 
 ### 规格
 
@@ -269,7 +271,7 @@ ANNC静态图融合软件架构图如[图4](#fig4919356463)所示。
 
 **开源子图结构**
 
-![KPFusedEmbeddingActionIdGather](figures/KPFusedEmbeddingActionIdGather.png "KPFusedEmbeddingActionIdGather 开源算子子图")
+![KPFusedEmbeddingActionIdGather算子的开源子图结构，标出参与融合的原始算子节点及其五路输入、一路输出的连边关系](figures/KPFusedEmbeddingActionIdGather.png "KPFusedEmbeddingActionIdGather 开源算子子图")
 
 **输入输出约束**
 
@@ -289,7 +291,7 @@ ANNC静态图融合软件架构图如[图4](#fig4919356463)所示。
 
 **开源子图结构**
 
-![KPFusedGather](figures/KPFusedGather.png "KPFusedGather 开源算子子图")
+![KPFusedGather算子的开源子图结构，展示被替换为自定义Gather算子前的原始TensorFlow子图节点连接与三路输入](figures/KPFusedGather.png "KPFusedGather 开源算子子图")
 
 **输入输出约束**
 
@@ -309,7 +311,7 @@ ANNC静态图融合软件架构图如[图4](#fig4919356463)所示。
 
 **开源子图结构**
 
-![KPFusedEmbeddingPadding](figures/KPFusedEmbeddingPadding.png "KPFusedEmbeddingPadding 开源算子子图")
+![KPFusedEmbeddingPadding算子的开源子图结构，展示原图中padding相关算子的组合顺序与五路输入、两路输出连边](figures/KPFusedEmbeddingPadding.png "KPFusedEmbeddingPadding 开源算子子图")
 
 **输入输出约束**
 
@@ -330,7 +332,7 @@ ANNC静态图融合软件架构图如[图4](#fig4919356463)所示。
 
 **开源子图结构**
 
-![KPFusedEmbeddingPaddingFast](figures/KPFusedEmbeddingPaddingFast.png "KPFusedEmbeddingPaddingFast 开源算子子图")
+![KPFusedEmbeddingPaddingFast算子的开源子图结构，展示其与基础EmbeddingPadding子图差异的节点组合与两路整数输出](figures/KPFusedEmbeddingPaddingFast.png "KPFusedEmbeddingPaddingFast 开源算子子图")
 
 **输入输出约束**
 
@@ -351,7 +353,7 @@ ANNC静态图融合软件架构图如[图4](#fig4919356463)所示。
 
 **开源子图结构**
 
-![KPFusedSparseDynamicStitch](figures/KPFusedSparseDynamicStitch.png "KPFusedSparseDynamicStitch 开源算子子图")
+![KPFusedSparseDynamicStitch算子的开源子图结构，展示稀疏张量拼接前索引张量与数据张量的输入节点关系](figures/KPFusedSparseDynamicStitch.png "KPFusedSparseDynamicStitch 开源算子子图")
 
 **输入输出约束**
 
@@ -368,7 +370,7 @@ ANNC静态图融合软件架构图如[图4](#fig4919356463)所示。
 
 **开源子图结构**
 
-![KPFusedSparseReshape](figures/KPFusedSparseReshape.png "KPFusedSparseReshape 开源算子子图")
+![KPFusedSparseReshape算子的开源子图结构，展示稀疏张量reshape前后形状张量与索引张量的四路输入连接](figures/KPFusedSparseReshape.png "KPFusedSparseReshape 开源算子子图")
 
 **输入输出约束**
 
@@ -388,7 +390,7 @@ ANNC静态图融合软件架构图如[图4](#fig4919356463)所示。
 
 **开源子图结构**
 
-![KPFusedSparseSegmentReduce](figures/KPFusedSparseSegmentReduce.png "KPFusedSparseSegmentReduce 开源算子子图")
+![KPFusedSparseSegmentReduce算子的开源子图结构，展示稀疏分段规约的原始算子组合、分段索引输入与两路输出关系](figures/KPFusedSparseSegmentReduce.png "KPFusedSparseSegmentReduce 开源算子子图")
 
 **输入输出约束**
 
@@ -409,7 +411,7 @@ ANNC静态图融合软件架构图如[图4](#fig4919356463)所示。
 
 **开源子图结构**
 
-![KPFusedSparseSegmentReduceNonzero](figures/KPFusedSparseSegmentReduceNonzero.png "KPFusedSparseSegmentReduceNonzero 开源算子子图")
+![KPFusedSparseSegmentReduceNonzero算子的开源子图结构，展示非零分段规约的原始节点组合、四路输入与三路输出](figures/KPFusedSparseSegmentReduceNonzero.png "KPFusedSparseSegmentReduceNonzero 开源算子子图")
 
 **输入输出约束**
 
@@ -430,7 +432,7 @@ ANNC静态图融合软件架构图如[图4](#fig4919356463)所示。
 
 **开源子图结构**
 
-![KPFusedSparseSelect](figures/KPFusedSparseSelect.png "KPFusedSparseSelect开源算子子图")
+![KPFusedSparseSelect算子的开源子图结构，展示按条件筛选稀疏分段的原始节点组合与四个标量输入](figures/KPFusedSparseSelect.png "KPFusedSparseSelect开源算子子图")
 
 **输入输出约束**
 
@@ -465,7 +467,7 @@ TensorFlow ANNC静态图融合主要在高并发推理场景中使用，表现�
 
 **图 5**  算子融合原理图<a name="fig4919356474"></a>
 
-![ANNC静态图融合原理](figures/ANNC静态图融合原理.png "/ANNC静态图融合原理")
+![ANNC静态图融合原理图，图优化阶段将符合特征的子图整体替换为单个自定义算子，以消除中间内存开销](figures/ANNC静态图融合原理.png "/ANNC静态图融合原理")
 
 ## TensorFlow ANNC图编译优化特性（Legacy）
 
@@ -561,15 +563,15 @@ TensorFlow ANNC图编译优化特性主要在推荐系统和广告投放中使�
 
 **图 7** TensorFlow图融合示意图<a name="fig836316691915"></a><a id="TensorFlow图融合示意图"></a>
 
-![TensorFlow图融合示意图](figures/TensorFlow图融合示意图.png "TensorFlow图融合示意图")
+![TensorFlow图融合示意图，融合前多个冗余算子子图与融合后单个融合算子的结构对比](figures/TensorFlow图融合示意图.png "TensorFlow图融合示意图")
 
 **XLA图融合**
 
-XLA自身提供了多种与硬件无关的图融合优化策略，但是优化后的聚类（包括融合部分）仍可能包含重复计算，即多个融合操作之间存在相同或可合并的子表达式。如[**图 8** XLA图融合示意图](#XLA图融合示意图)所示，本功能旨在识别融合后的重复计算，如[**图 8** XLA图融合示意图](#XLA图融合示意图)中F1操作；并通过预融合策略消除冗余计算，如[**图 8** XLA图融合示意图](#XLA图融合示意图)中F4、F5、F6操作的融合，以进一步提升模型推理效率。
+XLA自身提供了多种与硬件无关的图融合优化策略，但是优化后的聚类（包括融合部分）仍可能包含重复计算，即多个融合操作之间存在相同或可合并的子表达式。如[**图 8** XLA图融合示意图](#XLA图融合示意图)F1操作所示，本功能旨在识别融合后的重复计算；并通过预融合策略消除冗余计算，如[**图 8** XLA图融合示意图](#XLA图融合示意图)中F4、F5、F6操作的融合，以进一步提升模型推理效率。
 
 **图 8** XLA图融合示意图<a name="fig5154159193015"></a><a id="XLA图融合示意图"></a>
 
-![XLA图融合示意图](figures/XLA图融合示意图.png "XLA图融合示意图")
+![XLA图融合示意图，融合后聚类中存在重复计算的F1操作，以及经预融合消除冗余的F4、F5、F6操作前后对比](figures/XLA图融合示意图.png "XLA图融合示意图")
 
 **算子优化**
 
@@ -581,11 +583,11 @@ XLA自身提供了多种与硬件无关的图融合优化策略，但是优化�
 
 **图 9** 数据打包示意图<a name="fig836316691916"></a><a id="数据打包示意图"></a>
 
-![数据打包示意图](figures/数据打包示意图.png "数据打包示意图")
+![未启用常量折叠时运行时对常量操作数做数据打包与重排以满足硬件访存对齐和缓存局部性的流程示意图](figures/数据打包示意图.png "数据打包示意图")
 
 **图 10** 常量折叠流程示意图<a name="fig836316691917"></a><a id="常量折叠流程示意图"></a>
 
-![常量折叠流程示意图](figures/常量折叠流程示意图.png "常量折叠流程示意图")
+![启用常量折叠后的流程示意图，常量操作数打包前移到编译期，经离线打包工具与免重排后端消除运行时打包开销](figures/常量折叠流程示意图.png "常量折叠流程示意图")
 
 功能配置的详细说明请参见《<a href="./quick_start.md">快速入门</a>》。
 
@@ -681,7 +683,7 @@ TensorFlow Serving用于推理的线程大致分为两类：通信线程和计�
 
 **图 13** 推理请求处理流程图<a name="fig1746025495015"></a><a id="推理请求处理流程图"></a>
 
-![推理请求处理流程图](figures/推理请求处理流程图.png "推理请求处理流程图")
+![TF Serving推理请求处理流程，客户端请求经grpcpp_sync_ser线程解析后由tf_Compute与Eigen线程分层并行执行](figures/推理请求处理流程图.png "推理请求处理流程图")
 
 客户端发送推理请求到grpcpp\_sync\_ser线程解析，然后启动Session执行推理，tf\_Compute/host\_executor线程并行执行不同的算子，tf\_numa\_-1\_Eige/tf\_XLAEigen线程执行算子内部的并发计算。
 
@@ -689,7 +691,7 @@ TensorFlow Serving用于推理的线程大致分为两类：通信线程和计�
 
 **图 14** 优化后推理流程图<a name="fig1321324116542"></a><a id="优化后推理流程图"></a>
 
-![优化后推理流程图](figures/优化后推理流程图.png "优化后推理流程图")
+![算子批量调度优化后的推理流程，算子在tf_Compute线程按顺序串行执行并取消了算子内部的并发计算](figures/优化后推理流程图.png "优化后推理流程图")
 
 客户端发送推理请求到grpcpp\_sync\_ser线程解析，并启动Session执行推理，算子按顺序在tf\_Compute线程串行执行计算，取消了算子内部的并发计算。
 
@@ -707,6 +709,4 @@ TensorFlow Serving用于推理的线程大致分为两类：通信线程和计�
 
 | 文档版本 | 发布日期 | 修改说明 |
 | ---- | ---- | --- |
-| 03 | 2026-09-30 | 第三次正式发布。 <ul><li>新增KDNN SparseMatmul多线程优化特性介绍内容。</li><li>新增kembedding算子库EmbeddingTableLookup算子特性介绍内容。</li></ul> |
-| 02 | 2026-06-30 | 第二次正式发布。 <ul><li>TensorFlow ANNC图编译优化特性增加常量折叠优化特性介绍内容。</li><li>新增TensorFlow ANNC静态图融合特性，增加对应特性介绍，软件架构等内容。</li></ul> |
-| 01 | 2026-03-30 | 第一次正式发布。 <ul><li>新增TensorFlow KDNN线程直通特性，增加对应特性介绍，软件架构等内容。</li></ul> |
+| 01 | 2026-09-30 | 第一次正式发布。 <ul><li>新增KDNN SparseMatmul多线程优化特性介绍内容。</li><li>新增kembedding算子库EmbeddingTableLookup算子特性介绍内容。</li></ul> |

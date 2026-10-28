@@ -1,5 +1,7 @@
 # API参考
 
+本文档介绍TensorFlow FAGO静态图融合特性使用说明与使用示例，适用于需要使用TensorFlow FAGO的用户。
+
 ## TensorFlow FAGO静态图融合特性使用说明
 
 FlashAttentionGraphOptimization(FAGO)静态图融合特性开关通过环境变量开关控制，具体说明如[表1 FAGO静态图融合特性开关](#table473618378218)所示。
