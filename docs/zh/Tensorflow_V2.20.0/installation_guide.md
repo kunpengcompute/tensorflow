@@ -1,6 +1,6 @@
 # 安装指南
 
-本文档按照“准备TensorFlow源码、构建推理服务、验证特性”的顺序介绍安装流程。
+本文档介绍鲲鹏平台上TensorFlow V2.20.0版本的安装流程，涵盖准备构建环境、准备TensorFlow源码、构建TensorFlow产物与验证特性，以及故障案例，适用于需要在鲲鹏服务器上安装并使用TensorFlow的用户。
 
 ## 准备构建环境
 
@@ -225,13 +225,13 @@ python main.py --op {op_name} --performance_test False > result.txt
 
 FAGO静态图融合只对满足特定结构和输入约束的子图生效。
 
-## 故障案例
+## 常见问题和故障案例
 
 编译TensorFlow时，可参考以下故障处理指导。
 
 ### 提示找不到libnvrtc-builtins.so.12.5文件报错
 
-#### 问题现象描述
+**问题现象描述**
 
 Tensorflow编译安装后，python import tensorflow报错，提示“libnvrtc-builtins.so.12.5: cannot open shared object file: No such file or directory”。详细信息如下所示。
 
@@ -248,11 +248,11 @@ from tensorflow.python.platform import _pywrap_cpu_feature_guard
 ImportError: libnvrtc-builtins.so.12.5: cannot open shared object file: No such file or directory
 ```
 
-#### 根本原因分析
+**关键过程、根本原因分析**
 
 TensorFlow构建脚本中硬编码了libnvrtc-builtins.so.12.5作为依赖版本，但实际安装的是CUDA 12.8，对应库文件为libnvrtc-builtins.so.12.8，运行时动态链接器找不到对应版本的库，触发导入失败。
 
-#### 解决方案及效果
+**结论、解决方案及效果**
 
 NVIDIA保证CUDA同大版本（12.x）内的nvrtc-builtins库二进制向下兼容，直接创建版本软链接即可正常运行，不影响功能与性能。
 

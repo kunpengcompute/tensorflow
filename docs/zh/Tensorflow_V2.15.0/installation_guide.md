@@ -1,6 +1,6 @@
 # 安装指南
 
-本文按照“准备TensorFlow源码、构建推理服务、验证特性”的顺序介绍安装流程。
+本文按照准备构建环境、准备TensorFlow源码、准备特性依赖、构建TensorFlow产物、验证特性的顺序介绍安装流程。
 
 ## 准备构建环境
 
@@ -89,52 +89,52 @@ TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请
 
 ##### 前提条件
 
-在校验软件包完整性之前，需要准备如下文件：
+在校验软件包完整性之前，需要准备如下文件。
 
 - 软件包：BoostKit-boostcore-kdnn_xxx.zip。
 - 校验文件：同名的.sha256文件。
 
 ##### 操作指导
 
-文件完整性校验操作步骤如下：
+文件完整性校验操作步骤如下。
 
-1. 计算软件包的sha256校验值。linux执行命令如下：
+1. 计算软件包的sha256校验值。linux执行命令如下。
 
    ```bash
    sha256sum BoostKit-boostcore-kdnn_xxx.zip
    ```
 
-   windows执行命令如下：
+   windows执行命令如下。
 
    ```bash
    certutil -hashfile BoostKit-boostcore-kdnn_xxx.zip SHA256
    ```
 
    命令执行完成后，输出校验值。
-2. 对比步骤 1 计算的校验值与校验文件中的 SHA256 值是否一致<br>
-   如果校验值一致说明文件完整，如果校验值不一致则可以确认文件完整性已被破坏，需要重新获取。
+
+2. 对比步骤1计算的校验值与校验文件中的SHA256值是否一致。如果校验值一致说明文件完整，如果校验值不一致则可以确认文件完整性已被破坏，需要重新获取。
 
 #### 安装KDNN软件包
 
 1. 将KDNN软件包解压缩，并使用rpm -ivh命令安装。
 
-   　```bash
-  　 unzip BoostKit-boostcore-kdnn_3.2.0.zip
-   　rpm -ivh boostcore-kdnn-3.2.0-1.aarch64.rpm
-   　```
+   ```bash
+   unzip BoostKit-boostcore-kdnn_3.2.0.zip
+   rpm -ivh boostcore-kdnn-3.2.0-1.aarch64.rpm
+   ```
 
-   　安装后，头文件位于`/usr/local/kdnn/include`，线程池和OpenMP库分别位于`/usr/　local/kdnn/lib/threadpool`和`/usr/local/kdnn/lib/omp`。
-   　TensorFlow集成使用线程池版本。
+   安装后，头文件位于`/usr/local/kdnn/include`，线程池和OpenMP库分别位于`/usr/local/kdnn/lib/threadpool`和`/usr/local/kdnn/lib/omp`。
+   TensorFlow集成使用线程池版本。
 
 2. 将KDNN头文件和线程池静态库放入生成的TensorFlow源码。
 
-   　```bash
-   　export TF_PATH=/path/to/tensorflow
-   　mkdir -p $TF_PATH/third_party/KDNN/src
-   　cp -r /usr/local/kdnn/include $TF_PATH/third_party/KDNN/
-   　cp /usr/local/kdnn/lib/threadpool/libkdnn.a \
-   　$TF_PATH/third_party/KDNN/src/
-   　```
+   ```bash
+   export TF_PATH=/path/to/tensorflow
+   mkdir -p $TF_PATH/third_party/KDNN/src
+   cp -r /usr/local/kdnn/include $TF_PATH/third_party/KDNN/
+   cp /usr/local/kdnn/lib/threadpool/libkdnn.a \
+   $TF_PATH/third_party/KDNN/src/
+   ```
 
 3. 应用KDNN头文件适配补丁。
 
@@ -451,6 +451,4 @@ Legacy补丁包含历史Runtime调度、旧融合Embedding、ANNC图编译和旧
 
 | 文档版本 | 发布日期 | 修改说明 |
 | ---- | ---- | --- |
-| 03 | 2026-09-30 | 第三次正式发布。重构安装流程，合并各特性重复的环境与编译步骤。 |
-| 02 | 2026-06-30 | 第二次正式发布。<ul><li>TensorFlow ANNC图编译优化特性增加常量折叠优化特性内容。</li><li>新增TensorFlow ANNC静态图融合特性适配环境和安装指导内容。</li></ul> |
-| 01 | 2026-03-30 | 第一次正式发布。 <ul><li>新增TensorFlow集成KDNN的安装步骤内容。</li><li>新增TensorFlow KDNN线程直通特性适配环境和安装指导内容。</li></ul> |
+| 01 | 2026-09-30 | 第一次正式发布。 |

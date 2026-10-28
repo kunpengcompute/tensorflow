@@ -1,5 +1,7 @@
 # API参考
 
+本文档介绍TensorFlow KDNN线程直通、SparseMatmul多线程优化、KEmbedding算子库EmbeddingTableLookup算子、ANNC静态图融合与图编译优化等接口特性，以及TensorFlow Serving线程调度接口的变量、参数与使用示例，适用于在鲲鹏平台使用TensorFlow V2.15.0进行模型推理与图优化开发的用户。
+
 ## TensorFlow KDNN线程直通特性使用说明
 
 TensorFlow KDNN线程直通特性通过进程环境变量控制，具体说明如下所示。
@@ -98,16 +100,16 @@ TensorFlow OpKernel类。
 
 | 参数名称 | 类型 | 描述 |
 | ---------------- | ------------- | ------ |
-| keys | int64张量 | 需要查找的Embedding key列表，形状为`[key_cnt]`。 |
-| table_handle | resource | 资源表句柄，通过`EmbeddingIndexToValueTable`创建并已加载Embedding数据。 |
+| keys | int64张量 | 需要查找的Embedding key列表，形状为[key_cnt]。 |
+| table_handle | resource | 资源表句柄，通过EmbeddingIndexToValueTable创建并已加载Embedding数据。 |
 
 **输出参数**
 
 | 参数名称 | 类型 | 描述 |
 | --------------- | ------------- | ------------- |
-| indices | int64张量 | SparseTensor的索引，形状为`[N, 2]`，N为命中非零元素总数，第二维为`[row, col]`。 |
-| values | float张量 | SparseTensor的值，形状为`[N]`，与indices一一对应。 |
-| dense_shape | int64张量 | 稠密形状，形状为`[2]`，值为`[key_cnt, emb_dim]`。 |
+| indices | int64张量 | SparseTensor的索引，形状为[N, 2]，N为命中非零元素总数，第二维为[row, col]。 |
+| values | float张量 | SparseTensor的值，形状为[N]，与indices一一对应。 |
+| dense_shape | int64张量 | 稠密形状，形状为[2]，值为[key_cnt, emb_dim]。 |
 
 **关键属性**
 
@@ -464,6 +466,4 @@ mode;m-n;k，默认0。
 
 | 文档版本 | 发布日期 | 修改说明 |
 | ---------- | -------- | -------- |
-| 03 | 2026-09-30 | 第三次正式发布。<ul><li>新增KEmbedding自定义算子库，提供EmbeddingTableLookup算子说明内容。</li><li>新增KDNN SparseMatmul多线程优化接口说明内容。</li><li>优化文档结构。</li></ul> |
-| 02 | 2026-06-30 | 第二次正式发布。<ul><li>TensorFlow ANNC图编译优化特性增加常量折叠优化特性接口说明内容。</li><li>新增TensorFlow ANNC静态图融合特性使用说明内容。</li></ul> |
-| 01 | 2026-03-30 | 第一次正式发布。新增TensorFlow KDNN线程直通特性使用说明内容。 |
+| 01 | 2026-09-30 | 第一次正式发布。<ul><li>新增KEmbedding自定义算子库，提供EmbeddingTableLookup算子说明内容。</li><li>新增KDNN SparseMatmul多线程优化接口说明内容。</li><li>优化文档结构。</li></ul> |

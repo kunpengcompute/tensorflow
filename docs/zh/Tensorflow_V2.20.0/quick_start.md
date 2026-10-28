@@ -1,6 +1,6 @@
 # 快速入门
 
-本文档介绍快速入门，安装和构建鲲鹏TensorFlow，适用于需要安装和构建鲲鹏TensorFlow的用户。
+本文档介绍鲲鹏TensorFlow V2.20.0的快速安装与调用方法，适用于需要在鲲鹏平台部署TensorFlow的环境搭建人员。
 
 ## 安装鲲鹏TensorFlow
 
@@ -30,7 +30,7 @@
 
 4. 根据实际使用场景选择需要的构建目标，无需同时构建全部目标。以下提供pip构建目标的参考命令。
 
-   4.1. 配置bazel。
+   1. 配置bazel。
 
       ```bash
       cd ../tensorflow-full-default
@@ -97,7 +97,7 @@
       Configuration finished
       ```
 
-   4.2. 打开`.tf_configure.bazelrc`，在`build --action_env LD_LIBRARY_PATH=...`行前添加以下build 配置。
+   2. 打开`.tf_configure.bazelrc`，在`build --action_env LD_LIBRARY_PATH=...`行前添加以下build 配置。
 
       ```bash
       build:cuda --repo_env TF_NEED_CUDA=1
@@ -106,47 +106,47 @@
       build:cuda --config=cuda_version
       ```
 
-   4.3. 构建TensorFlow pip包。
+   3. 构建TensorFlow pip包。
+ 
+      ```bash
+      bazel build \
+       --experimental_repo_remote_exec \
+       --verbose_failures \
+       --config=cuda --config=cuda_nvcc --config=cuda_wheel \
+       --cxxopt=-std=c++17 --host_cxxopt=-std=c++17 \
+       --copt=-march=armv8.5-a --linkopt=-fuse-ld=gold \
+       --config=opt \
+       --action_env=CLANG_CUDA=0 \
+       --repo_env=CLANG_CUDA=0 \
+       --repo_env=PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ \
+       --repo_env=PIP_TRUSTED_HOST=mirrors.aliyun.com \
+       --@local_config_cuda//cuda:override_include_cuda_libs=true \
+       --repo_env=CC=/usr/bin/gcc \
+       --repo_env=CXX=/usr/bin/g++ \
+       --repo_env=CUDA_PATH=/usr/local/cuda-12.8 \
+       //tensorflow/tools/pip_package:wheel
+      ```
 
-     ```bash
-     bazel build \
-      --experimental_repo_remote_exec \
-      --verbose_failures \
-      --config=cuda --config=cuda_nvcc --config=cuda_wheel \
-      --cxxopt=-std=c++17 --host_cxxopt=-std=c++17 \
-      --copt=-march=armv8.5-a --linkopt=-fuse-ld=gold \
-      --config=opt \
-      --action_env=CLANG_CUDA=0 \
-      --repo_env=CLANG_CUDA=0 \
-      --repo_env=PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ \
-      --repo_env=PIP_TRUSTED_HOST=mirrors.aliyun.com \
-      --@local_config_cuda//cuda:override_include_cuda_libs=true \
-      --repo_env=CC=/usr/bin/gcc \
-      --repo_env=CXX=/usr/bin/g++ \
-      --repo_env=CUDA_PATH=/usr/local/cuda-12.8 \
-      //tensorflow/tools/pip_package:wheel
-     ```
-
-   4.4. 安装TensorFlow pip包。
+   4. 安装TensorFlow pip包。
   
-     ```bash
-     pip install bazel-bin/tensorflow/tools/pip_package/wheel_house/tensorflow-2.20.0.dev0+selfbuilt-cp311-cp311-linux_aarch64.whl
-     ```
+      ```bash
+      pip install bazel-bin/tensorflow/tools/pip_package/wheel_house/tensorflow-2.20.0.dev0+selfbuilt-cp311-cp311-linux_aarch64.whl
+      ```
 
-5. 调用Tensorflow接口。
+5. 调用TensorFlow接口。
 
-   5.1. C++接口调用，预期可以输出Tensorflow C++共享库依赖的系统动态库。
+   1. C++接口调用，预期可以输出TensorFlow C++共享库依赖的系统动态库。
 
-     ```bash
-     ldd /usr/local/lib64/python3.11/site-packages/tensorflow/libtensorflow_cc.so.2
-     ```
+      ```bash
+      ldd /usr/local/lib64/python3.11/site-packages/tensorflow/libtensorflow_cc.so.2
+      ```
 
-   5.2. Python接口调用，预期可以输出tensorflow lib路径。
+   2. Python接口调用，预期可以输出TensorFlow lib路径。
 
-     ```bash
-     cd ..
-     python3 -c "import tensorflow; print(tensorflow.sysconfig.get_lib())"
-     ```
+      ```bash
+       cd ..
+       python3 -c "import tensorflow; print(tensorflow.sysconfig.get_lib())"
+      ```
 
 如果在编译过程中遇到任何问题，请参见《[TensorFlow 移植指南](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0001.html)》。
 

@@ -1,6 +1,6 @@
 # 快速入门
 
-本文档介绍快速入门，介绍鲲鹏TensorFlow的安装与推理服务运行方法，适用于需要安装和运行鲲鹏TensorFlow的用户。
+本文档介绍鲲鹏TensorFlow的安装与推理服务运行方法，适用于需要安装和运行鲲鹏TensorFlow的用户。
 
 ## 安装鲲鹏TensorFlow
 
@@ -177,6 +177,4 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是基于鲲鹏平�
 
 | 文档版本 | 发布日期 | 修改说明 |
 | ---- | ---- | --- |
-| 03 | 2026-09-30 | 第三次正式发布。<ul><li>更新按特性组合创建完整TensorFlow源码及按需选择构建目标的操作指导。</li><li>重构TensorFlow Serving推理服务使用说明，并明确当前维护特性与Legacy功能的使用范围。</li></ul> |
-| 02 | 2026-06-30 | 第二次正式发布。<ul><li>TensorFlow ANNC图编译优化特性增加常量折叠优化特性内容。</li><li>新增TensorFlow ANNC静态图融合特性，增加对应使用样例。</li></ul> |
-| 01 | 2026-03-30 | 第一次正式发布。 <ul><li>新增TensorFlow集成KDNN使用示例。</li><li>新增TensorFlow KDNN线程直通特性，增加对应使用示例。</li></ul> |
+| 01 | 2026-09-30 | 第一次正式发布。|

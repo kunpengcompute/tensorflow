@@ -4,10 +4,10 @@
 
 ## 最新消息
 
-- \[2026.09.30\]：Tensorflow V2.20.0新增FlashAttentionGraphOptimization(FAGO)静态图融合特性，支持FlashAttentionForward算子。Tensorflow V2.15.0新增KEmbedding自定义算子库，提供EmbeddingTableLookup算子；新增KDNN SparseMatmul多线程优化；重构补丁发布方式，按公共构建集成（common）、KDNN算子优化、ANNC静态图融合和KEmbedding自定义算子四个维度进行拆分和补丁维护，将Runtime、旧融合Embedding及旧XLA执行能力冻结为独立Legacy补丁。
-- \[2026.06.30\]：Tensorflow V2.15.0新增TensorFlow ANNC静态图融合特性, 适配鲲鹏950 7592C处理器，支持KPFusedGather、KPFusedSparseReshape等算子；TensorFlow ANNC图编译优化特性新增常量折叠优化，适配鲲鹏950 7592C处理器。
-- \[2026.03.30\]：Tensorflow V2.15.0新增TensorFlow KDNN线程直通特性, 支持batchmatmul、concat、softmax等算子对接KDNN。
-- \[2025.09.30\]：Tensorflow V2.15.0新增TensorFlow ANNC图编译优化特性，提供计算图优化，高性能融合算子生成与对接等优化技术。
+- \[2026.09.30\]：TensorFlow V2.20.0新增FlashAttentionGraphOptimization(FAGO)静态图融合特性，支持FlashAttentionForward算子。TensorFlow V2.15.0新增KEmbedding自定义算子库，提供EmbeddingTableLookup算子；新增KDNN SparseMatmul多线程优化；重构补丁发布方式，按公共构建集成（common）、KDNN算子优化、ANNC静态图融合和KEmbedding自定义算子四个维度进行拆分和补丁维护，将Runtime、旧融合Embedding及旧XLA执行能力冻结为独立Legacy补丁。
+- \[2026.06.30\]：TensorFlow V2.15.0新增TensorFlow ANNC静态图融合特性, 适配鲲鹏950 7592C处理器，支持KPFusedGather、KPFusedSparseReshape等算子；TensorFlow ANNC图编译优化特性新增常量折叠优化，适配鲲鹏950 7592C处理器。
+- \[2026.03.30\]：TensorFlow V2.15.0新增TensorFlow KDNN线程直通特性, 支持batchmatmul、concat、softmax等算子对接KDNN。
+- \[2025.09.30\]：TensorFlow V2.15.0新增TensorFlow ANNC图编译优化特性，提供计算图优化，高性能融合算子生成与对接等优化技术。
 - \[2025.06.30\]：TensorFlow Serving线程调度优化特性首次发布。
 
 ## 项目介绍
@@ -23,14 +23,14 @@
 ```bash
 tensorflow
 └── patches
-    └── Tensorflow_V2.15.0                              # Tensorflow 2.15.0补丁目录
+    └── Tensorflow_V2.15.0                              # TensorFlow 2.15.0补丁目录
         ├── feature                                     # 公共构建集成（common）、KDNN算子优化、ANNC静态图融合和KEmbedding自定义算子
         ├── frozen_feature                              # 独立Legacy补丁
         ├── manifest.json                               # 补丁分组和Profile定义
         ├── prepare_source.py                           # 完整源码创建工具
         ├── patch_manager.py                            # 补丁维护与验证工具
         └── SHA256SUMS                                  # 发布文件校验值
-    └── Tensorflow_V2.20.0                              # Tensorflow 2.20.0补丁目录
+    └── Tensorflow_V2.20.0                              # TensorFlow 2.20.0补丁目录
         ├── feature                                     # 公共构建集成（common）、FAGO静态图融合
         ├── manifest.json                               # 补丁分组和Profile定义
         ├── prepare_source.py                           # 完整源码创建工具
@@ -41,14 +41,14 @@ tensorflow
 ├── README_en.md                                        # 英文项目介绍
 └── docs                                                # 文档
     └── zh                                              # 中文文档目录
-        └── Tensorflow_V2.15.0                          # Tensorflow 2.15.0目录
+        └── Tensorflow_V2.15.0                          # TensorFlow 2.15.0目录
             ├── figures                                 # 图片资源目录
             ├── api_reference.md                        # API参考
             ├── quick_start.md                          # 快速入门
             ├── release_notes.md                        # 版本说明书
             ├── installation_guide.md                   # 安装指南
             └── feature_introduction.md                 # 特性介绍
-        └── Tensorflow_V2.20.0                          # Tensorflow 2.20.0目录
+        └── Tensorflow_V2.20.0                          # TensorFlow 2.20.0目录
             ├── figures                                 # 图片资源目录
             ├── api_reference.md                        # API参考
             ├── quick_start.md                          # 快速入门
@@ -56,14 +56,14 @@ tensorflow
             ├── installation_guide.md                   # 安装指南
             └── feature_introduction.md                 # 特性介绍
     └── en                                              # 英文文档目录
-        └── Tensorflow_V2.15.0                          # Tensorflow 2.15.0目录
+        └── Tensorflow_V2.15.0                          # TensorFlow 2.15.0目录
             ├── figures                                 # 图片资源目录
             ├── api_reference.md                        # API参考
             ├── quick_start.md                          # 快速入门
             ├── release_notes.md                        # 版本说明书
             ├── installation_guide.md                   # 安装指导
             └── feature_introduction.md                 # 特性介绍
-        └── Tensorflow_V2.20.0                          # Tensorflow 2.20.0目录
+        └── Tensorflow_V2.20.0                          # TensorFlow 2.20.0目录
             ├── figures                                 # 图片资源目录
             ├── api_reference.md                        # API参考
             ├── quick_start.md                          # 快速入门
@@ -72,9 +72,9 @@ tensorflow
             └── feature_introduction.md                 # 特性介绍    
 ```
 
-## Tensorflow V2.15.0
+## TensorFlow V2.15.0
 
-### Tensorflow V2.15.0特性介绍
+### TensorFlow V2.15.0特性介绍
 
 | 特性 | 状态 | 简介 |
 | --- | --- | --- |
@@ -86,9 +86,9 @@ tensorflow
 
 关于鲲鹏TensorFlow V2.15.0的特性详细介绍请参见《[特性介绍](./docs/zh/Tensorflow_V2.15.0/feature_introduction.md)》。
 
-### Tensorflow V2.15.0补丁发布说明
+### TensorFlow V2.15.0补丁发布说明
 
-所有补丁均基于官方TensorFlow `v2.15.0`固定提交`6887368d6d46223f460358323c4b76d61d1558a8`。
+所有补丁均基于官方TensorFlow `v2.15.0`固定提交，commit ID：`6887368d6d46223f460358323c4b76d61d1558a8`。
 
 | 配置 | 包含的补丁 | 适用场景 |
 | --- | --- | --- |
@@ -101,9 +101,9 @@ tensorflow
 
 Legacy补丁只允许独立应用到官方基线，不依赖公共构建集成（common），也不保证与其他补丁兼容。详细说明请参见《[README](./patches/Tensorflow_V2.15.0/README.md)》。
 
-## Tensorflow V2.20.0
+## TensorFlow V2.20.0
 
-### Tensorflow V2.20.0特性介绍
+### TensorFlow V2.20.0特性介绍
 
 | 特性 | 状态 | 简介 |
 | --- | --- | --- |
@@ -111,9 +111,9 @@ Legacy补丁只允许独立应用到官方基线，不依赖公共构建集成�
 
 关于鲲鹏TensorFlow V2.20.0的特性详细介绍请参见《[特性介绍](./docs/zh/Tensorflow_V2.20.0/feature_introduction.md)》。
 
-### Tensorflow V2.20.0.补丁发布说明
+### TensorFlow V2.20.0.补丁发布说明
 
-所有补丁均基于官方TensorFlow `v2.20.0`固定提交`bf5899deaf70fa45173c5c7b8dc9ace8824dc980`。
+所有补丁均基于官方TensorFlow `v2.20.0`固定提交，commit ID：`bf5899deaf70fa45173c5c7b8dc9ace8824dc980`。
 
 | 配置 | 包含的补丁 | 适用场景 |
 | --- | --- | --- |
@@ -133,8 +133,8 @@ Legacy补丁只允许独立应用到官方基线，不依赖公共构建集成�
 <table>
 <thead align="left">
 <tr id="row1291816372202">
-<th class="cellrowborder" valign="top" width="17.64176417641764%" id="mcps1.1.4.1.2"><p id="p13918183762016">Tensorflow V2.15.0 学习资源名称</p></th>
-<th class="cellrowborder" valign="top" width="17.64176417641764%" id="mcps1.1.4.1.3"><p id="p13918183762016">Tensorflow V2.20.0 学习资源名称</p></th>
+<th class="cellrowborder" valign="top" width="17.64176417641764%" id="mcps1.1.4.1.2"><p id="p13918183762016">TensorFlow V2.15.0 学习资源名称</p></th>
+<th class="cellrowborder" valign="top" width="17.64176417641764%" id="mcps1.1.4.1.3"><p id="p13918183762016">TensorFlow V2.20.0 学习资源名称</p></th>
 <th class="cellrowborder" valign="top" width="72.57725772577258%" id="mcps1.1.4.1.4"><p id="p89181437152019">学习资源简介</p></th>
 </tr>
 </thead>
