@@ -4040,6 +4040,7 @@ tf_cuda_cc_test(
     srcs = ["matmul_op_test.cc"],
     deps = [
         ":matmul_op",
+        ":matmul_op_impl_coverage_hdrs",
         ":ops_testutil",
         ":ops_util",
         ":quantized_ops",
@@ -4058,6 +4059,31 @@ tf_cuda_cc_test(
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/strings",
         "@local_xla//xla/tsl/platform:status",
+    ],
+)
+
+cc_library(
+    name = "matmul_op_impl_coverage_hdrs",
+    testonly = True,
+    hdrs = ["matmul_op_impl.h"],
+)
+
+tf_cc_test(
+    name = "batch_matmul_op_test",
+    size = "small",
+    srcs = ["batch_matmul_op_test.cc"],
+    deps = [
+        ":matmul_op",
+        ":matmul_op_impl_coverage_hdrs",
+        ":ops_testutil",
+        ":ops_util",
+        "//tensorflow/core:core_cpu",
+        "//tensorflow/core:framework",
+        "//tensorflow/core:lib",
+        "//tensorflow/core:protos_all_cc",
+        "//tensorflow/core:test",
+        "//tensorflow/core:test_main",
+        "//tensorflow/core:testlib",
     ],
 )
 
@@ -4505,6 +4531,24 @@ tf_kernel_library(
         ":gpu_prim_hdrs",
         ":loose_headers",
     ] + kdnn_deps(),
+)
+
+tf_cc_test(
+    name = "softmax_op_test",
+    size = "small",
+    srcs = ["softmax_op_test.cc"],
+    deps = [
+        ":softmax_op",
+        ":ops_testutil",
+        ":ops_util",
+        "//tensorflow/core:core_cpu",
+        "//tensorflow/core:framework",
+        "//tensorflow/core:lib",
+        "//tensorflow/core:protos_all_cc",
+        "//tensorflow/core:test",
+        "//tensorflow/core:test_main",
+        "//tensorflow/core:testlib",
+    ],
 )
 
 tf_kernel_library(

@@ -1,4 +1,4 @@
-/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
+/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -69,6 +69,18 @@ std::string get_node_name(const std::string& name) {
     node_name = name.substr(0, colon_pos);
   }
   return node_name;
+}
+
+bool check_input_port(const std::string& input, const std::string& node_name,
+                      int port) {
+  if (input.empty() || input[0] == '^') return false;
+  const size_t colon_pos = input.find_last_of(':');
+  if (colon_pos == std::string::npos) {
+    return port == 0 && input == node_name;
+  }
+  return input.compare(0, colon_pos, node_name) == 0 &&
+         input.compare(colon_pos + 1, std::string::npos,
+                       std::to_string(port)) == 0;
 }
 
 void set_fusedop_attributes(NodeDef* fused,
@@ -178,6 +190,12 @@ class KPFusedSparseDynamicStitchRewriter : public PatternRewriter {
 
     CHECK_NODE_OK(check_int_attr(node, "N", {num_partitions}))
     CHECK_NODE_OK(check_int_attr(partition, "num_partitions", {num_partitions}))
+    CHECK_NODE_OK(get_node_name(floor_mod->input(0)) ==
+                  get_node_name(size->input(0)))
+
+    for (int t = 0; t < num_partitions; ++t) {
+      CHECK_NODE_OK(check_input_port(node->input(t), partition->name(), t))
+    }
 
     auto nodes = graph->mutable_node();
     NodeDef fused_node;  // built locally; committed only if all checks pass
@@ -185,6 +203,7 @@ class KPFusedSparseDynamicStitchRewriter : public PatternRewriter {
     fused_node.set_op(name());
     fused_node.set_device(node->device());
     fused_node.add_input(size->input(0));
+    std::string table_partition;
     // right branch
     for (int i = num_partitions; i < num_inputs; ++i) {
       const NodeDef* gather = get_node(node->input(i));
@@ -206,6 +225,17 @@ class KPFusedSparseDynamicStitchRewriter : public PatternRewriter {
                     floor_div->input_size() == 2)
       CHECK_NODE_OK(check_const_value<int64_t>(
           get_mutable_node(floor_div->input(1)), {num_partitions}))
+      const int t = i - num_partitions;
+      CHECK_NODE_OK(check_input_port(gather->input(1), partition_1->name(), t))
+      if (table_partition.empty()) {
+        table_partition = partition_1->name();
+      } else {
+        CHECK_NODE_OK(partition_1->name() == table_partition)
+      }
+      CHECK_NODE_OK(get_node_name(partition_1->input(1)) ==
+                    get_node_name(partition->input(1)))
+      CHECK_NODE_OK(get_node_name(floor_div->input(0)) ==
+                    get_node_name(size->input(0)))
       CHECK_NODE_OK(check_input_dims(props, gather, 0, 2));
       fused_node.add_input(gather->input(0));
     }
@@ -297,6 +327,9 @@ class KPFusedSparseDynamicStitchReduceRewriter : public PatternRewriter {
 
     CHECK_NODE_OK(check_int_attr(stitch, "N", partitions))
     CHECK_NODE_OK(check_int_attr(partition, "num_partitions", partitions))
+    for (int t = 0; t < partitions; ++t) {
+      CHECK_NODE_OK(check_input_port(stitch->input(t), partition->name(), t))
+    }
 
     // The Reshape ("unique_input") between the size branch and Unique may be
     // optimized away. Support both layouts: with Reshape we peel it off,
@@ -315,6 +348,7 @@ class KPFusedSparseDynamicStitchReduceRewriter : public PatternRewriter {
     // of taking the SparseSegment* indices input, so fusion is only valid
     // when that input is exactly the idx output (port 1) of this Unique.
     CHECK_NODE_OK(node->input(1) == unique->name() + ":1")
+    CHECK_NODE_OK(check_input_port(floor_mod->input(0), unique->name(), 0))
 
     // The Cast ("segment_cast") between SparseSegment* input(2) and
     // StridedSlice may be optimized away. Support both layouts: with Cast we
@@ -374,6 +408,7 @@ class KPFusedSparseDynamicStitchReduceRewriter : public PatternRewriter {
                      reduce_suffix));
     fused_node.set_device(node->device());
     fused_node.add_input(unique->input(0));
+    std::string table_partition;  // gathers must all share one partition node
     // right branch
     for (int i = partitions; i < stitch_inputs; ++i) {
       const NodeDef* gather = get_node(stitch->input(i));
@@ -425,6 +460,16 @@ class KPFusedSparseDynamicStitchReduceRewriter : public PatternRewriter {
       CHECK_NODE_OK(floor_div_divisor != nullptr &&
                     check_const_value<int64_t>(floor_div_divisor,
                                                {partitions}))
+      const int t = i - partitions;
+      CHECK_NODE_OK(check_input_port(gather->input(1), partition_1->name(), t))
+      if (table_partition.empty()) {
+        table_partition = partition_1->name();
+      } else {
+        CHECK_NODE_OK(partition_1->name() == table_partition)
+      }
+      CHECK_NODE_OK(get_node_name(partition_1->input(1)) ==
+                    get_node_name(partition->input(1)))
+      CHECK_NODE_OK(check_input_port(floor_div->input(0), unique->name(), 0))
       fused_node.add_input(gather->input(0));
     }
     fused_node.add_input(strided_slice->input(0));

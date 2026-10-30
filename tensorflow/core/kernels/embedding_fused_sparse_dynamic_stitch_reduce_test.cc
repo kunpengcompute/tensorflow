@@ -1,17 +1,17 @@
-/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- *     Unless required by applicable law or agreed to in writing, software
- *     distributed under the License is distributed on an "AS IS" BASIS,
- *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *     See the License for the specific language governing permissions and
- *     limitations under the License.
- *     ==============================================================================*/
+/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+==============================================================================*/
 
 #include <cstdint>
 #include <string>
@@ -180,6 +180,60 @@ TEST_F(KPFusedSparseDynamicStitchReduceOpTest, TestUnsortedSegmentIds) {
   Status s = RunOpKernel();
   EXPECT_FALSE(s.ok());
   EXPECT_TRUE(absl::StrContains(s.message(), "sorted"));
+}
+
+TEST_F(KPFusedSparseDynamicStitchReduceOpTest, TestLeadingNegativeSegmentId) {
+  MakeOp("KPFusedSparseDynamicStitchSum", 2, 2);
+
+  AddInputFromArray<int64>(TensorShape({2}), {0, 1});
+  AddInputFromArray<float>(TensorShape({2, 2}),
+                           {1.0f, 2.0f, 3.0f, 4.0f});
+  AddInputFromArray<float>(TensorShape({2, 2}),
+                           {5.0f, 6.0f, 7.0f, 8.0f});
+  AddInputFromArray<int64>(TensorShape({2, 1}), {-1, 0});
+  AddInputFromArray<int32>(TensorShape({2}), {0, 0});
+  AddInputFromArray<int32>(TensorShape({2}), {2, 1});
+  AddInputFromArray<int32>(TensorShape({2}), {1, 1});
+
+  Status s = RunOpKernel();
+  EXPECT_FALSE(s.ok());
+  EXPECT_TRUE(absl::StrContains(s.message(), "non-negative"));
+}
+
+TEST_F(KPFusedSparseDynamicStitchReduceOpTest, TestDescendingSegmentIds) {
+  MakeOp("KPFusedSparseDynamicStitchSum", 2, 2);
+
+  AddInputFromArray<int64>(TensorShape({2}), {0, 1});
+  AddInputFromArray<float>(TensorShape({2, 2}),
+                           {1.0f, 2.0f, 3.0f, 4.0f});
+  AddInputFromArray<float>(TensorShape({2, 2}),
+                           {5.0f, 6.0f, 7.0f, 8.0f});
+  AddInputFromArray<int64>(TensorShape({2, 1}), {2, 0});
+  AddInputFromArray<int32>(TensorShape({2}), {0, 0});
+  AddInputFromArray<int32>(TensorShape({2}), {2, 1});
+  AddInputFromArray<int32>(TensorShape({2}), {1, 1});
+
+  Status s = RunOpKernel();
+  EXPECT_FALSE(s.ok());
+  EXPECT_TRUE(absl::StrContains(s.message(), "final segment id"));
+}
+
+TEST_F(KPFusedSparseDynamicStitchReduceOpTest, TestSegmentIdAboveFinal) {
+  MakeOp("KPFusedSparseDynamicStitchSum", 2, 2);
+
+  AddInputFromArray<int64>(TensorShape({3}), {0, 1, 2});
+  AddInputFromArray<float>(TensorShape({2, 2}),
+                           {1.0f, 2.0f, 3.0f, 4.0f});
+  AddInputFromArray<float>(TensorShape({2, 2}),
+                           {5.0f, 6.0f, 7.0f, 8.0f});
+  AddInputFromArray<int64>(TensorShape({3, 1}), {0, 2, 0});
+  AddInputFromArray<int32>(TensorShape({2}), {0, 0});
+  AddInputFromArray<int32>(TensorShape({2}), {3, 1});
+  AddInputFromArray<int32>(TensorShape({2}), {1, 1});
+
+  Status s = RunOpKernel();
+  EXPECT_FALSE(s.ok());
+  EXPECT_TRUE(absl::StrContains(s.message(), "final segment id"));
 }
 
 TEST_F(KPFusedSparseDynamicStitchReduceOpTest, TestRowIdOutOfRange) {

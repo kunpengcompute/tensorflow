@@ -22,7 +22,7 @@ EOF
 RUN_COUNT="${1:-10}"
 CORE_RANGE="${2:-0-15}"
 
-if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
     usage
     exit 0
 fi

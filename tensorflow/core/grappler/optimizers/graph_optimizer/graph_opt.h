@@ -1,4 +1,4 @@
-/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
+/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -135,6 +135,7 @@ class PatternRewriter {
     for (int i = 0; i < tensor.tensor_shape().dim_size(); ++i) {
       const int64_t dim = tensor.tensor_shape().dim(i).size();
       if (dim < 0) return false;
+      if (dim != 0 && element_count > INT64_MAX / dim) return false;
       element_count *= dim;
     }
     if (element_count < static_cast<int64_t>(cmp.size())) return false;
