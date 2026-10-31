@@ -97,8 +97,8 @@ static void FusedDoubleGatherImpl(OpKernelContext* context,
       total_units, cost_per_unit,
       [&](int64_t begin, int64_t end) {
         for (int64_t flat = begin; flat < end; ++flat) {
-          const int i = static_cast<int>(flat / I21);
-          const int j = static_cast<int>(flat % I21);
+          const int64_t i = flat / I21;
+          const int64_t j = flat % I21;
 
           Tindices2 idx2 = indices2_data[(indices2_dims == 2) ? (i * I21 + j) : j];
 
@@ -220,6 +220,7 @@ public:
     int pack_size = pack_dim.scalar<int32>()();
     int pack_const = pack.scalar<int32>()();
     OP_REQUIRES(context, pack_size > 0, errors::InvalidArgument("pack_size must > 0"));
+    OP_REQUIRES(context, pack_const >= 0, errors::InvalidArgument("pack const must >= 0, got ", pack_const));
     int64_t a_reshaped_cols = gathered.NumElements() / pack_size;
     auto a_reshaped = gathered.shaped<float, 2>({pack_size, a_reshaped_cols});
     Tensor* output;

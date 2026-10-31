@@ -64,13 +64,17 @@ public:
     int64 max_seg_id = 0;
     for (int64 i = 0; i < num_indices; ++i) {
       int64 seg_id = slice_input_mat(i, col);
+      OP_REQUIRES(context, seg_id >= 0,
+                  errors::InvalidArgument("segment id must be non-negative, got ", seg_id));
       segment_ids[i] = seg_id;
       if (seg_id > max_seg_id) {
         max_seg_id = seg_id;
       }
     }
 
-    const int64 batch_size = max_seg_id + 1;
+    OP_REQUIRES(context, max_seg_id < kint32max,
+                errors::InvalidArgument("max segment id overflows int32"));
+    const int32 batch_size = static_cast<int32>(max_seg_id + 1);
 
     // 获取线程池
     auto* worker_threads = context->device()->tensorflow_cpu_worker_threads();
@@ -88,7 +92,7 @@ public:
       Tensor* output_shape = nullptr;
       OP_REQUIRES_OK(
           context, context->allocate_output(0, TensorShape({1}), &output_shape));
-      output_shape->flat<int32>()(0) = static_cast<int32>(batch_size);
+      output_shape->flat<int32>()(0) = batch_size;
 
       // 优化：使用map管理索引 + 连续内存存储
       absl::flat_hash_map<int64, int64> seg_id_to_idx;
@@ -103,6 +107,8 @@ public:
         for (int64 i = 0; i < num_indices; ++i) {
           const int64 seg_id = segment_ids[i];
           const Tidx data_row = indices_vec(i);
+          OP_REQUIRES(context, data_row >= 0 && data_row < input_tensor.dim_size(0),
+                      errors::InvalidArgument("indices out of input row range"));
           
           auto it = seg_id_to_idx.find(seg_id);
           int64 idx;
@@ -161,6 +167,8 @@ public:
         for (int64 i = 0; i < num_indices; ++i) {
           const int64 seg_id = segment_ids[i];
           const Tidx data_row = indices_vec(i);
+          OP_REQUIRES(context, data_row >= 0 && data_row < input_tensor.dim_size(0),
+                      errors::InvalidArgument("indices out of input row range"));
           
           auto it = seg_id_to_idx.find(seg_id);
           int64 idx;
@@ -219,7 +227,7 @@ public:
       Tensor* output_shape = nullptr;
       OP_REQUIRES_OK(
           context, context->allocate_output(0, TensorShape({2}), &output_shape));
-      output_shape->flat<int32>()(0) = static_cast<int32>(batch_size);
+      output_shape->flat<int32>()(0) = batch_size;
       output_shape->flat<int32>()(1) = static_cast<int32>(embed_dim);
 
       // 优化：map管理索引 + 连续内存存储数据
@@ -234,6 +242,8 @@ public:
       for (int64 i = 0; i < num_indices; ++i) {
         const int64 seg_id = segment_ids[i];
         const Tidx data_row = indices_vec(i);
+        OP_REQUIRES(context, data_row >= 0 && data_row < input_tensor.dim_size(0),
+                    errors::InvalidArgument("indices out of input row range"));
         
         auto it = seg_id_to_idx.find(seg_id);
         int64 idx;

@@ -73,8 +73,8 @@ public:
 
     auto worker_threads = context->device()->tensorflow_cpu_worker_threads();
     const int64 cost_per_unit = 120; // Actual single cycle execution time 
-    auto work = [&](int start, int end) {
-      for (int i = start; i < end; ++i) {
+    auto work = [&](int64_t start, int64_t end) {
+      for (int64_t i = start; i < end; ++i) {
         const int64_t global_id = x_flat(i);
         const int64_t table_id = global_id % num_partitions;
         const int64_t row_id = global_id / num_partitions;

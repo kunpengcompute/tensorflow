@@ -62,13 +62,17 @@ public:
 
     // Calculate max segment_id
     int64 max_seg_id = 0;
-    for (int32 i = 0; i < num_indices; ++i) {
+    for (int64 i = 0; i < num_indices; ++i) {
       int64 seg_id = slice_input_mat(i, col);
+      OP_REQUIRES(context, seg_id >= 0,
+                  errors::InvalidArgument("segment id must be non-negative, got ", seg_id));
       if (seg_id > max_seg_id) {
         max_seg_id = seg_id;
       }
     }
-    const int64 batch_size = max_seg_id + 1;
+    OP_REQUIRES(context, max_seg_id < kint32max,
+                errors::InvalidArgument("max segment id overflows int32"));
+    const int32 batch_size = static_cast<int32>(max_seg_id + 1);
 
     Tensor* output = nullptr;
     OP_REQUIRES_OK(context,
@@ -80,7 +84,7 @@ public:
                    context->allocate_output(1, TensorShape({}), &slice_out));
     if (out_dim == 0)
       slice_out->scalar<int32>()() = batch_size;
-    else slice_out->scalar<int32>()() = embedding_size;
+    else slice_out->scalar<int32>()() = static_cast<int32>(embedding_size);
 
     auto output_data = output->matrix<float>().data();
 
@@ -92,6 +96,8 @@ public:
       for (int64 i = 0; i < num_indices; ++i) {
         const int64 seg_id = slice_input_mat(i, col);
         const Tidx data_row = indices_vec(i);
+        OP_REQUIRES(context, data_row >= 0 && data_row < input_tensor.dim_size(0),
+                    errors::InvalidArgument("indices out of input row range"));
         counts_vec(seg_id) += 1;
 
         float* output_row = output_data + seg_id * embedding_size;
@@ -133,6 +139,8 @@ public:
       for (int64 i = 0; i < num_indices; ++i) {
         const int64 seg_id = slice_input_mat(i, col);
         const Tidx data_row = indices_vec(i);
+        OP_REQUIRES(context, data_row >= 0 && data_row < input_tensor.dim_size(0),
+                    errors::InvalidArgument("indices out of input row range"));
 
         float* output_row = output_data + seg_id * embedding_size;
         const float* input_data_row = input_data + data_row * embedding_size;

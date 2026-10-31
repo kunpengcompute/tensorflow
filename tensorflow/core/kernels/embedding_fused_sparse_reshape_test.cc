@@ -155,7 +155,7 @@ TEST_F(KPFusedSparseReshapeTest, Invalid_BeginOutOfRange) {
       {2, 2},
       {2});
   EXPECT_FALSE(s.ok());
-  EXPECT_TRUE(absl::StrContains(s.message(), "begin[1] must < slice_input.dim_size(1)"));
+  EXPECT_TRUE(absl::StrContains(s.message(), "begin[1] must in [0, slice_input.dim_size(1))"));
 }
 
 // 反例4：target shape 有多个 -1
