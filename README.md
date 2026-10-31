@@ -4,7 +4,7 @@
 
 ## 最新消息
 
-- \[2026-12-30\]：Tensorflow V2.15.0 KEmbedding优化特性、ANNC图融合特性、KDNN算子优化迁移至V2.20.0；新增SparseMatmul低稀疏度场景转稠密运算优化；ANNC图融合优化特性新增KPFusedSparseDynamicStitchSum等算子。
+- \[2026-12-30\]：Tensorflow V2.15.0 KEmbedding优化特性、ANNC图融合特性、KDNN算子优化迁移至V2.20.0；新增SparseMatmul低稀疏度场景转稠密运算优化；ANNC图融合优化特性新增KPFusedSparseDynamicStitchSum等算子；新增TensorFlow Eigen KGemm矩阵乘加速特性，提供面向aarch64 NEON的fp32矩阵乘内核，替换Eigen开源GEBP内核。
 - \[2026-09-30\]：Tensorflow V2.20.0新增FlashAttentionGraphOptimization(FAGO)静态图融合特性，支持FlashAttentionForward算子。Tensorflow V2.15.0新增KEmbedding自定义算子库，提供EmbeddingTableLookup算子；新增KDNN SparseMatmul多线程优化；重构补丁发布方式，按公共构建集成（common）、KDNN算子优化、ANNC静态图融合和KEmbedding自定义算子四个维度进行拆分和补丁维护，将Runtime、旧融合Embedding及旧XLA执行能力冻结为独立Legacy补丁。
 - \[2026-06-30\]：Tensorflow V2.15.0新增TensorFlow ANNC静态图融合特性, 适配鲲鹏950 7592C处理器，支持KPFusedGather、KPFusedSparseReshape等算子；TensorFlow ANNC图编译优化特性新增常量折叠优化，适配鲲鹏950 7592C处理器。
 - \[2026-03-30\]：Tensorflow V2.15.0新增TensorFlow KDNN线程直通特性, 支持batchmatmul、concat、softmax等算子对接KDNN。
@@ -15,7 +15,7 @@
 
 鲲鹏TensorFlow是基于开源TensorFlow的高性能推理加速扩展，聚焦于搜推广推理场景下的高效执行。
 
-当前维护的补丁系列覆盖公共构建集成（common）、KDNN算子优化、ANNC静态图融合，以及KEmbedding自定义算子。
+当前维护的补丁系列覆盖公共构建集成（common）、KDNN算子优化、ANNC静态图融合、KEmbedding自定义算子，以及Eigen KGemm矩阵乘加速。
 
 历史Runtime调度、旧融合Embedding和旧XLA执行等功能已冻结为独立Legacy补丁。Legacy补丁不属于当前维护的默认特性组合，也不保证与其他特性补丁兼容。
 
@@ -32,7 +32,7 @@ tensorflow
         ├── patch_manager.py                            # 补丁维护与验证工具
         └── SHA256SUMS                                  # 发布文件校验值
     └── Tensorflow_V2.20.0                              # Tensorflow 2.20.0补丁目录
-        ├── feature                                     # 公共构建集成（common）、KDNN算子优化、ANNC静态图融合和KEmbedding自定义算子
+        ├── feature                                     # 公共构建集成（common）、KDNN算子优化、ANNC静态图融合、KEmbedding自定义算子和Eigen KGemm矩阵乘加速
         ├── manifest.json                               # 补丁分组和Profile定义
         ├── prepare_source.py                           # 完整源码创建工具
         ├── patch_manager.py                            # 补丁维护与验证工具
@@ -108,9 +108,10 @@ Legacy补丁只允许独立应用到官方基线，不依赖公共构建集成�
 
 | 特性 | 状态 | 简介 |
 | --- | --- | --- |
-| KDNN算子优化 | 维护中 | 将TensorFlow线程池透传到KDNN算子库，减少线程调度开销。支持SparseMatmul等算子。 |
-| ANNC静态图融合 | 维护中 | 通过remapper机制将符合固定结构的子图替换为融合算子。 |
-| KEmbedding自定义算子 | 维护中 | 提供面向推荐推理场景的EmbeddingTableLookup算子。 |
+| KDNN算子优化 | 演进中 | 将TensorFlow线程池透传到KDNN算子库，减少线程调度开销。支持SparseMatmul等算子。 |
+| ANNC静态图融合 | 演进中 | 通过remapper机制将符合固定结构的子图替换为融合算子。 |
+| KEmbedding自定义算子 | 演进中 | 提供面向推荐推理场景的EmbeddingTableLookup算子。 |
+| Eigen KGemm矩阵乘加速 | 演进中 | 切换Eigen下载来源至鲲鹏Eigen仓，启用面向aarch64 NEON的fp32矩阵乘内核，替换Eigen开源GEBP内核。 |
 
 关于鲲鹏TensorFlow V2.20.0的特性详细介绍请参见《[特性介绍](./docs/zh/Tensorflow_V2.20.0/feature_introduction.md)》。
 
@@ -123,7 +124,8 @@ Legacy补丁只允许独立应用到官方基线，不依赖公共构建集成�
 | common-only | common | 只包含构建和兼容性改动，不启用加速特性。 |
 | kdnn-core | common + KDNN | 启用KDNN算子优化，推荐作为基础版本。 |
 | kdnn-annc | common + KDNN + ANNC | 在KDNN基础上增加ANNC静态图融合。 |
-| full-default | common + KDNN + ANNC + KEmbedding | 启用当前维护的全部特性。 |
+| eigen-core | common + Eigen | 启用Eigen KGemm矩阵乘加速，推荐CPU推理场景。 |
+| full-default | common + KDNN + ANNC + KEmbedding + Eigen | 启用当前维护的全部特性。 |
 
 当前维护的补丁系列需要按特性组合生成`tensorflow/feature_copts.bzl`，请参见`patches`目录下的《[README](./patches/Tensorflow_V2.20.0/README.md)》构建源码。
 

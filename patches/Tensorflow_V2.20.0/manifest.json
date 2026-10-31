@@ -107,6 +107,21 @@
         "third_party/kembedding/**",
         "experiment_scripts/**"
       ]
+    },
+    {
+      "name": "eigen",
+      "output": "0005-tensorflow_2.20.0-eigen-kgemm.patch",
+      "description": "Eigen KGemm NEON fp32 GEMM acceleration with the MatMul performance test suite.",
+      "patterns": [
+        "third_party/xla/third_party/eigen3/workspace.bzl",
+        "tensorflow/python/kernel_tests/benchmark/BUILD",
+        "tensorflow/python/kernel_tests/benchmark/compare_wheels.py",
+        "tensorflow/python/kernel_tests/benchmark/matmul_cases.py",
+        "tensorflow/python/kernel_tests/benchmark/run_wheel_matmul.py",
+        "tensorflow/python/kernel_tests/benchmark/summarize_comparison.py",
+        "tensorflow/python/kernel_tests/math_ops/BUILD",
+        "tensorflow/python/kernel_tests/math_ops/matmul_model_shapes_test.py"
+      ]
     }
   ],
   "profiles": [
@@ -132,12 +147,17 @@
       ]
     },
     {
+      "name": "eigen-core",
+      "groups": ["common", "eigen"]
+    },
+    {
       "name": "full-default",
       "groups": [
         "common",
         "kdnn",
         "annc",
-        "kembedding"
+        "kembedding",
+        "eigen"
       ],
       "full_source": true
     }

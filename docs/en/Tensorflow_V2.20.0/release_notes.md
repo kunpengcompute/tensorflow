@@ -15,7 +15,7 @@
 </tr>
 <tr id="row24726251"><th class="firstcol" valign="top" width="42.17%" id="mcps1.1.3.2.1"><p id="p56669300"><a name="p56669300"></a><a name="p56669300"></a>Product Version</p>
 </th>
-<td class="cellrowborder" valign="top" width="57.830000000000005%" headers="mcps1.1.3.2.1 "><p id="p11923034"><a name="p11923034"></a><a name="p11923034"></a><span id="text14311218114"><a name="text14311218114"></a><a name="text14311218114"></a>26.2.RC1</span></p>
+<td class="cellrowborder" valign="top" width="57.830000000000005%" headers="mcps1.1.3.2.1 "><p id="p11923034"><a name="p11923034"></a><a name="p11923034"></a><span id="text14311218114"><a name="text14311218114"></a><a name="text14311218114"></a>26.3.0</span></p>
 </td>
 </tr>
 <tr id="row1930811171892"><th class="firstcol" valign="top" width="42.17%" id="mcps1.1.3.3.1"><p id="p2030912172097"><a name="p2030912172097"></a><a name="p2030912172097"></a>Software Name</p>
@@ -25,7 +25,7 @@
 </tr>
 <tr id="row19308111718"><th class="firstcol" valign="top" width="42.17%" id="mcps1.1.3.3.1"><p id="p2030912172097"><a name="p2030912172097"></a><a name="p2030912172097"></a>Software Version</p>
 </th>
-<td class="cellrowborder" valign="top" width="57.830000000000005%" headers="mcps1.1.3.3.1 "><p id="p1730912179911"><a name="p1730912179911"></a><a name="p1730912179911"></a><span id="text17191017111119"><a name="text17191017111119"></a><a name="text17191017111119"></a>V1.2.0</span></p>
+<td class="cellrowborder" valign="top" width="57.830000000000005%" headers="mcps1.1.3.3.1 "><p id="p1730912179911"><a name="p1730912179911"></a><a name="p1730912179911"></a><span id="text17191017111119"><a name="text17191017111119"></a><a name="text17191017111119"></a>V1.3.0</span></p>
 </td>
 </tr>
 </tbody>
@@ -46,7 +46,7 @@
 <tbody>
 <tr id="row207032381509"><td class="cellrowborder" valign="top" width="31.009999999999998%" headers="mcps1.1.4.1.1 "><p id="p177041382017"><a name="p177041382017"></a><a name="p177041382017"></a>openEuler 24.03 LTS SP3</p>
 </td>
-<td class="cellrowborder" valign="top" width="34.72%" headers="mcps1.1.4.1.2 "><p id="p173654366528"><a name="p173654366528"></a><a name="p173654366528"></a>Kunpeng 950 processor</p>
+<td class="cellrowborder" valign="top" width="34.72%" headers="mcps1.1.4.1.2 "><p id="p173654366528"><a name="p173654366528"></a><a name="p173654366528"></a>Kunpeng 950 7592C processor</p>
 </td>
 <td class="cellrowborder" valign="top" width="34.27%" headers="mcps1.1.4.1.3 "><p id="p10125515012"><a name="p10125515012"></a><a name="p10125515012"></a>GCC 12.3.1</p>
 </td>
@@ -81,6 +81,28 @@ Virus scanning is not involved because no software package is released.
 
 For details, see [Installation Guide](./installation_guide.md).
 
+## V1.3.0
+
+### Feature Updates
+
+- Added the TensorFlow Eigen KGemm MatMul acceleration feature. This feature provides an fp32 MatMul kernel for aarch64 NEON to replace the open-source Eigen GEBP kernel. It takes effect for 2D `tf.matmul` with contiguous memory and a single contraction dimension.
+
+**Modified Features<a name="zh-cn_topic_0000002518399190_section16450949161513"></a>**
+
+None
+
+**Removed Features<a name="zh-cn_topic_0000002518399190_section9218125814158"></a>**
+
+None
+
+### Resolved Issues
+
+None
+
+### Known Issues
+
+None
+
 ## V1.2.0
 
 ### Feature Updates
@@ -105,7 +127,7 @@ None
 
 ## Related Documentation
 
-### v1.2.0 Documentation
+### v1.3.0 Documentation
 
 <a name="table41916133"></a>
 

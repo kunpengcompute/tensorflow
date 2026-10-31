@@ -1,0 +1,6 @@
+# 补丁文件必须按原样（byte-for-byte）存储和检出。
+# patches/*/SHA256SUMS 记录的是补丁文件的 sha256，若在 Windows 上被
+# core.autocrlf 转成 CRLF，本地校验会失败，重新保存后提交还会污染仓库。
+# 因此这里用 -text 关闭换行符转换，而不是 text eol=lf —— 后者会改写补丁内容，
+# 使 SHA256SUMS 失效。
+*.patch -text

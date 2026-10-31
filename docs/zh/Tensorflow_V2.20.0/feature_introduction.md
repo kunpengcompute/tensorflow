@@ -499,8 +499,75 @@ TensorFlow ANNC静态图融合主要在高并发推理场景中使用，表现�
 
 ![ANNC静态图融合原理](figures/ANNC静态图融合原理.png "/ANNC静态图融合原理")
 
+## TensorFlow Eigen KGemm矩阵乘加速
+
+### 简介
+
+本章节介绍TensorFlow Eigen矩阵乘加速特性（以下简称KGemm）的基本概念和实现原理。
+
+矩阵乘（MatMul）是Transformer类模型的核心算子，在MoE（Mixture of Experts）、宽层全连接、注意力投影等结构中占据主要计算量。TensorFlow的二维矩阵乘最终由Eigen的GEBP（Generalized Block Panel）内核完成。Eigen开源GEBP面向通用处理器设计，其分块参数、打包方式和线程调度策略未针对鲲鹏处理器的NEON单元宽度和缓存层次进行优化。
+
+为提升矩阵乘性能，鲲鹏BoostKit提出了TensorFlow Eigen KGemm矩阵乘加速方案。该方案提供面向aarch64 NEON的fp32矩阵乘内核，替换Eigen开源GEBP内核。KGemm通过整块打包（packing）、寄存器分块的微内核（micro-kernel）和感知工作集大小的线程划分，提升矩阵乘的计算访存比，实现性能提升。
+
+KGemm特性通过代码补丁的方式接入TensorFlow，基于TensorFlow 2.20版本增加。补丁将Eigen的下载来源切换至包含KGemm内核的鲲鹏Eigen仓，并在编译时通过宏`EIGEN_NEON_USE_KGEMM`启用。
+
+### 软件架构
+
+KGemm矩阵乘加速软件架构如下图所示。
+
+**图 3**  KGemm矩阵乘加速软件架构图<a name="fig3"></a>
+
+![KGemm矩阵乘加速软件架构图](figures/KGemm矩阵乘加速软件架构图.png "/KGemm矩阵乘加速软件架构图")
+
+### 生效范围
+
+KGemm仅对满足以下全部条件的矩阵乘生效。不满足条件时自动回退至Eigen开源实现，计算结果不受影响。
+
+| 条件 | 说明 |
+| --- | --- |
+| 算子类型为`tf.matmul` | 无批量维的二维矩阵乘 |
+| 操作数为二维张量 | A为[M, K]，B为[K, N] |
+| 收缩维为1 | 单收缩维，无批量维参与 |
+| 内存连续 | 操作数为连续内存布局 |
+| 数据类型为fp32 | 单精度浮点 |
+| 编译时定义宏`EIGEN_NEON_USE_KGEMM` | 未定义时KGemm代码不参与编译 |
+
+> ![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
+> batch维大于1的矩阵乘会走批量矩阵乘（BatchMatMulV2）路径，不经过KGemm，其性能与Eigen开源实现一致；batch维为1时输入会被压成二维矩阵乘，仍然经过KGemm。
+>
+> 当KDNN算子优化同时启用时，fp32矩阵乘优先由KDNN处理，KGemm不生效；若需KGemm加速，请使用不含KDNN的`eigen-core`特性组合，或在运行时设置`TF_ENABLE_KDNN_OPTS=0`关闭KDNN。
+
+### 原理描述
+
+本节针对KGemm矩阵乘加速特性进行描述，以帮助用户更好地使用。
+
+Eigen开源实现将矩阵乘切分为mc×kc、kc×nc的块，逐块打包并调用微内核，分块参数由启发式规则确定。KGemm取消外层分块，改为按完整矩阵一次性打包，再由微内核沿M、N方向轮转计算，减少块间重复打包与调度开销。
+
+**图 4**  KGemm矩阵乘加速原理图<a name="fig4"></a>
+
+![KGemm矩阵乘加速原理图](figures/KGemm矩阵乘加速原理图.png "/KGemm矩阵乘加速原理图")
+
+**关键设计**
+
+| 设计点 | 说明 |
+| --- | --- |
+| 整块打包 | 一次性完成A、B打包，避免分块场景下的重复拷贝；打包缓冲按64字节对齐，满足NEON取数指令的对齐要求 |
+| 寄存器分块 | 微内核以4×16为基本单位，一次装载多行多列，提升寄存器复用率 |
+| 线程划分 | 按M、N方向二维划分线程任务，线程数依据工作集大小确定，避免小矩阵过度并行 |
+| 空乘积防护 | K为0时显式填充零值输出，保证与Eigen开源实现的结果一致 |
+
+### 应用场景
+
+KGemm主要在大权重矩阵的矩阵乘场景中受益，典型场景包括：
+
+- MoE结构中专家权重的投影计算，收缩维通常超过1000
+- 宽层全连接计算，M、N维度较大
+- 注意力机制中的QKV投影与输出投影
+
+收缩维K越大、矩阵规模越大，加速比越明显。极小规模矩阵乘（如K小于64）计算量不足，加速效果趋于持平。
+
 ## 修订记录
 
 | 文档版本 | 发布日期 | 修改说明 |
 | ---- | ---- | ---- |
-| 01 | 2026-12-30 | 第一次正式发布。<ul><li>新增TensorFlow KDNN算子优化特性，增加对应特性介绍、软件架构等内容。</li><li>新增KEmbedding算子库EmbeddingTableLookup算子特性介绍内容。</li><li>新增TensorFlow ANNC静态图融合特性，增加对应特性介绍、软件架构等内容。</li></ul> |
+| 01 | 2026-12-30 | 第一次正式发布。<ul><li>新增TensorFlow KDNN算子优化特性，增加对应特性介绍、软件架构等内容。</li><li>新增KEmbedding算子库EmbeddingTableLookup算子特性介绍内容。</li><li>新增TensorFlow ANNC静态图融合特性，增加对应特性介绍、软件架构等内容。</li><li>新增TensorFlow Eigen KGemm矩阵乘加速特性，增加对应特性介绍、软件架构、生效范围、原理描述及应用场景等内容。</li></ul> |

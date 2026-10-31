@@ -86,6 +86,7 @@
 - 新增TensorFlow KDNN算子优化特性，支持batchmatmul、softmax、einsum、floormod、sigmoid和SparseMatMul等算子对接KDNN，其中SparseMatMul会根据实际稀疏度自适应选择稀疏快路径或转稠密GEMM计算。
 - 新增TensorFlow ANNC静态图融合特性，适配鲲鹏950 7592C处理器，支持KPFusedEmbeddingActionIdGather、KPFusedSparseDynamicStitchSum/Mean/SqrtN等算子静态图融合。
 - 新增KEmbedding算子库中的EmbeddingTableLookup算子，进一步丰富推理模型的特征处理能力。
+- 新增TensorFlow Eigen KGemm矩阵乘加速特性。该特性提供面向aarch64 NEON的fp32矩阵乘内核，替换Eigen开源GEBP内核，对二维、连续内存、单收缩维的`tf.matmul`生效。
 
 **修改特性<a name="zh-cn_topic_0000002518399190_section16450949161512"></a>**
 

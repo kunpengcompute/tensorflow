@@ -115,6 +115,7 @@
       --copt=-march=armv8.5-a --linkopt=-fuse-ld=gold \
       --config=opt \
       --define=enable_kdnn=true \
+      --copt=-DEIGEN_NEON_USE_KGEMM=1 \
       --linkopt=-Wl,--stub-group-size=0x2000000 \
       --action_env=CLANG_CUDA=0 \
       --repo_env=CLANG_CUDA=0 \
@@ -149,6 +150,16 @@
      ```
 
 如果在编译过程中遇到任何问题，请参见《[TensorFlow移植指南](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0001.html)》。
+
+## 使用Eigen KGemm矩阵乘加速
+
+Eigen KGemm矩阵乘加速为编译期特性，无运行时开关。构建Tensorflow pip包时已追加`--copt=-DEIGEN_NEON_USE_KGEMM=1`，构建出的pip包即启用KGemm内核；去掉该编译选项重新构建即可关闭。
+
+KGemm生效条件：数据类型为fp32、算子为二维`tf.matmul`、操作数内存连续且收缩维为1；batch维为1的批量矩阵乘压成二维后同样生效。不满足条件时自动回退至Eigen开源实现，计算结果不受影响。
+
+KDNN算子优化同时启用时（如`full-default`组合），fp32矩阵乘优先由KDNN处理，KGemm不生效；如需KGemm加速，请使用不含KDNN的`eigen-core`组合，或设置`TF_ENABLE_KDNN_OPTS=0`关闭KDNN。
+
+验证方法与原理说明分别参见《[安装指南](./installation_guide.md#eigen-kgemm矩阵乘加速)》和《[特性介绍](./feature_introduction.md#生效范围)》。
 
 ## 运行推理服务
 
@@ -218,4 +229,4 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 
 | 文档版本 | 发布日期 | 修改说明 |
 | ---- | ---- | ---- |
-| 01 | 2026-12-30 | 第一次正式发布。<ul><li>新增基于TensorFlow Serving的推理服务使用指导，提供KDNN算子优化和ANNC静态图融合的使用样例。</li></ul> |
+| 01 | 2026-12-30 | 第一次正式发布。<ul><li>新增基于TensorFlow Serving的推理服务使用指导，提供KDNN算子优化和ANNC静态图融合的使用样例。</li><li>新增Eigen KGemm矩阵乘加速特性的使用说明与验证方法。</li></ul> |

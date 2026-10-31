@@ -16,6 +16,7 @@ bf5899deaf70fa45173c5c7b8dc9ace8824dc980
 | 2 | kdnn | KDNN加速库集成及稀疏矩阵乘快路径 |
 | 3 | annc | ANNC静态图融合算子及图优化 |
 | 4 | kembedding | KEmbedding Embedding表查找算子及基准测试 |
+| 5 | eigen | Eigen KGemm NEON fp32 GEMM加速 |
 
 支持以下构建组合。
 
@@ -24,7 +25,8 @@ bf5899deaf70fa45173c5c7b8dc9ace8824dc980
 | common-only | common | 检查公共改动 |
 | kdnn-core | common+kdnn | KDNN加速特性（CPU） |
 | kdnn-annc | common+kdnn+annc | KDNN加速及ANNC静态图融合 |
-| full-default | common+kdnn+annc+kembedding | 全部特性 |
+| eigen-core | common+eigen | Eigen KGemm矩阵乘加速 |
+| full-default | common+kdnn+annc+kembedding+eigen | 全部特性 |
 
 `tensorflow/feature_copts.bzl` 会根据特性组合动态生成。请使用`prepare_source.py`创建可构建源码，不要仅按顺序手工应用补丁。
 

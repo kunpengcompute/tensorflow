@@ -105,7 +105,8 @@ TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请�
 | common-only | 公共构建集成（common）与gtest覆盖率测试框架 | patches/Tensorflow_V2.20.0/feature/0001-tensorflow_2.20.0-common.patch | 检查公共改动，不启用加速特性。 |
 | kdnn-core | 公共构建集成（common）、KDNN算子优化 | patches/Tensorflow_V2.20.0/feature/0001-tensorflow_2.20.0-common.patch<br>patches/Tensorflow_V2.20.0/feature/0002-tensorflow_2.20.0-kdnn.patch | 使用KDNN算子优化。 |
 | kdnn-annc | 公共构建集成（common）、KDNN算子优化、ANNC静态图融合 | patches/Tensorflow_V2.20.0/feature/0001-tensorflow_2.20.0-common.patch<br>patches/Tensorflow_V2.20.0/feature/0002-tensorflow_2.20.0-kdnn.patch<br>patches/Tensorflow_V2.20.0/feature/0003-tensorflow_2.20.0-annc.patch | 使用KDNN和ANNC静态图融合。 |
-| full-default | 公共构建集成（common）、KDNN算子优化、ANNC静态图融合、KEmbedding自定义算子 | patches/Tensorflow_V2.20.0/feature/0001-tensorflow_2.20.0-common.patch<br>patches/Tensorflow_V2.20.0/feature/0002-tensorflow_2.20.0-kdnn.patch<br>patches/Tensorflow_V2.20.0/feature/0003-tensorflow_2.20.0-annc.patch<br>patches/Tensorflow_V2.20.0/feature/0004-tensorflow_2.20.0-kembedding.patch | 使用当前维护的全部特性。 |
+| eigen-core | 公共构建集成（common）、Eigen KGemm矩阵乘加速 | patches/Tensorflow_V2.20.0/feature/0001-tensorflow_2.20.0-common.patch<br>patches/Tensorflow_V2.20.0/feature/0005-tensorflow_2.20.0-eigen-kgemm.patch | 使用Eigen KGemm矩阵乘加速。 |
+| full-default | 公共构建集成（common）、KDNN算子优化、ANNC静态图融合、KEmbedding自定义算子、Eigen KGemm矩阵乘加速 | patches/Tensorflow_V2.20.0/feature/0001-tensorflow_2.20.0-common.patch<br>patches/Tensorflow_V2.20.0/feature/0002-tensorflow_2.20.0-kdnn.patch<br>patches/Tensorflow_V2.20.0/feature/0003-tensorflow_2.20.0-annc.patch<br>patches/Tensorflow_V2.20.0/feature/0004-tensorflow_2.20.0-kembedding.patch<br>patches/Tensorflow_V2.20.0/feature/0005-tensorflow_2.20.0-eigen-kgemm.patch | 使用当前维护的全部特性。 |
 
 ### 生成完整源码
 
@@ -299,6 +300,23 @@ ANNC静态图融合代码已经包含在`kdnn-annc`和`full-default`特性组合
    --check_direct_dependencies=off \
    -c opt \
    --define=enable_kdnn=true \
+   --linkopt=-Wl,--stub-group-size=0x2000000 \
+   //tensorflow/tools/pip_package:wheel
+   ```
+
+   若使用`eigen-core`特性组合，需在构建命令中追加`--copt=-DEIGEN_NEON_USE_KGEMM=1`以启用Eigen KGemm矩阵乘加速。若GPU特性组合`full-default`也需要该加速，请在“[构建GPU版本](#构建gpu版本)”章节的构建命令中追加相同选项。
+
+   ```bash
+   cd /path/to/tensorflow
+   bazel build \
+   --experimental_repo_remote_exec \
+   --cxxopt=-std=c++17 \
+   --host_cxxopt=-std=c++17 \
+   --copt=-march=armv8.5-a \
+   --host_copt=-march=armv8.5-a \
+   --copt=-DEIGEN_NEON_USE_KGEMM=1 \
+   --check_direct_dependencies=off \
+   -c opt \
    --linkopt=-Wl,--stub-group-size=0x2000000 \
    //tensorflow/tools/pip_package:wheel
    ```
@@ -544,6 +562,98 @@ bazel test //third_party/kembedding:embedding_table_lookup_op_test \
 bazel run //third_party/kembedding:embedding_table_lookup_benchmark
 ```
 
+### Eigen KGemm矩阵乘加速
+
+CPU版本即可验证。Eigen KGemm加速对连续内存、单收缩维的二维`tf.matmul`生效，权重矩阵（K）越大加速越明显。GPU版本的构建产物必须在脚本中显式指定在CPU上执行，否则矩阵乘会优先走GPU，无法验证到KGemm。
+
+> ![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
+> 当KDNN算子优化与Eigen KGemm矩阵乘加速同时启用时（例如使用`full-default`档位并在构建命令中追加`--copt=-DEIGEN_NEON_USE_KGEMM=1`），fp32矩阵乘会先由KDNN处理，KGemm不生效；两者不冲突，计算结果不受影响。若需矩阵乘由KGemm加速，请使用不含KDNN的`eigen-core`档位，或在运行时设置环境变量`TF_ENABLE_KDNN_OPTS=0`关闭KDNN（该方式会同时关闭KDNN的softmax等其他算子优化）。
+
+1. 验证矩阵乘结果正确性。
+
+   ```bash
+   cd ~
+   python3 -c "
+   import numpy as np, tensorflow as tf
+   rng = np.random.RandomState(0)
+   a = rng.normal(0, 0.1, size=(59, 1570)).astype(np.float32)
+   b = rng.normal(0, 0.1, size=(1570, 256)).astype(np.float32)
+   with tf.device('/CPU:0'):
+       got = tf.matmul(tf.constant(a), tf.constant(b))
+   print('device =', got.device)
+   got = got.numpy()
+   exp = np.matmul(a, b)
+   print('max_abs_err =', np.max(np.abs(got - exp)))
+   print('allclose =', np.allclose(got, exp, rtol=1e-4, atol=1e-5))
+   "
+   ```
+
+   回显类似如下信息时，表示矩阵乘结果正确。
+
+   ```output
+   device = /job:localhost/replica:0/task:0/device:CPU:0
+   max_abs_err = 1.132e-06
+   allclose = True
+   ```
+
+2. 对比加速效果。
+
+   ```bash
+   cd ~
+   python3 -c "
+   import time, numpy as np, tensorflow as tf
+   tf.config.threading.set_intra_op_parallelism_threads(16)
+   rng = np.random.RandomState(0)
+   with tf.device('/CPU:0'):
+       a = tf.constant(rng.normal(0, 0.1, size=(59, 1570)).astype(np.float32))
+       b = tf.constant(rng.normal(0, 0.1, size=(1570, 256)).astype(np.float32))
+       f = tf.function(lambda: tf.matmul(a, b)).get_concrete_function()
+   print('device =', f().device)
+   for _ in range(500):
+       f()
+   t = time.perf_counter()
+   for _ in range(100):
+       f()
+   print('avg_us = %.1f' % ((time.perf_counter() - t) / 100 * 1e6))
+   "
+   ```
+
+   可对比开启和关闭KGemm加速的构建产物耗时。以`59x1570x256`形状为例，开启后耗时约为关闭时的1/2。
+
+3. 运行性能测试脚本，对比两个构建产物的性能。
+
+   `tensorflow/python/kernel_tests/benchmark`目录下提供了性能测试脚本。脚本会先安装baseline wheel运行全部用例，再安装candidate wheel重复一遍，最后输出对比报告。`--warmup`建议不低于100，否则首次采样会偏大。
+
+   若使用GPU版本的构建产物，需屏蔽GPU，确保矩阵乘在CPU上执行。
+
+   ```bash
+   cd /path/to/tensorflow/tensorflow/python/kernel_tests/benchmark
+
+   CUDA_VISIBLE_DEVICES= python3 compare_wheels.py \
+     --python /usr/bin/python3 \
+     --baseline-wheel  /path/to/dist/tensorflow-nokgemm-*.whl \
+     --baseline-label  nokgemm \
+     --candidate-wheel /path/to/dist/tensorflow-kgemm-*.whl \
+     --candidate-label kgemm \
+     --intra-threads 16 \
+     --warmup 500 \
+     --iterations 100 \
+     --samples 7 \
+     --output-dir ./kgemm-vs-nokgemm
+   ```
+
+   `comparison.md`给出每个形状的耗时与加速比，`summarize_comparison.py`可按模型分组汇总。
+
+   ```bash
+   python3 summarize_comparison.py ./kgemm-vs-nokgemm/comparison.md
+   ```
+
+   > ![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
+   >
+   > 建议用`taskset`将测试进程绑定到同一NUMA节点内的CPU核，并保持`--intra-threads`与该核数一致，以减少跨节点访存引起的抖动。
+
+   `tensorflow/python/kernel_tests/math_ops/matmul_model_shapes_test.py`对同一批形状做了正确性校验，可通过`bazel test //tensorflow/python/kernel_tests/math_ops:matmul_model_shapes_test_cpu`运行。
+
 ## 构建推理服务（可选）
 
 当前版本支持基于开源TensorFlow Serving构建推理服务。
@@ -620,4 +730,4 @@ NVIDIA保证CUDA同大版本（12.x）内的nvrtc-builtins库二进制向下兼�
 
 | 文档版本 | 发布日期 | 修改说明 |
 | ---- | ---- | ---- |
-| 01 | 2026-12-30 | 第一次正式发布。<ul><li>新增TensorFlow KDNN算子优化特性的适配环境和安装指导内容。</li><li>新增TensorFlow ANNC静态图融合特性的适配环境和安装指导内容。</li><li>新增KEmbedding自定义算子库的适配环境和安装指导内容。</li></ul> |
+| 01 | 2026-12-30 | 第一次正式发布。<ul><li>新增TensorFlow KDNN算子优化特性的适配环境和安装指导内容。</li><li>新增TensorFlow ANNC静态图融合特性的适配环境和安装指导内容。</li><li>新增KEmbedding自定义算子库的适配环境和安装指导内容。</li><li>新增Eigen KGemm矩阵乘加速特性的安装说明与验证步骤。</li><li>默认安装流程调整为CPU版本，GPU相关内容独立为“构建GPU版本”章节。</li></ul> |

@@ -18,6 +18,7 @@ bf5899deaf70fa45173c5c7b8dc9ace8824dc980
 | 2 | `kdnn` | KDNN acceleration library integration and sparse matrix multiplication fast path |
 | 3 | `annc` | KPFused embedding fusion operators and graph optimization |
 | 4 | `kembedding` | KEmbedding embedding table lookup operators and benchmarks |
+| 5 | `eigen` | Eigen KGemm NEON fp32 GEMM acceleration |
 
 The following build profiles are supported:
 
@@ -26,7 +27,8 @@ The following build profiles are supported:
 | `common-only` | `common` | Validate shared changes |
 | `kdnn-core` | `common` + `kdnn` | KDNN acceleration feature |
 | `kdnn-annc` | `common` + `kdnn` + `annc` | KDNN acceleration and embedding fusion feature |
-| `full-default` | `common` + `kdnn` + `annc` + `kembedding` | All features |
+| `eigen-core` | `common` + `eigen` | Eigen KGemm MatMul acceleration |
+| `full-default` | `common` + `kdnn` + `annc` + `kembedding` + `eigen` | All features |
 
 Because `tensorflow/feature_copts.bzl` is generated for each feature set, use `prepare_source.py` to create buildable source code. Do not apply patches manually in sequence.
 
