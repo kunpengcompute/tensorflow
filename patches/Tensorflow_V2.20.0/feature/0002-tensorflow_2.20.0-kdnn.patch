@@ -1,5 +1,5 @@
 diff --git a/tensorflow/core/kernels/BUILD b/tensorflow/core/kernels/BUILD
-index d78d3e17679cb3bd0446ff39663745237ac75c2b..73f806f51612c2aee6d1ba788d8c611f18f08515 100644
+index d78d3e17679cb3bd0446ff39663745237ac75c2b..c9b3ded9a086400df0159431a98099063d280df8 100644
 --- a/tensorflow/core/kernels/BUILD
 +++ b/tensorflow/core/kernels/BUILD
 @@ -45,6 +45,16 @@ load(
@@ -176,16 +176,72 @@ index d78d3e17679cb3bd0446ff39663745237ac75c2b..73f806f51612c2aee6d1ba788d8c611f
  tf_kernel_library(
      name = "reduction_ops",
      features = if_cuda(["-layering_check"]),
-@@ -4378,7 +4504,7 @@ tf_kernel_library(
+@@ -3914,6 +4040,7 @@ tf_cuda_cc_test(
+     srcs = ["matmul_op_test.cc"],
+     deps = [
+         ":matmul_op",
++        ":matmul_op_impl_coverage_hdrs",
+         ":ops_testutil",
+         ":ops_util",
+         ":quantized_ops",
+@@ -3935,6 +4062,31 @@ tf_cuda_cc_test(
+     ],
+ )
+ 
++cc_library(
++    name = "matmul_op_impl_coverage_hdrs",
++    testonly = True,
++    hdrs = ["matmul_op_impl.h"],
++)
++
++tf_cc_test(
++    name = "batch_matmul_op_test",
++    size = "small",
++    srcs = ["batch_matmul_op_test.cc"],
++    deps = [
++        ":matmul_op",
++        ":matmul_op_impl_coverage_hdrs",
++        ":ops_testutil",
++        ":ops_util",
++        "//tensorflow/core:core_cpu",
++        "//tensorflow/core:framework",
++        "//tensorflow/core:lib",
++        "//tensorflow/core:protos_all_cc",
++        "//tensorflow/core:test",
++        "//tensorflow/core:test_main",
++        "//tensorflow/core:testlib",
++    ],
++)
++
+ tf_cuda_cc_test(
+     name = "scan_ops_test",
+     size = "small",
+@@ -4378,6 +4530,24 @@ tf_kernel_library(
      ]) + [
          ":gpu_prim_hdrs",
          ":loose_headers",
--    ],
 +    ] + kdnn_deps(),
++)
++
++tf_cc_test(
++    name = "softmax_op_test",
++    size = "small",
++    srcs = ["softmax_op_test.cc"],
++    deps = [
++        ":softmax_op",
++        ":ops_testutil",
++        ":ops_util",
++        "//tensorflow/core:core_cpu",
++        "//tensorflow/core:framework",
++        "//tensorflow/core:lib",
++        "//tensorflow/core:protos_all_cc",
++        "//tensorflow/core:test",
++        "//tensorflow/core:test_main",
++        "//tensorflow/core:testlib",
+     ],
  )
  
- tf_kernel_library(
-@@ -5237,7 +5363,7 @@ tf_kernel_library(
+@@ -5237,7 +5407,7 @@ tf_kernel_library(
          "//tensorflow/core/framework:bounds_check",
          "//tensorflow/core/util:determinism_for_kernels",
          "@eigen_archive//:eigen3",
@@ -194,6 +250,106 @@ index d78d3e17679cb3bd0446ff39663745237ac75c2b..73f806f51612c2aee6d1ba788d8c611f
  )
  
  tf_kernel_library(
+diff --git a/tensorflow/core/kernels/batch_matmul_op_test.cc b/tensorflow/core/kernels/batch_matmul_op_test.cc
+new file mode 100644
+index 0000000000000000000000000000000000000000..ac1d6813a97035f3838eb8bc85d854324064c053
+--- /dev/null
++++ b/tensorflow/core/kernels/batch_matmul_op_test.cc
+@@ -0,0 +1,94 @@
++/* Copyright 2026 The TensorFlow Authors. All Rights Reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
++
++#include "tensorflow/core/framework/fake_input.h"
++#include "tensorflow/core/framework/node_def_builder.h"
++#include "tensorflow/core/framework/tensor.h"
++#include "tensorflow/core/framework/tensor_testutil.h"
++#include "tensorflow/core/framework/types.h"
++#include "tensorflow/core/kernels/ops_testutil.h"
++#include "tensorflow/core/lib/core/status_test_util.h"
++#include "tensorflow/core/platform/test.h"
++
++namespace tensorflow {
++namespace {
++
++// Exercises the BatchMatMulV2 CPU kernels. On KDNN builds
++// (--define=enable_kdnn=true, TF_ENABLE_KDNN_OPTS on by default) float inputs
++// route through kdnnGemm (batch_size == 1) or kdnnBatchGemm (batch_size > 1)
++// inside BaseBatchMatMulOp.
++class BatchMatMulOpTest : public OpsTestBase {
++ protected:
++  void MakeOp(bool adj_x, bool adj_y) {
++    TF_ASSERT_OK(NodeDefBuilder("my_op", "BatchMatMulV2")
++                     .Input(FakeInput(DT_FLOAT))
++                     .Input(FakeInput(DT_FLOAT))
++                     .Attr("adj_x", adj_x)
++                     .Attr("adj_y", adj_y)
++                     .Finalize(node_def()));
++    TF_ASSERT_OK(InitOp());
++  }
++};
++
++// 2-D inputs: batch_size == 1, dispatched to kdnnGemm on KDNN builds.
++TEST_F(BatchMatMulOpTest, Batch2D) {
++  MakeOp(false, false);
++  AddInputFromArray<float>(TensorShape({2, 3}), {1, 2, 3, 4, 5, 6});
++  AddInputFromArray<float>(TensorShape({3, 2}), {7, 8, 9, 10, 11, 12});
++  TF_ASSERT_OK(RunOpKernel());
++
++  Tensor expected(allocator(), DT_FLOAT, TensorShape({2, 2}));
++  test::FillValues<float>(&expected, {58, 64, 139, 154});
++  test::ExpectTensorNear<float>(expected, *GetOutput(0), 1e-5);
++}
++
++// 3-D inputs: batch_size > 1, dispatched to kdnnBatchGemm on KDNN builds.
++TEST_F(BatchMatMulOpTest, Batch3D) {
++  MakeOp(false, false);
++  AddInputFromArray<float>(TensorShape({2, 2, 3}),
++                           {1, 2, 3, 4, 5, 6,   // batch 0
++                            0, 1, 0, 1, 0, 1});  // batch 1
++  AddInputFromArray<float>(TensorShape({2, 3, 2}),
++                           {7, 8, 9, 10, 11, 12,  // batch 0
++                            1, 2, 3, 4, 5, 6});   // batch 1
++  TF_ASSERT_OK(RunOpKernel());
++
++  Tensor expected(allocator(), DT_FLOAT, TensorShape({2, 2, 2}));
++  test::FillValues<float>(&expected, {58, 64, 139, 154,  // batch 0
++                                      3, 4, 6, 8});      // batch 1
++  test::ExpectTensorNear<float>(expected, *GetOutput(0), 1e-5);
++}
++
++// Adjoints are folded into the trans_x / trans_y flags passed to the KDNN
++// adapters.
++TEST_F(BatchMatMulOpTest, Batch3DAdjX) {
++  MakeOp(true, false);
++  // Logical a[b] = in0[b]^T = [[1, 2, 3], [4, 5, 6]] per batch.
++  AddInputFromArray<float>(TensorShape({2, 3, 2}),
++                           {1, 4, 2, 5, 3, 6,   // batch 0
++                            1, 4, 2, 5, 3, 6});  // batch 1
++  AddInputFromArray<float>(TensorShape({2, 3, 2}),
++                           {7, 8, 9, 10, 11, 12,  // batch 0
++                            7, 8, 9, 10, 11, 12});  // batch 1
++  TF_ASSERT_OK(RunOpKernel());
++
++  Tensor expected(allocator(), DT_FLOAT, TensorShape({2, 2, 2}));
++  test::FillValues<float>(&expected, {58, 64, 139, 154,  // batch 0
++                                      58, 64, 139, 154});  // batch 1
++  test::ExpectTensorNear<float>(expected, *GetOutput(0), 1e-5);
++}
++
++}  // namespace
++}  // namespace tensorflow
 diff --git a/tensorflow/core/kernels/concat_op.cc b/tensorflow/core/kernels/concat_op.cc
 index 0b660766f931e66fcb1e9d2d9169af9b4fe10a65..c35b270855c347617461b3dc7b550de8ae4e0efc 100644
 --- a/tensorflow/core/kernels/concat_op.cc
@@ -227,10 +383,29 @@ index 0b660766f931e66fcb1e9d2d9169af9b4fe10a65..c35b270855c347617461b3dc7b550de8
      }
    }
 diff --git a/tensorflow/core/kernels/cwise_ops_common.h b/tensorflow/core/kernels/cwise_ops_common.h
-index fd7ee451daadace1a6028857382f5d02461e5761..8d6554af64c820dbeaf65b0bdabb965d2ebe7a7c 100644
+index fd7ee451daadace1a6028857382f5d02461e5761..02e8c539ce8c9b7af75019588dda2f32e16a5bbb 100644
 --- a/tensorflow/core/kernels/cwise_ops_common.h
 +++ b/tensorflow/core/kernels/cwise_ops_common.h
-@@ -35,6 +35,10 @@ limitations under the License.
+@@ -1,3 +1,18 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
++
+ /* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
+ 
+ Licensed under the Apache License, Version 2.0 (the "License");
+@@ -35,6 +50,10 @@ limitations under the License.
  #include "tensorflow/core/platform/logging.h"
  #include "tensorflow/core/util/bcast.h"
  
@@ -241,7 +416,7 @@ index fd7ee451daadace1a6028857382f5d02461e5761..8d6554af64c820dbeaf65b0bdabb965d
  namespace tensorflow {
  
  typedef Eigen::ThreadPoolDevice CPUDevice;
-@@ -109,6 +113,15 @@ class BinaryOp : public BinaryOpShared {
+@@ -109,6 +128,15 @@ class BinaryOp : public BinaryOpShared {
        Tensor* out;
        OP_REQUIRES_OK(ctx, ctx->forward_input_or_allocate_output(
                                {0, 1}, 0, input_0.shape(), &out));
@@ -257,7 +432,7 @@ index fd7ee451daadace1a6028857382f5d02461e5761..8d6554af64c820dbeaf65b0bdabb965d
        functor::BinaryFunctor<Device, Functor, 1>()(
            eigen_device, out->template flat<Tout>(),
            input_0.template flat<Tin>(), input_1.template flat<Tin>(),
-@@ -322,6 +335,16 @@ class UnaryOp : public OpKernel {
+@@ -322,6 +350,16 @@ class UnaryOp : public OpKernel {
      } else {
        OP_REQUIRES_OK(ctx, ctx->allocate_output(0, inp.shape(), &out));
      }
@@ -396,10 +571,29 @@ index 50517dc9a2c6e5b6f174c5d92efa4742a719d0ba..ba1265c77f16ca13a45a1b231e534b5c
      OP_REQUIRES(ctx,
                  out_reshaped.CopyFrom(*out, TensorShape({batch_size, d0, d3})),
 diff --git a/tensorflow/core/kernels/softmax_op.cc b/tensorflow/core/kernels/softmax_op.cc
-index ee99bd2c06e0fc5cc79c8b69184c1b090f0101dd..a403848a4d17eae2504702fc0a7036bb0773f05e 100644
+index ee99bd2c06e0fc5cc79c8b69184c1b090f0101dd..3a7dc05bbc1aadb17b3604a06e24805eab5de818 100644
 --- a/tensorflow/core/kernels/softmax_op.cc
 +++ b/tensorflow/core/kernels/softmax_op.cc
-@@ -25,6 +25,10 @@ limitations under the License.
+@@ -1,3 +1,18 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
++
+ /* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
+ 
+ Licensed under the Apache License, Version 2.0 (the "License");
+@@ -25,6 +40,10 @@ limitations under the License.
  #include "tensorflow/core/framework/tensor_shape.h"
  #include "tensorflow/core/kernels/softmax_op_functor.h"
  
@@ -410,7 +604,7 @@ index ee99bd2c06e0fc5cc79c8b69184c1b090f0101dd..a403848a4d17eae2504702fc0a7036bb
  namespace tensorflow {
  
  typedef Eigen::ThreadPoolDevice CPUDevice;
-@@ -61,6 +65,15 @@ class SoftmaxOp : public OpKernel {
+@@ -61,6 +80,15 @@ class SoftmaxOp : public OpKernel {
      OP_REQUIRES_OK(context, context->forward_input_or_allocate_output(
                                  {0}, 0, logits_in.shape(), &softmax_out));
      if (logits_in.NumElements() > 0) {
@@ -426,11 +620,105 @@ index ee99bd2c06e0fc5cc79c8b69184c1b090f0101dd..a403848a4d17eae2504702fc0a7036bb
        functor::SoftmaxFunctor<Device, T> functor;
        functor(context->eigen_device<Device>(), logits_in.flat_inner_dims<T>(),
                softmax_out->flat_inner_dims<T>(), log_);
+diff --git a/tensorflow/core/kernels/softmax_op_test.cc b/tensorflow/core/kernels/softmax_op_test.cc
+new file mode 100644
+index 0000000000000000000000000000000000000000..7c403127034352dab1d49a7909f8ae3e266f1f01
+--- /dev/null
++++ b/tensorflow/core/kernels/softmax_op_test.cc
+@@ -0,0 +1,69 @@
++/* Copyright 2026 The TensorFlow Authors. All Rights Reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
++
++#include "tensorflow/core/framework/fake_input.h"
++#include "tensorflow/core/framework/node_def_builder.h"
++#include "tensorflow/core/framework/tensor.h"
++#include "tensorflow/core/framework/tensor_testutil.h"
++#include "tensorflow/core/framework/types.h"
++#include "tensorflow/core/kernels/ops_testutil.h"
++#include "tensorflow/core/lib/core/status_test_util.h"
++#include "tensorflow/core/platform/test.h"
++
++namespace tensorflow {
++namespace {
++
++// Exercises the Softmax / LogSoftmax CPU kernels. On KDNN builds
++// (--define=enable_kdnn=true, TF_ENABLE_KDNN_OPTS on by default) the float
++// Softmax case dispatches to kdnnSoftmaxOp inside SoftmaxOp::Compute, while
++// LogSoftmax keeps the Eigen path (log_ is true).
++class SoftmaxOpTest : public OpsTestBase {
++ protected:
++  void MakeOp(const char* op_name) {
++    TF_EXPECT_OK(NodeDefBuilder("my_op", op_name)
++                     .Input(FakeInput(DT_FLOAT))
++                     .Finalize(node_def()));
++    TF_EXPECT_OK(InitOp());
++  }
++};
++
++TEST_F(SoftmaxOpTest, SoftmaxFloat) {
++  MakeOp("Softmax");
++  AddInputFromArray<float>(TensorShape({2, 3}),
++                           {0.0f, 1.0f, 2.0f, 0.0f, 0.0f, 0.0f});
++  TF_ASSERT_OK(RunOpKernel());
++
++  Tensor expected(allocator(), DT_FLOAT, TensorShape({2, 3}));
++  test::FillValues<float>(&expected,
++                          {0.09003057f, 0.24472847f, 0.66524096f,  //
++                           1.0f / 3.0f, 1.0f / 3.0f, 1.0f / 3.0f});
++  test::ExpectTensorNear<float>(expected, *GetOutput(0), 1e-5);
++}
++
++TEST_F(SoftmaxOpTest, LogSoftmaxFloat) {
++  MakeOp("LogSoftmax");
++  AddInputFromArray<float>(TensorShape({2, 3}),
++                           {0.0f, 1.0f, 2.0f, 0.0f, 0.0f, 0.0f});
++  TF_ASSERT_OK(RunOpKernel());
++
++  Tensor expected(allocator(), DT_FLOAT, TensorShape({2, 3}));
++  test::FillValues<float>(&expected,
++                          {-2.40760596f, -1.40760596f, -0.40760596f,  //
++                           -1.09861229f, -1.09861229f, -1.09861229f});
++  test::ExpectTensorNear<float>(expected, *GetOutput(0), 1e-5);
++}
++
++}  // namespace
++}  // namespace tensorflow
 diff --git a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc
-index ccdd6598dcf9979d24d258d410d1316afd98adbc..54494781f7c3c8882dc82e569142428855e2703a 100644
+index ccdd6598dcf9979d24d258d410d1316afd98adbc..76c60329de9d1020488c3b22ef837abc69813051 100644
 --- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc
 +++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.cc
-@@ -20,11 +20,21 @@ limitations under the License.
+@@ -1,3 +1,18 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
++
+ /* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
+ 
+ Licensed under the Apache License, Version 2.0 (the "License");
+@@ -20,11 +35,21 @@ limitations under the License.
  #include "tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h"
  
  #include "Eigen/Core"  // from @eigen_archive
@@ -452,7 +740,7 @@ index ccdd6598dcf9979d24d258d410d1316afd98adbc..54494781f7c3c8882dc82e5691424288
  
  namespace tensorflow {
  
-@@ -134,6 +144,28 @@ class SparseTensorDenseMatMulOp : public OpKernel {
+@@ -134,6 +159,29 @@ class SparseTensorDenseMatMulOp : public OpKernel {
        return;
      }
  
@@ -470,7 +758,8 @@ index ccdd6598dcf9979d24d258d410d1316afd98adbc..54494781f7c3c8882dc82e5691424288
 +        adjoint_a_ == false &&
 +        FastBoundsCheck(inner_left, int32max) &&
 +        FastBoundsCheck(inner_right, int32max) &&
-+        FastBoundsCheck(outer_left, int32max)) {
++        FastBoundsCheck(outer_left, int32max) &&
++        FastBoundsCheck(a_values->NumElements(), int32max)) {
 +      KDNN_ADJOINT(false, false);
 +      KDNN_ADJOINT(false, true);
 +      return;
@@ -481,7 +770,7 @@ index ccdd6598dcf9979d24d258d410d1316afd98adbc..54494781f7c3c8882dc82e5691424288
  #define MAYBE_ADJOINT(ADJ_A, ADJ_B)                                           \
    if (adjoint_a_ == ADJ_A && adjoint_b_ == ADJ_B) {                           \
      Status functor_status = functor::SparseTensorDenseMatMulFunctor<          \
-@@ -357,6 +389,116 @@ struct SparseTensorDenseMatMulFunctor<CPUDevice, T, Tindices, ADJ_A, ADJ_B> {
+@@ -357,6 +405,116 @@ struct SparseTensorDenseMatMulFunctor<CPUDevice, T, Tindices, ADJ_A, ADJ_B> {
    }
  };
  
@@ -599,10 +888,29 @@ index ccdd6598dcf9979d24d258d410d1316afd98adbc..54494781f7c3c8882dc82e5691424288
  
  }  // namespace tensorflow
 diff --git a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h
-index fef151ea7e61b4d2fe4482dcdc4860cfc7928756..a9f9aea4364f8d6f6bbc000948f69f762272f802 100644
+index fef151ea7e61b4d2fe4482dcdc4860cfc7928756..a20ee8ffb0471cef075f14812de47609d5d4b7ce 100644
 --- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h
 +++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op.h
-@@ -35,6 +35,16 @@ struct SparseTensorDenseMatMulFunctor {
+@@ -1,3 +1,18 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
++
+ /* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
+ 
+ Licensed under the Apache License, Version 2.0 (the "License");
+@@ -35,6 +50,16 @@ struct SparseTensorDenseMatMulFunctor {
        typename TTypes<T>::ConstVec a_values, typename TTypes<T>::ConstMatrix b);
  };
  
@@ -620,10 +928,29 @@ index fef151ea7e61b4d2fe4482dcdc4860cfc7928756..a9f9aea4364f8d6f6bbc000948f69f76
  class MaybeAdjoint;
  
 diff --git a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc
-index fe856e6b6bba8cb3ae186b9a6f5e452ae19574a0..288edae44ad7fc681f71c074c8f979a5cb60eae5 100644
+index fe856e6b6bba8cb3ae186b9a6f5e452ae19574a0..806150c4db31870db91106444e057972376c6c38 100644
 --- a/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc
 +++ b/tensorflow/core/kernels/sparse_tensor_dense_matmul_op_test.cc
-@@ -13,16 +13,438 @@ See the License for the specific language governing permissions and
+@@ -1,3 +1,18 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
++
+ /* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
+ 
+ Licensed under the Apache License, Version 2.0 (the "License");
+@@ -13,16 +28,438 @@ See the License for the specific language governing permissions and
  limitations under the License.
  ==============================================================================*/
  
@@ -1062,7 +1389,7 @@ index fe856e6b6bba8cb3ae186b9a6f5e452ae19574a0..288edae44ad7fc681f71c074c8f979a5
  Node* SparseTensorDenseMatMulNode(Graph* g, Node* a_indices, Node* a_values,
                                    Node* a_shape, Node* b, bool adjoint_a,
                                    bool adjoint_b) {
-@@ -120,4 +542,43 @@ BM_SparseTensorDenseMatmul(16384, 4096, 4096, 4096, false, true);
+@@ -120,4 +557,43 @@ BM_SparseTensorDenseMatmul(16384, 4096, 4096, 4096, false, true);
  BM_SparseTensorDenseMatmul(16384, 4096, 4096, 4096, true, false);
  BM_SparseTensorDenseMatmul(16384, 4096, 4096, 4096, true, true);
  

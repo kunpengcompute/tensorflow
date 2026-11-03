@@ -86,10 +86,10 @@ index 0000000000000000000000000000000000000000..5b9215d4c3ed4a004d707061172cfe9a
 +WORKDIR /workspace
 diff --git a/ci_build.sh b/ci_build.sh
 new file mode 100755
-index 0000000000000000000000000000000000000000..920edad66cd5b7692e3e89ce49268947b87b6bdb
+index 0000000000000000000000000000000000000000..dd68362c2b8e2f7bd645ee6ea4b0362d034ade1c
 --- /dev/null
 +++ b/ci_build.sh
-@@ -0,0 +1,88 @@
+@@ -0,0 +1,89 @@
 +#!/bin/bash
 +# TensorFlow CI Build Script for Kunpeng Platform
 +
@@ -155,6 +155,7 @@ index 0000000000000000000000000000000000000000..920edad66cd5b7692e3e89ce49268947
 +    --repo_env=PIP_INDEX_URL="${PIP_INDEX_URL}" \
 +    --repo_env=PIP_TRUSTED_HOST="${PIP_TRUSTED_HOST}" \
 +    --check_direct_dependencies=off \
++    --define=enable_kdnn=true \
 +    -c opt \
 +    "${BAZEL_TARGETS[@]}" 2>&1 | tee -a "${BUILD_LOG}"
 +
@@ -2157,17 +2158,18 @@ index 0000000000000000000000000000000000000000..837d65e77ab9f3c24c444a2f89e8fe62
 +}
 diff --git a/tools/coverage_test/features/kdnn/config.json b/tools/coverage_test/features/kdnn/config.json
 new file mode 100644
-index 0000000000000000000000000000000000000000..6a791e3834654975d9b9ef2e5ef522291ac26a24
+index 0000000000000000000000000000000000000000..68ccd2d648848c90f73abc26c566d3ea2a93513c
 --- /dev/null
 +++ b/tools/coverage_test/features/kdnn/config.json
-@@ -0,0 +1,33 @@
+@@ -0,0 +1,64 @@
 +{
 +  "name": "kdnn",
 +  "description": "KDNN operator optimization tests",
 +  "bazel_args": [
 +    "--config=v2",
 +    "--define=enable_kdnn=true",
-+    "--copt=-Wno-sign-compare"
++    "--copt=-Wno-sign-compare",
++    "--local_test_jobs=1"
 +  ],
 +  "test_targets": [
 +    {
@@ -2189,6 +2191,36 @@ index 0000000000000000000000000000000000000000..6a791e3834654975d9b9ef2e5ef52229
 +      "env": {
 +        "TF_ENABLE_KDNN_OPTS": "1",
 +        "TF_ENABLE_KDNN_SPARSE_MATMUL_PARALLEL": "1"
++      },
++      "enabled": true
++    },
++    {
++      "id": "matmul-op-ut",
++      "target": "//tensorflow/core/kernels:matmul_op_test_cpu",
++      "kind": "gtest",
++      "gtest_filter": "*",
++      "env": {
++        "TF_ENABLE_KDNN_OPTS": "1"
++      },
++      "enabled": true
++    },
++    {
++      "id": "batch-matmul-op-ut",
++      "target": "//tensorflow/core/kernels:batch_matmul_op_test",
++      "kind": "gtest",
++      "gtest_filter": "*",
++      "env": {
++        "TF_ENABLE_KDNN_OPTS": "1"
++      },
++      "enabled": true
++    },
++    {
++      "id": "softmax-op-ut",
++      "target": "//tensorflow/core/kernels:softmax_op_test",
++      "kind": "gtest",
++      "gtest_filter": "*",
++      "env": {
++        "TF_ENABLE_KDNN_OPTS": "1"
 +      },
 +      "enabled": true
 +    }

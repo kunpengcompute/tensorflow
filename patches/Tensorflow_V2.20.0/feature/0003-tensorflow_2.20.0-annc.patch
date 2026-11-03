@@ -790,11 +790,11 @@ index 0000000000000000000000000000000000000000..f7d849b100279c82fecad1fbb288d848
 +#endif  // FAGO_TF_FLASH_ATTN_GRAPH_OPT_H_
 diff --git a/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.cc b/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..05103ef41141d839281ae69e6035d34015fad529
+index 0000000000000000000000000000000000000000..c833a0f7660f949ccd8b7807fbe02bddd6b8f28c
 --- /dev/null
 +++ b/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.cc
-@@ -0,0 +1,1190 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
+@@ -0,0 +1,1235 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -865,6 +865,18 @@ index 0000000000000000000000000000000000000000..05103ef41141d839281ae69e6035d340
 +    node_name = name.substr(0, colon_pos);
 +  }
 +  return node_name;
++}
++
++bool check_input_port(const std::string& input, const std::string& node_name,
++                      int port) {
++  if (input.empty() || input[0] == '^') return false;
++  const size_t colon_pos = input.find_last_of(':');
++  if (colon_pos == std::string::npos) {
++    return port == 0 && input == node_name;
++  }
++  return input.compare(0, colon_pos, node_name) == 0 &&
++         input.compare(colon_pos + 1, std::string::npos,
++                       std::to_string(port)) == 0;
 +}
 +
 +void set_fusedop_attributes(NodeDef* fused,
@@ -974,6 +986,12 @@ index 0000000000000000000000000000000000000000..05103ef41141d839281ae69e6035d340
 +
 +    CHECK_NODE_OK(check_int_attr(node, "N", {num_partitions}))
 +    CHECK_NODE_OK(check_int_attr(partition, "num_partitions", {num_partitions}))
++    CHECK_NODE_OK(get_node_name(floor_mod->input(0)) ==
++                  get_node_name(size->input(0)))
++
++    for (int t = 0; t < num_partitions; ++t) {
++      CHECK_NODE_OK(check_input_port(node->input(t), partition->name(), t))
++    }
 +
 +    auto nodes = graph->mutable_node();
 +    NodeDef fused_node;  // built locally; committed only if all checks pass
@@ -981,6 +999,7 @@ index 0000000000000000000000000000000000000000..05103ef41141d839281ae69e6035d340
 +    fused_node.set_op(name());
 +    fused_node.set_device(node->device());
 +    fused_node.add_input(size->input(0));
++    std::string table_partition;
 +    // right branch
 +    for (int i = num_partitions; i < num_inputs; ++i) {
 +      const NodeDef* gather = get_node(node->input(i));
@@ -1002,6 +1021,17 @@ index 0000000000000000000000000000000000000000..05103ef41141d839281ae69e6035d340
 +                    floor_div->input_size() == 2)
 +      CHECK_NODE_OK(check_const_value<int64_t>(
 +          get_mutable_node(floor_div->input(1)), {num_partitions}))
++      const int t = i - num_partitions;
++      CHECK_NODE_OK(check_input_port(gather->input(1), partition_1->name(), t))
++      if (table_partition.empty()) {
++        table_partition = partition_1->name();
++      } else {
++        CHECK_NODE_OK(partition_1->name() == table_partition)
++      }
++      CHECK_NODE_OK(get_node_name(partition_1->input(1)) ==
++                    get_node_name(partition->input(1)))
++      CHECK_NODE_OK(get_node_name(floor_div->input(0)) ==
++                    get_node_name(size->input(0)))
 +      CHECK_NODE_OK(check_input_dims(props, gather, 0, 2));
 +      fused_node.add_input(gather->input(0));
 +    }
@@ -1093,6 +1123,9 @@ index 0000000000000000000000000000000000000000..05103ef41141d839281ae69e6035d340
 +
 +    CHECK_NODE_OK(check_int_attr(stitch, "N", partitions))
 +    CHECK_NODE_OK(check_int_attr(partition, "num_partitions", partitions))
++    for (int t = 0; t < partitions; ++t) {
++      CHECK_NODE_OK(check_input_port(stitch->input(t), partition->name(), t))
++    }
 +
 +    // The Reshape ("unique_input") between the size branch and Unique may be
 +    // optimized away. Support both layouts: with Reshape we peel it off,
@@ -1111,6 +1144,7 @@ index 0000000000000000000000000000000000000000..05103ef41141d839281ae69e6035d340
 +    // of taking the SparseSegment* indices input, so fusion is only valid
 +    // when that input is exactly the idx output (port 1) of this Unique.
 +    CHECK_NODE_OK(node->input(1) == unique->name() + ":1")
++    CHECK_NODE_OK(check_input_port(floor_mod->input(0), unique->name(), 0))
 +
 +    // The Cast ("segment_cast") between SparseSegment* input(2) and
 +    // StridedSlice may be optimized away. Support both layouts: with Cast we
@@ -1170,6 +1204,7 @@ index 0000000000000000000000000000000000000000..05103ef41141d839281ae69e6035d340
 +                     reduce_suffix));
 +    fused_node.set_device(node->device());
 +    fused_node.add_input(unique->input(0));
++    std::string table_partition;  // gathers must all share one partition node
 +    // right branch
 +    for (int i = partitions; i < stitch_inputs; ++i) {
 +      const NodeDef* gather = get_node(stitch->input(i));
@@ -1221,6 +1256,16 @@ index 0000000000000000000000000000000000000000..05103ef41141d839281ae69e6035d340
 +      CHECK_NODE_OK(floor_div_divisor != nullptr &&
 +                    check_const_value<int64_t>(floor_div_divisor,
 +                                               {partitions}))
++      const int t = i - partitions;
++      CHECK_NODE_OK(check_input_port(gather->input(1), partition_1->name(), t))
++      if (table_partition.empty()) {
++        table_partition = partition_1->name();
++      } else {
++        CHECK_NODE_OK(partition_1->name() == table_partition)
++      }
++      CHECK_NODE_OK(get_node_name(partition_1->input(1)) ==
++                    get_node_name(partition->input(1)))
++      CHECK_NODE_OK(check_input_port(floor_div->input(0), unique->name(), 0))
 +      fused_node.add_input(gather->input(0));
 +    }
 +    fused_node.add_input(strided_slice->input(0));
@@ -1986,11 +2031,11 @@ index 0000000000000000000000000000000000000000..05103ef41141d839281ae69e6035d340
 +}  // namespace annc
 diff --git a/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.h b/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..d309bc59e6197c207bb7a6ce16c37c8d7b954a94
+index 0000000000000000000000000000000000000000..3b1509999b9e0b922c180760adab283f84b2e830
 --- /dev/null
 +++ b/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.h
-@@ -0,0 +1,246 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
+@@ -0,0 +1,247 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -2127,6 +2172,7 @@ index 0000000000000000000000000000000000000000..d309bc59e6197c207bb7a6ce16c37c8d
 +    for (int i = 0; i < tensor.tensor_shape().dim_size(); ++i) {
 +      const int64_t dim = tensor.tensor_shape().dim(i).size();
 +      if (dim < 0) return false;
++      if (dim != 0 && element_count > INT64_MAX / dim) return false;
 +      element_count *= dim;
 +    }
 +    if (element_count < static_cast<int64_t>(cmp.size())) return false;
@@ -2238,11 +2284,11 @@ index 0000000000000000000000000000000000000000..d309bc59e6197c207bb7a6ce16c37c8d
 +#endif  // ANNC_TF_GRAPH_OPT_H_
 diff --git a/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt_test.cc b/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt_test.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..619e36bd388f9fbc1f1a5d80e371127c1948696d
+index 0000000000000000000000000000000000000000..c4885041e76946b32b12690044375b2bc87ea604
 --- /dev/null
 +++ b/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt_test.cc
-@@ -0,0 +1,464 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
+@@ -0,0 +1,1222 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -2265,6 +2311,7 @@ index 0000000000000000000000000000000000000000..619e36bd388f9fbc1f1a5d80e371127c
 +
 +#include "tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.h"
 +
++#include "absl/log/internal/vlog_config.h"
 +#include "tensorflow/cc/ops/standard_ops.h"
 +#include "tensorflow/core/framework/types.pb.h"
 +#include "tensorflow/core/grappler/grappler_item.h"
@@ -2277,24 +2324,45 @@ index 0000000000000000000000000000000000000000..619e36bd388f9fbc1f1a5d80e371127c
 +namespace {
 +
 +using ::tensorflow::ops::Cast;
++using ::tensorflow::ops::Concat;
 +using ::tensorflow::ops::Const;
 +using ::tensorflow::ops::DynamicPartition;
++using ::tensorflow::ops::Equal;
++using ::tensorflow::ops::Fill;
 +using ::tensorflow::ops::FloorDiv;
 +using ::tensorflow::ops::FloorMod;
++using ::tensorflow::ops::GatherNd;
 +using ::tensorflow::ops::GatherV2;
++using ::tensorflow::ops::Greater;
++using ::tensorflow::ops::NotEqual;
 +using ::tensorflow::ops::ParallelDynamicStitch;
 +using ::tensorflow::ops::Placeholder;
 +using ::tensorflow::ops::Range;
++using ::tensorflow::ops::RealDiv;
 +using ::tensorflow::ops::Reshape;
++using ::tensorflow::ops::SelectV2;
 +using ::tensorflow::ops::Shape;
 +using ::tensorflow::ops::Size;
 +using ::tensorflow::ops::SparseSegmentSum;
++using ::tensorflow::ops::Stack;
 +using ::tensorflow::ops::StridedSlice;
++using ::tensorflow::ops::Sub;
 +using ::tensorflow::ops::Unique;
++using ::tensorflow::ops::Where;
++using ::tensorflow::ops::ZerosLike;
 +
 +class GraphOptTest : public GrapplerTest {
 + protected:
 +  void SetUp() override {
++    // Enable the VLOG(1) diagnostics in graph_opt.cc so the tests also cover
++    // those logging statements. VLOG here resolves to the absl implementation
++    // (an absl/log header is pulled in after tsl's logging.h and redefines
++    // the macro), so the TF_CPP_VMODULE/TF_CPP_MAX_VLOG_LEVEL environment
++    // variables used by tsl's logging are ignored. The absl config is updated
++    // at runtime instead: PrependVModule registers "graph_opt=1" and refreshes
++    // every already-registered VLogSite.
++    absl::log_internal::PrependVModule("graph_opt", 1);
++
 +    // Disable every rewriter by default; each test opts in to exactly one so
 +    // that a single graph cannot be rewritten by two different rewriters.
 +    unsetenv("ANNC_FUSED_ALL");
@@ -2340,14 +2408,29 @@ index 0000000000000000000000000000000000000000..619e36bd388f9fbc1f1a5d80e371127c
 +    Output seg_ids;
 +  };
 +
++  struct StitchReduceMutation {
++    bool swap_gather_ports = false;
++    bool swap_stitch_ports = false;
++    bool split_table_partition = false;
++    bool mod_from_x = false;
++    bool div_from_x = false;
++  };
++
 +  StitchReduceGraph BuildStitchReduceGraph(const Scope& s, int gather1_axis) {
++    return BuildStitchReduceGraph(s, gather1_axis, StitchReduceMutation());
++  }
++
++  StitchReduceGraph BuildStitchReduceGraph(
++      const Scope& s, int gather1_axis, const StitchReduceMutation& m) {
 +    const int64_t kNumTables = 2;  // power of two -> "Fast" fused op
 +    Output x = Placeholder(s.WithOpName("x"), DT_INT64, Placeholder::Shape({6}));
 +    auto unique = Unique(s.WithOpName("unique"), x);
 +    Output num = Const<int64>(s.WithOpName("num"), kNumTables);
-+    Output mod = FloorMod(s.WithOpName("mod"), unique.y, num);
++    Output mod = FloorMod(s.WithOpName("mod"), m.mod_from_x ? x : unique.y,
++                          num);
 +    Output group_ids = Cast(s.WithOpName("group_ids"), mod, DT_INT32);
-+    Output div = FloorDiv(s.WithOpName("div"), unique.y, num);
++    Output div = FloorDiv(s.WithOpName("div"), m.div_from_x ? x : unique.y,
++                          num);
 +    Output size = Size(s.WithOpName("size"), unique.y);
 +    Output range = Range(s.WithOpName("range"), Const(s, 0), size, Const(s, 1));
 +    auto stitch_part = DynamicPartition(s.WithOpName("stitch_part"), range,
@@ -2360,13 +2443,26 @@ index 0000000000000000000000000000000000000000..619e36bd388f9fbc1f1a5d80e371127c
 +                                Placeholder::Shape({10, 4}));
 +    Output axis = Const(s.WithOpName("axis"), 0);
 +    Output axis1 = Const(s.WithOpName("axis1"), gather1_axis);
-+    Output g0 = GatherV2(s.WithOpName("gather0"), table0, table_part.outputs[0],
-+                         axis);
-+    Output g1 = GatherV2(s.WithOpName("gather1"), table1, table_part.outputs[1],
-+                         axis1);
-+    Output stitched = ParallelDynamicStitch(s.WithOpName("stitch"),
-+                                            stitch_part.outputs, {g0, g1})
-+                          .merged;
++    Output g0 = GatherV2(s.WithOpName("gather0"), table0,
++                         table_part.outputs[m.swap_gather_ports ? 1 : 0], axis);
++    Output g1;
++    if (m.split_table_partition) {
++      auto table_part2 = DynamicPartition(s.WithOpName("table_part2"), div,
++                                          group_ids, kNumTables);
++      g1 = GatherV2(s.WithOpName("gather1"), table1, table_part2.outputs[1],
++                    axis1);
++    } else {
++      g1 = GatherV2(s.WithOpName("gather1"), table1,
++                    table_part.outputs[m.swap_gather_ports ? 0 : 1], axis1);
++    }
++    Output stitched =
++        ParallelDynamicStitch(s.WithOpName("stitch"),
++                              m.swap_stitch_ports
++                                  ? OutputList{stitch_part.outputs[1],
++                                               stitch_part.outputs[0]}
++                                  : stitch_part.outputs,
++                              {g0, g1})
++            .merged;
 +
 +    Output slice_input = Placeholder(s.WithOpName("slice_input"), DT_INT64,
 +                                     Placeholder::Shape({6, 2}));
@@ -2590,6 +2686,84 @@ index 0000000000000000000000000000000000000000..619e36bd388f9fbc1f1a5d80e371127c
 +  EXPECT_EQ(CountOp(graph, "KPFusedSparseDynamicStitch"), 0);
 +}
 +
++TEST_F(GraphOptTest, KPFusedSparseDynamicStitchSwappedGatherPortsNoFuse) {
++  setenv("ANNC_FUSED_SPS_STITCH", "1", 1);
++  const int64_t kNumTables = 2;
++
++  Scope s = Scope::NewRootScope();
++  Output x = Placeholder(s.WithOpName("x"), DT_INT64, Placeholder::Shape({4}));
++  Output x1 = Reshape(s.WithOpName("x1"), x, {-1});
++  Output num = Const<int64>(s.WithOpName("num"), kNumTables);
++  Output mod = FloorMod(s.WithOpName("mod"), x1, num);
++  Output group_ids = Cast(s.WithOpName("group_ids"), mod, DT_INT32);
++  Output size = Size(s.WithOpName("size"), x1);
++  Output range = Range(s.WithOpName("range"), Const(s, 0), size, Const(s, 1));
++  auto orig_part = DynamicPartition(s.WithOpName("orig_part"), range, group_ids,
++                                    kNumTables);
++  Output div = FloorDiv(s.WithOpName("div"), x1, num);
++  auto table_part = DynamicPartition(s.WithOpName("table_part"), div, group_ids,
++                                     kNumTables);
++  Output table0 = Placeholder(s.WithOpName("table0"), DT_FLOAT,
++                              Placeholder::Shape({10, 2}));
++  Output table1 = Placeholder(s.WithOpName("table1"), DT_FLOAT,
++                              Placeholder::Shape({10, 2}));
++  Output axis = Const(s.WithOpName("axis"), 0);
++  Output g0 = GatherV2(s.WithOpName("gather0"), table0, table_part.outputs[1],
++                       axis);
++  Output g1 = GatherV2(s.WithOpName("gather1"), table1, table_part.outputs[0],
++                       axis);
++  Output stitch = ParallelDynamicStitch(s.WithOpName("stitch"),
++                                        orig_part.outputs, {g0, g1})
++                      .merged;
++
++  GraphDef graph;
++  TF_ASSERT_OK(s.ToGraphDef(&graph));
++  const int node_count_before = graph.node_size();
++  TF_ASSERT_OK(RunGraphOpt(&graph));
++
++  EXPECT_EQ(graph.node_size(), node_count_before);
++  EXPECT_EQ(CountOp(graph, "KPFusedSparseDynamicStitch"), 0);
++}
++
++TEST_F(GraphOptTest, KPFusedSparseDynamicStitchModSourceNoFuse) {
++  setenv("ANNC_FUSED_SPS_STITCH", "1", 1);
++  const int64_t kNumTables = 2;
++
++  Scope s = Scope::NewRootScope();
++  Output x = Placeholder(s.WithOpName("x"), DT_INT64, Placeholder::Shape({4}));
++  Output x1 = Reshape(s.WithOpName("x1"), x, {-1});
++  Output num = Const<int64>(s.WithOpName("num"), kNumTables);
++  Output mod = FloorMod(s.WithOpName("mod"), x, num);  // x, not x1
++  Output group_ids = Cast(s.WithOpName("group_ids"), mod, DT_INT32);
++  Output size = Size(s.WithOpName("size"), x1);
++  Output range = Range(s.WithOpName("range"), Const(s, 0), size, Const(s, 1));
++  auto orig_part = DynamicPartition(s.WithOpName("orig_part"), range, group_ids,
++                                    kNumTables);
++  Output div = FloorDiv(s.WithOpName("div"), x1, num);
++  auto table_part = DynamicPartition(s.WithOpName("table_part"), div, group_ids,
++                                     kNumTables);
++  Output table0 = Placeholder(s.WithOpName("table0"), DT_FLOAT,
++                              Placeholder::Shape({10, 2}));
++  Output table1 = Placeholder(s.WithOpName("table1"), DT_FLOAT,
++                              Placeholder::Shape({10, 2}));
++  Output axis = Const(s.WithOpName("axis"), 0);
++  Output g0 = GatherV2(s.WithOpName("gather0"), table0, table_part.outputs[0],
++                       axis);
++  Output g1 = GatherV2(s.WithOpName("gather1"), table1, table_part.outputs[1],
++                       axis);
++  Output stitch = ParallelDynamicStitch(s.WithOpName("stitch"),
++                                        orig_part.outputs, {g0, g1})
++                      .merged;
++
++  GraphDef graph;
++  TF_ASSERT_OK(s.ToGraphDef(&graph));
++  const int node_count_before = graph.node_size();
++  TF_ASSERT_OK(RunGraphOpt(&graph));
++
++  EXPECT_EQ(graph.node_size(), node_count_before);
++  EXPECT_EQ(CountOp(graph, "KPFusedSparseDynamicStitch"), 0);
++}
++
 +// Right branch of the Stitch+Reduce pattern has a non-zero GatherV2 axis:
 +// same requirement — the graph must be left completely untouched.
 +TEST_F(GraphOptTest, KPFusedSparseDynamicStitchReducePartialMatchNoFuse) {
@@ -2651,6 +2825,362 @@ index 0000000000000000000000000000000000000000..619e36bd388f9fbc1f1a5d80e371127c
 +  EXPECT_EQ(CountOp(graph, "KPFusedSparseDynamicStitchFastSum"), 0);
 +}
 +
++TEST_F(GraphOptTest, KPFusedSparseDynamicStitchReduceSwappedGatherPortsNoFuse) {
++  setenv("ANNC_FUSED_SPS_STITCH_REDUCE", "1", 1);
++
++  Scope s = Scope::NewRootScope();
++  StitchReduceMutation m;
++  m.swap_gather_ports = true;
++  StitchReduceGraph pattern =
++      BuildStitchReduceGraph(s, /*gather1_axis=*/0, m);
++  Output reduced = SparseSegmentSum(s.WithOpName("reduced"), pattern.stitched,
++                                    pattern.unique_indices, pattern.seg_ids);
++
++  GraphDef graph;
++  TF_ASSERT_OK(s.ToGraphDef(&graph));
++  const int node_count_before = graph.node_size();
++  TF_ASSERT_OK(RunGraphOpt(&graph));
++
++  EXPECT_EQ(graph.node_size(), node_count_before);
++  EXPECT_EQ(CountOp(graph, "KPFusedSparseDynamicStitchFastSum"), 0);
++}
++
++TEST_F(GraphOptTest, KPFusedSparseDynamicStitchReduceSwappedStitchPortsNoFuse) {
++  setenv("ANNC_FUSED_SPS_STITCH_REDUCE", "1", 1);
++
++  Scope s = Scope::NewRootScope();
++  StitchReduceMutation m;
++  m.swap_stitch_ports = true;
++  StitchReduceGraph pattern =
++      BuildStitchReduceGraph(s, /*gather1_axis=*/0, m);
++  Output reduced = SparseSegmentSum(s.WithOpName("reduced"), pattern.stitched,
++                                    pattern.unique_indices, pattern.seg_ids);
++
++  GraphDef graph;
++  TF_ASSERT_OK(s.ToGraphDef(&graph));
++  const int node_count_before = graph.node_size();
++  TF_ASSERT_OK(RunGraphOpt(&graph));
++
++  EXPECT_EQ(graph.node_size(), node_count_before);
++  EXPECT_EQ(CountOp(graph, "KPFusedSparseDynamicStitchFastSum"), 0);
++}
++
++TEST_F(GraphOptTest, KPFusedSparseDynamicStitchReduceSplitPartitionNoFuse) {
++  setenv("ANNC_FUSED_SPS_STITCH_REDUCE", "1", 1);
++
++  Scope s = Scope::NewRootScope();
++  StitchReduceMutation m;
++  m.split_table_partition = true;
++  StitchReduceGraph pattern =
++      BuildStitchReduceGraph(s, /*gather1_axis=*/0, m);
++  Output reduced = SparseSegmentSum(s.WithOpName("reduced"), pattern.stitched,
++                                    pattern.unique_indices, pattern.seg_ids);
++
++  GraphDef graph;
++  TF_ASSERT_OK(s.ToGraphDef(&graph));
++  const int node_count_before = graph.node_size();
++  TF_ASSERT_OK(RunGraphOpt(&graph));
++
++  EXPECT_EQ(graph.node_size(), node_count_before);
++  EXPECT_EQ(CountOp(graph, "KPFusedSparseDynamicStitchFastSum"), 0);
++}
++
++TEST_F(GraphOptTest, KPFusedSparseDynamicStitchReduceModSourceNoFuse) {
++  setenv("ANNC_FUSED_SPS_STITCH_REDUCE", "1", 1);
++
++  Scope s = Scope::NewRootScope();
++  StitchReduceMutation m;
++  m.mod_from_x = true;
++  StitchReduceGraph pattern =
++      BuildStitchReduceGraph(s, /*gather1_axis=*/0, m);
++  Output reduced = SparseSegmentSum(s.WithOpName("reduced"), pattern.stitched,
++                                    pattern.unique_indices, pattern.seg_ids);
++
++  GraphDef graph;
++  TF_ASSERT_OK(s.ToGraphDef(&graph));
++  const int node_count_before = graph.node_size();
++  TF_ASSERT_OK(RunGraphOpt(&graph));
++
++  EXPECT_EQ(graph.node_size(), node_count_before);
++  EXPECT_EQ(CountOp(graph, "KPFusedSparseDynamicStitchFastSum"), 0);
++}
++
++TEST_F(GraphOptTest, KPFusedSparseDynamicStitchReduceDivSourceNoFuse) {
++  setenv("ANNC_FUSED_SPS_STITCH_REDUCE", "1", 1);
++
++  Scope s = Scope::NewRootScope();
++  StitchReduceMutation m;
++  m.div_from_x = true;
++  StitchReduceGraph pattern =
++      BuildStitchReduceGraph(s, /*gather1_axis=*/0, m);
++  Output reduced = SparseSegmentSum(s.WithOpName("reduced"), pattern.stitched,
++                                    pattern.unique_indices, pattern.seg_ids);
++
++  GraphDef graph;
++  TF_ASSERT_OK(s.ToGraphDef(&graph));
++  const int node_count_before = graph.node_size();
++  TF_ASSERT_OK(RunGraphOpt(&graph));
++
++  EXPECT_EQ(graph.node_size(), node_count_before);
++  EXPECT_EQ(CountOp(graph, "KPFusedSparseDynamicStitchFastSum"), 0);
++}
++
++// Cast(StridedSlice) -> SparseSegment* -> Where(NotEqual(ZerosLike)) ->
++// KPFusedSparseSegmentReduceNonzero
++TEST_F(GraphOptTest, KPFusedSparseSegmentReduceNonzero) {
++  setenv("ANNC_FUSED_SPS_REDUCE_NONZERO", "1", 1);
++
++  Scope s = Scope::NewRootScope();
++  Output data = Placeholder(s.WithOpName("data"), DT_FLOAT,
++                            Placeholder::Shape({100, 5}));
++  Output indices = Placeholder(s.WithOpName("indices"), DT_INT32,
++                               Placeholder::Shape({50}));
++  Output slice_input = Placeholder(s.WithOpName("slice_input"), DT_INT64,
++                                   Placeholder::Shape({50, 2}));
++  Output begin = Const(s.WithOpName("begin"), {0, 1});
++  Output end = Const(s.WithOpName("end"), {0, 2});
++  Output strides = Const(s.WithOpName("strides"), {1, 1});
++  Output slice = StridedSlice(
++      s.WithOpName("slice"), slice_input, begin, end, strides,
++      StridedSlice::Attrs().BeginMask(1).EndMask(1).ShrinkAxisMask(2));
++  Output seg_ids = Cast(s.WithOpName("seg_ids"), slice, DT_INT32);
++  Output ss = SparseSegmentSum(s.WithOpName("ss"), data, indices, seg_ids);
++  Output zero = ZerosLike(s.WithOpName("zero"), ss);
++  Output notequal = NotEqual(s.WithOpName("notequal"), ss, zero);
++  Output where = Where(s.WithOpName("where"), notequal);
++  Output cast_where = Cast(s.WithOpName("cast_where"), where, DT_INT32);
++  Output gather = GatherNd(s.WithOpName("gather"), ss, where);
++  Output ss_shape = Shape(s.WithOpName("ss_shape"), ss);
++  Output cast_shape = Cast(s.WithOpName("cast_shape"), ss_shape, DT_INT32);
++
++  GraphDef graph;
++  TF_ASSERT_OK(s.ToGraphDef(&graph));
++  TF_ASSERT_OK(RunGraphOpt(&graph));
++
++  EXPECT_EQ(CountOp(graph, "KPFusedSparseSegmentReduceNonzero"), 1);
++}
++
++// Cast -> StridedSlice -> Sub -> Pack/Fill -> Concat -> Reshape ->
++// KPFusedEmbeddingPadding
++TEST_F(GraphOptTest, KPFusedEmbeddingPadding) {
++  setenv("ANNC_FUSED_EMD_PADDING", "1", 1);
++
++  Scope s = Scope::NewRootScope();
++  Output shape_input = Placeholder(s.WithOpName("shape_input"), DT_INT64,
++                                   Placeholder::Shape({2}));
++  Output data = Placeholder(s.WithOpName("data"), DT_FLOAT,
++                            Placeholder::Shape({150, 10}));
++  Output input_rows = Placeholder(s.WithOpName("input_rows"), DT_INT32);
++  Output reshape_sizes = Placeholder(s.WithOpName("reshape_sizes"), DT_INT32,
++                                     Placeholder::Shape({2}));
++
++  Output cast = Cast(s.WithOpName("cast"), shape_input, DT_INT32);
++  Output begin = Const(s.WithOpName("begin"), {0});
++  Output end = Const(s.WithOpName("end"), {1});
++  Output strides = Const(s.WithOpName("strides"), {1});
++  Output slice = StridedSlice(s.WithOpName("slice"), cast, begin, end, strides,
++                              StridedSlice::Attrs().ShrinkAxisMask(1));
++  Output sub = Sub(s.WithOpName("sub"), slice, input_rows);
++  Output pack_right = Const(s.WithOpName("pack_right"), 10);
++  Output pack = Stack(s.WithOpName("pack"), {sub, pack_right});
++  Output fill_value = Const(s.WithOpName("fill_value"), 0.0f);
++  Output fill = Fill(s.WithOpName("fill"), pack, fill_value);
++  Output axis0 = Const(s.WithOpName("axis0"), 0);
++  Output concat = Concat(s.WithOpName("concat"), {data, fill}, axis0);
++  Output reshape = Reshape(s.WithOpName("reshape"), concat, reshape_sizes);
++  Output axis1 = Const(s.WithOpName("axis1"), 1);
++  Output concat2 = Concat(s.WithOpName("concat2"), {reshape, reshape}, axis1);
++
++  GraphDef graph;
++  TF_ASSERT_OK(s.ToGraphDef(&graph));
++  TF_ASSERT_OK(RunGraphOpt(&graph));
++
++  EXPECT_EQ(CountOp(graph, "KPFusedEmbeddingPadding"), 1);
++}
++
++// KPFusedEmbeddingPadding + extra StridedSlice -> KPFusedEmbeddingPaddingFast
++TEST_F(GraphOptTest, KPFusedEmbeddingPaddingFast) {
++  setenv("ANNC_FUSED_EMD_PADDING_FAST", "1", 1);
++
++  Scope s = Scope::NewRootScope();
++  Output shape_input = Placeholder(s.WithOpName("shape_input"), DT_INT64,
++                                   Placeholder::Shape({2}));
++  Output data = Placeholder(s.WithOpName("data"), DT_FLOAT,
++                            Placeholder::Shape({150, 10}));
++  Output input_rows = Placeholder(s.WithOpName("input_rows"), DT_INT32);
++  Output reshape_sizes = Placeholder(s.WithOpName("reshape_sizes"), DT_INT32,
++                                     Placeholder::Shape({2}));
++
++  Output cast = Cast(s.WithOpName("cast"), shape_input, DT_INT32);
++  Output begin = Const(s.WithOpName("begin"), {0});
++  Output end = Const(s.WithOpName("end"), {1});
++  Output strides = Const(s.WithOpName("strides"), {1});
++  Output slice = StridedSlice(s.WithOpName("slice"), cast, begin, end, strides,
++                              StridedSlice::Attrs().ShrinkAxisMask(1));
++  Output sub = Sub(s.WithOpName("sub"), slice, input_rows);
++  Output pack_right = Const(s.WithOpName("pack_right"), 10);
++  Output pack = Stack(s.WithOpName("pack"), {sub, pack_right});
++  Output fill_value = Const(s.WithOpName("fill_value"), 0.0f);
++  Output fill = Fill(s.WithOpName("fill"), pack, fill_value);
++  Output axis0 = Const(s.WithOpName("axis0"), 0);
++  Output concat = Concat(s.WithOpName("concat"), {data, fill}, axis0);
++  Output reshape = Reshape(s.WithOpName("reshape"), concat, reshape_sizes);
++  Output reshape_shape = Shape(s.WithOpName("reshape_shape"), reshape);
++  Output slice_begin = Const(s.WithOpName("slice_begin"), {0});
++  Output slice_end = Const(s.WithOpName("slice_end"), {1});
++  Output slice_strides = Const(s.WithOpName("slice_strides"), {1});
++  Output slice2 = StridedSlice(s.WithOpName("slice2"), reshape_shape,
++                               slice_begin, slice_end, slice_strides,
++                               StridedSlice::Attrs().ShrinkAxisMask(1));
++
++  GraphDef graph;
++  TF_ASSERT_OK(s.ToGraphDef(&graph));
++  TF_ASSERT_OK(RunGraphOpt(&graph));
++
++  EXPECT_EQ(CountOp(graph, "KPFusedEmbeddingPaddingFast"), 1);
++}
++
++// Reshape + Greater/Equal + Select pattern -> KPFusedSparseSelect
++TEST_F(GraphOptTest, KPFusedSparseSelect) {
++  setenv("ANNC_FUSED_SPS_SELECT", "1", 1);
++
++  Scope s = Scope::NewRootScope();
++  Output input_a = Placeholder(s.WithOpName("input_a"), DT_INT32,
++                               Placeholder::Shape({10, 10}));
++  Output input_b = Placeholder(s.WithOpName("input_b"), DT_INT32,
++                               Placeholder::Shape({10, 10}));
++  Output input_c = Placeholder(s.WithOpName("input_c"), DT_INT32,
++                               Placeholder::Shape({10, 10}));
++
++  // Reshape inputs
++  Output reshape_a = Reshape(s.WithOpName("reshape_a"), input_a, {-1, 1});
++  Output reshape_b = Reshape(s.WithOpName("reshape_b"), input_b, {-1, 1});
++  Output reshape_c = Reshape(s.WithOpName("reshape_c"), input_c, {-1, 1});
++
++  // First branch: greater -> cast -> fill -> select chain
++  Output greater_value = Const(s.WithOpName("greater_value"), 0);
++  Output greater_a = Greater(s.WithOpName("greater_a"), reshape_a, greater_value);
++  Output cast_a = Cast(s.WithOpName("cast_a"), greater_a, DT_FLOAT);
++
++  Output shape_a = Shape(s.WithOpName("shape_a"), cast_a);
++  Output fill_value = Const(s.WithOpName("fill_value"), 1.0f);
++  Output fill_a = Fill(s.WithOpName("fill_a"), shape_a, fill_value);
++
++  // Equal checks for b
++  Output equal1_value = Const(s.WithOpName("equal1_value"), 4563);
++  Output equal2_value = Const(s.WithOpName("equal2_value"), 10831);
++  Output equal_1 = Equal(s.WithOpName("equal_1"), reshape_b, equal1_value);
++  Output equal_2 = Equal(s.WithOpName("equal_2"), reshape_b, equal2_value);
++
++  // Select cascade for first output
++  Output select_1 = SelectV2(s.WithOpName("select_1"), equal_2, fill_a, cast_a);
++  Output select_0 = SelectV2(s.WithOpName("select_0"), equal_1, fill_a, select_1);
++
++  // Second branch: realdiv for c
++  Output shape_reshape_a1 = Shape(s.WithOpName("shape_reshape_a1"), reshape_a);
++  Output fill_div = Fill(s.WithOpName("fill_div"), shape_reshape_a1, fill_value);
++  Output div_const = Const(s.WithOpName("div_const"), 1.0f);
++  Output realdiv = RealDiv(s.WithOpName("realdiv"), fill_div, div_const);
++
++  Output equal3_value = Const(s.WithOpName("equal3_value"), 3);
++  Output equal_3 = Equal(s.WithOpName("equal_3"), reshape_c, equal3_value);
++  Output select_2 = SelectV2(s.WithOpName("select_2"), equal_3, realdiv, fill_div);
++
++  // Final concat
++  Output axis_neg1 = Const(s.WithOpName("axis_neg1"), -1);
++  Output concat = Concat(s.WithOpName("concat"), {select_0, select_2}, axis_neg1);
++
++  GraphDef graph;
++  TF_ASSERT_OK(s.ToGraphDef(&graph));
++  TF_ASSERT_OK(RunGraphOpt(&graph));
++
++  EXPECT_EQ(CountOp(graph, "KPFusedSparseSelect"), 1);
++}
++
++// StridedSlice + Reshape + Shape + StridedSlice + Stack + Cast + Range +
++// Reshape + Cast + Concat + SparseReshape -> KPFusedSparseReshape
++TEST_F(GraphOptTest, KPFusedSparseReshape) {
++  setenv("ANNC_FUSED_SPS_RESHAPE", "1", 1);
++
++  Scope s = Scope::NewRootScope();
++  Output slice_input = Placeholder(s.WithOpName("slice_input"), DT_INT64,
++                                   Placeholder::Shape({4, 2}));
++  Output newshape = Placeholder(s.WithOpName("newshape"), DT_INT64,
++                                Placeholder::Shape({2}));
++  Output pack_const = Const(s.WithOpName("pack_const"), 2);
++
++  Output begin = Const(s.WithOpName("begin"), {0, 1});
++  Output end = Const(s.WithOpName("end"), {0, 2});
++  Output strides = Const(s.WithOpName("strides"), {1, 1});
++  Output slice = StridedSlice(
++      s.WithOpName("slice"), slice_input, begin, end, strides,
++      StridedSlice::Attrs().BeginMask(1).EndMask(1).ShrinkAxisMask(2));
++  Output reshape = Reshape(s.WithOpName("reshape"), slice, {-1, 1});
++  Output shape = Shape(s.WithOpName("shape"), slice_input);
++  Output shape_begin = Const(s.WithOpName("shape_begin"), {0});
++  Output shape_end = Const(s.WithOpName("shape_end"), {1});
++  Output shape_strides = Const(s.WithOpName("shape_strides"), {1});
++  Output shape_slice = StridedSlice(
++      s.WithOpName("shape_slice"), shape, shape_begin, shape_end,
++      shape_strides, StridedSlice::Attrs().ShrinkAxisMask(1));
++  Output stack = Stack(s.WithOpName("stack"), {shape_slice, pack_const});
++  Output input_shape = Cast(s.WithOpName("input_shape"), stack, DT_INT64);
++  Output range_start = Const(s.WithOpName("range_start"), 0);
++  Output range_delta = Const(s.WithOpName("range_delta"), 1);
++  Output range = Range(s.WithOpName("range"), range_start, shape_slice,
++                       range_delta);
++  Output range_reshape = Reshape(s.WithOpName("range_reshape"), range, {-1, 1});
++  Output range_cast = Cast(s.WithOpName("range_cast"), range_reshape, DT_INT64);
++  Output axis_neg1_2 = Const(s.WithOpName("axis_neg1_2"), -1);
++  Output concat = Concat(s.WithOpName("concat"), {range_cast, reshape}, axis_neg1_2);
++  // SparseReshape expects 3 inputs: indices, input_shape, new_shape
++  // We're building a minimal pattern that just uses concat as indices
++  // For a real sparse tensor we'd need values too, but the matcher only
++  // checks structure
++  auto sparse_out = ops::SparseReshape(s.WithOpName("sparse_reshape"), concat,
++                                       input_shape, newshape);
++
++  GraphDef graph;
++  TF_ASSERT_OK(s.ToGraphDef(&graph));
++  TF_ASSERT_OK(RunGraphOpt(&graph));
++
++  EXPECT_EQ(CountOp(graph, "KPFusedSparseReshape"), 1);
++}
++
++// GatherV2(GatherV2) + Pack + Reshape + Fill + Concat ->
++// KPFusedEmbeddingActionIdGather
++TEST_F(GraphOptTest, KPFusedEmbeddingActionIdGather) {
++  setenv("ANNC_FUSED_EMB_ACTIONID_GATHER", "1", 1);
++
++  Scope s = Scope::NewRootScope();
++  Output params = Placeholder(s.WithOpName("params"), DT_FLOAT,
++                              Placeholder::Shape({80, 300}));
++  Output indices1 = Placeholder(s.WithOpName("indices1"), DT_INT32,
++                                Placeholder::Shape({8, 10}));
++  Output indices2 = Placeholder(s.WithOpName("indices2"), DT_INT32,
++                                Placeholder::Shape({5, 6}));
++  Output rows = Const(s.WithOpName("rows"), 80);
++  Output pack_value = Const(s.WithOpName("pack_value"), 1680);
++
++  Output axis = Const(s.WithOpName("axis"), 0);
++  Output gather1 = GatherV2(s.WithOpName("gather1"), params, indices1, axis);
++  Output gather2 = GatherV2(s.WithOpName("gather2"), gather1, indices2, axis);
++  Output neg_one = Const(s.WithOpName("neg_one"), -1);
++  Output pack1 = Stack(s.WithOpName("pack1"), {rows, neg_one});
++  Output reshape = Reshape(s.WithOpName("reshape"), gather2, pack1);
++  Output pack2 = Stack(s.WithOpName("pack2"), {rows, pack_value});
++  Output fill_value = Const(s.WithOpName("fill_value"), 0.0f);
++  Output fill = Fill(s.WithOpName("fill"), pack2, fill_value);
++  Output axis_neg1_3 = Const(s.WithOpName("axis_neg1_3"), -1);
++  Output concat = Concat(s.WithOpName("concat"), {reshape, fill}, axis_neg1_3);
++
++  GraphDef graph;
++  TF_ASSERT_OK(s.ToGraphDef(&graph));
++  TF_ASSERT_OK(RunGraphOpt(&graph));
++
++  EXPECT_EQ(CountOp(graph, "KPFusedEmbeddingActionIdGather"), 1);
++}
++
 +// A dangling input reference: get_node() cannot resolve it, and the rewriter
 +// must bail out instead of dereferencing the null result. Static shape
 +// inference is skipped on purpose: the graph is intentionally malformed, and
@@ -2703,14 +3233,306 @@ index 0000000000000000000000000000000000000000..619e36bd388f9fbc1f1a5d80e371127c
 +  EXPECT_EQ(CountOp(graph, "KPFusedSparseDynamicStitch"), 0);
 +}
 +
++// ANNCAnyFusionEnabled must reflect the ANNC_FUSED_* environment: false when
++// every variable is unset or holds something other than "1", true as soon as
++// one variable is exactly "1" (covers IsEnvEnabled and the env-name loop).
++TEST_F(GraphOptTest, ANNCAnyFusionEnabled) {
++  // SetUp() cleared all ANNC_FUSED_* variables.
++  EXPECT_FALSE(annc::ANNCAnyFusionEnabled());
++
++  setenv("ANNC_FUSED_SPS_STITCH_REDUCE", "1", 1);
++  EXPECT_TRUE(annc::ANNCAnyFusionEnabled());
++
++  setenv("ANNC_FUSED_SPS_STITCH_REDUCE", "0", 1);
++  EXPECT_FALSE(annc::ANNCAnyFusionEnabled());
++
++  unsetenv("ANNC_FUSED_SPS_STITCH_REDUCE");
++}
++
++// Test KPFusedSparseDynamicStitchReduce with int64 gather axis (covers line
++// 399-401)
++TEST_F(GraphOptTest, KPFusedSparseDynamicStitchReduceInt64Axis) {
++  setenv("ANNC_FUSED_SPS_STITCH_REDUCE", "1", 1);
++  const int64_t kNumTables = 2;
++
++  Scope s = Scope::NewRootScope();
++  Output x = Placeholder(s.WithOpName("x"), DT_INT64, Placeholder::Shape({6}));
++  auto unique = Unique(s.WithOpName("unique"), x);
++  Output unique_values = unique.y;
++  Output unique_indices = unique.idx;
++
++  Output num = Const<int64>(s.WithOpName("num"), kNumTables);
++  Output mod = FloorMod(s.WithOpName("mod"), unique_values, num);
++  Output group_ids = Cast(s.WithOpName("group_ids"), mod, DT_INT32);
++  Output div = FloorDiv(s.WithOpName("div"), unique_values, num);
++  Output size = Size(s.WithOpName("size"), unique_values);
++  Output range = Range(s.WithOpName("range"), Const(s, 0), size, Const(s, 1));
++  auto stitch_part = DynamicPartition(s.WithOpName("stitch_part"), range,
++                                      group_ids, kNumTables);
++  auto table_part = DynamicPartition(s.WithOpName("table_part"), div, group_ids,
++                                     kNumTables);
++
++  Output table0 = Placeholder(s.WithOpName("table0"), DT_FLOAT,
++                              Placeholder::Shape({10, 4}));
++  Output table1 = Placeholder(s.WithOpName("table1"), DT_FLOAT,
++                              Placeholder::Shape({10, 4}));
++  // Use int64 for axis instead of int32 to trigger line 399-401
++  // But need to wrap it in a Const<int64_t> tensor
++  Tensor axis_tensor(DT_INT64, TensorShape({}));
++  axis_tensor.scalar<int64_t>()() = 0;
++  Output axis = Const(s.WithOpName("axis"), axis_tensor);
++
++  Output g0 = GatherV2(s.WithOpName("gather0"), table0, table_part.outputs[0],
++                       axis);
++  Output g1 = GatherV2(s.WithOpName("gather1"), table1, table_part.outputs[1],
++                       axis);
++  Output stitched = ParallelDynamicStitch(s.WithOpName("stitch"),
++                                          stitch_part.outputs, {g0, g1})
++                        .merged;
++
++  Output slice_input = Placeholder(s.WithOpName("slice_input"), DT_INT64,
++                                   Placeholder::Shape({6, 2}));
++  Output begin = Const(s.WithOpName("begin"), {0, 1});
++  Output end = Const(s.WithOpName("end"), {0, 2});
++  Output strides = Const(s.WithOpName("strides"), {1, 1});
++  Output slice = StridedSlice(
++      s.WithOpName("slice"), slice_input, begin, end, strides,
++      StridedSlice::Attrs().BeginMask(1).EndMask(1).ShrinkAxisMask(2));
++  Output seg_ids = Cast(s.WithOpName("seg_ids"), slice, DT_INT32);
++  Output reduced = SparseSegmentSum(s.WithOpName("reduced"), stitched,
++                                    unique_indices, seg_ids);
++
++  GraphDef graph;
++  TF_ASSERT_OK(s.ToGraphDef(&graph));
++  TF_ASSERT_OK(RunGraphOpt(&graph));
++
++  if (annc::RuntimeSveSupported()) {
++    EXPECT_EQ(CountOp(graph, "KPFusedSparseDynamicStitchFastSum"), 1);
++  } else {
++    EXPECT_EQ(CountOp(graph, "KPFusedSparseDynamicStitchFastSum"), 0);
++  }
++}
++
++// Test with Reshape between Stitch and SparseSegment (covers has_reshape branch)
++TEST_F(GraphOptTest, KPFusedSparseDynamicStitchReduceWithReshape) {
++  setenv("ANNC_FUSED_SPS_STITCH_REDUCE", "1", 1);
++  const int64_t kNumTables = 2;
++
++  Scope s = Scope::NewRootScope();
++  Output x = Placeholder(s.WithOpName("x"), DT_INT64, Placeholder::Shape({6}));
++  auto unique = Unique(s.WithOpName("unique"), x);
++  Output unique_values = unique.y;
++  Output unique_indices = unique.idx;
++
++  Output num = Const<int64>(s.WithOpName("num"), kNumTables);
++  Output mod = FloorMod(s.WithOpName("mod"), unique_values, num);
++  Output group_ids = Cast(s.WithOpName("group_ids"), mod, DT_INT32);
++  Output div = FloorDiv(s.WithOpName("div"), unique_values, num);
++  Output size = Size(s.WithOpName("size"), unique_values);
++  Output range = Range(s.WithOpName("range"), Const(s, 0), size, Const(s, 1));
++  auto stitch_part = DynamicPartition(s.WithOpName("stitch_part"), range,
++                                      group_ids, kNumTables);
++  auto table_part = DynamicPartition(s.WithOpName("table_part"), div, group_ids,
++                                     kNumTables);
++
++  Output table0 = Placeholder(s.WithOpName("table0"), DT_FLOAT,
++                              Placeholder::Shape({10, 4}));
++  Output table1 = Placeholder(s.WithOpName("table1"), DT_FLOAT,
++                              Placeholder::Shape({10, 4}));
++  Output axis = Const(s.WithOpName("axis"), 0);
++
++  Output g0 = GatherV2(s.WithOpName("gather0"), table0, table_part.outputs[0],
++                       axis);
++  Output g1 = GatherV2(s.WithOpName("gather1"), table1, table_part.outputs[1],
++                       axis);
++
++  Output stitched = ParallelDynamicStitch(s.WithOpName("stitch"),
++                                          stitch_part.outputs, {g0, g1})
++                        .merged;
++
++  // Add Reshape between Stitch and SparseSegment (this tests the has_reshape branch)
++  Output reshape_shape = Const(s.WithOpName("reshape_shape"), {-1, 4});
++  Output reshaped_stitched = Reshape(s.WithOpName("reshape_stitch"), stitched, reshape_shape);
++
++  Output slice_input = Placeholder(s.WithOpName("slice_input"), DT_INT64,
++                                   Placeholder::Shape({6, 2}));
++  Output begin = Const(s.WithOpName("begin"), {0, 1});
++  Output end = Const(s.WithOpName("end"), {0, 2});
++  Output strides = Const(s.WithOpName("strides"), {1, 1});
++  Output slice = StridedSlice(
++      s.WithOpName("slice"), slice_input, begin, end, strides,
++      StridedSlice::Attrs().BeginMask(1).EndMask(1).ShrinkAxisMask(2));
++  Output seg_ids = Cast(s.WithOpName("seg_ids"), slice, DT_INT32);
++  Output reduced = SparseSegmentSum(s.WithOpName("reduced"), reshaped_stitched,
++                                    unique_indices, seg_ids);
++
++  GraphDef graph;
++  TF_ASSERT_OK(s.ToGraphDef(&graph));
++  TF_ASSERT_OK(RunGraphOpt(&graph));
++
++  if (annc::RuntimeSveSupported()) {
++    EXPECT_EQ(CountOp(graph, "KPFusedSparseDynamicStitchFastSum"), 1);
++    // Reshape between Stitch and SparseSegment is skipped during pattern match
++    // but remains in the graph (its input redirected to the fused op)
++    EXPECT_EQ(CountOp(graph, "Reshape"), 1);
++  } else {
++    EXPECT_EQ(CountOp(graph, "KPFusedSparseDynamicStitchFastSum"), 0);
++  }
++}
++
++// Test with Reshape on Unique input (covers line 333-337)
++TEST_F(GraphOptTest, KPFusedSparseDynamicStitchReduceWithUniqueReshape) {
++  setenv("ANNC_FUSED_SPS_STITCH_REDUCE", "1", 1);
++  const int64_t kNumTables = 2;
++
++  Scope s = Scope::NewRootScope();
++  Output x = Placeholder(s.WithOpName("x"), DT_INT64, Placeholder::Shape({6}));
++
++  // Add Reshape before Unique
++  Output reshape_shape = Const(s.WithOpName("reshape_shape"), {-1});
++  Output reshaped_x = Reshape(s.WithOpName("reshape_x"), x, reshape_shape);
++
++  auto unique = Unique(s.WithOpName("unique"), reshaped_x);
++  Output unique_values = unique.y;
++  Output unique_indices = unique.idx;
++
++  Output num = Const<int64>(s.WithOpName("num"), kNumTables);
++  Output mod = FloorMod(s.WithOpName("mod"), unique_values, num);
++  Output group_ids = Cast(s.WithOpName("group_ids"), mod, DT_INT32);
++  Output div = FloorDiv(s.WithOpName("div"), unique_values, num);
++
++  // Add Reshape between Unique output and Size to test unique_has_reshape
++  Output unique_reshape_shape = Const(s.WithOpName("unique_reshape_shape"), {-1});
++  Output reshaped_unique = Reshape(s.WithOpName("reshape_unique"), unique_values, unique_reshape_shape);
++  Output size = Size(s.WithOpName("size"), reshaped_unique);  // Size on reshaped Unique output
++
++  Output range = Range(s.WithOpName("range"), Const(s, 0), size, Const(s, 1));
++  auto stitch_part = DynamicPartition(s.WithOpName("stitch_part"), range,
++                                      group_ids, kNumTables);
++  auto table_part = DynamicPartition(s.WithOpName("table_part"), div, group_ids,
++                                     kNumTables);
++
++  Output table0 = Placeholder(s.WithOpName("table0"), DT_FLOAT,
++                              Placeholder::Shape({10, 4}));
++  Output table1 = Placeholder(s.WithOpName("table1"), DT_FLOAT,
++                              Placeholder::Shape({10, 4}));
++  Output axis = Const(s.WithOpName("axis"), 0);
++  Output g0 = GatherV2(s.WithOpName("gather0"), table0, table_part.outputs[0],
++                       axis);
++  Output g1 = GatherV2(s.WithOpName("gather1"), table1, table_part.outputs[1],
++                       axis);
++  Output stitched = ParallelDynamicStitch(s.WithOpName("stitch"),
++                                          stitch_part.outputs, {g0, g1})
++                        .merged;
++
++  Output slice_input = Placeholder(s.WithOpName("slice_input"), DT_INT64,
++                                   Placeholder::Shape({6, 2}));
++  Output begin = Const(s.WithOpName("begin"), {0, 1});
++  Output end = Const(s.WithOpName("end"), {0, 2});
++  Output strides = Const(s.WithOpName("strides"), {1, 1});
++  Output slice = StridedSlice(
++      s.WithOpName("slice"), slice_input, begin, end, strides,
++      StridedSlice::Attrs().BeginMask(1).EndMask(1).ShrinkAxisMask(2));
++  Output seg_ids = Cast(s.WithOpName("seg_ids"), slice, DT_INT32);
++  Output reduced = SparseSegmentSum(s.WithOpName("reduced"), stitched,
++                                    unique_indices, seg_ids);
++
++  GraphDef graph;
++  TF_ASSERT_OK(s.ToGraphDef(&graph));
++  TF_ASSERT_OK(RunGraphOpt(&graph));
++
++  if (annc::RuntimeSveSupported()) {
++    EXPECT_EQ(CountOp(graph, "KPFusedSparseDynamicStitchFastSum"), 1);
++  } else {
++    EXPECT_EQ(CountOp(graph, "KPFusedSparseDynamicStitchFastSum"), 0);
++  }
++}
++
++// Test without Cast on segment_ids (StridedSlice directly, no Cast)
++TEST_F(GraphOptTest, KPFusedSparseDynamicStitchReduceNoCast) {
++  setenv("ANNC_FUSED_SPS_STITCH_REDUCE", "1", 1);
++  const int64_t kNumTables = 2;
++
++  Scope s = Scope::NewRootScope();
++  Output x = Placeholder(s.WithOpName("x"), DT_INT64, Placeholder::Shape({6}));
++  auto unique = Unique(s.WithOpName("unique"), x);
++  Output unique_values = unique.y;
++  Output unique_indices = unique.idx;
++
++  Output num = Const<int64>(s.WithOpName("num"), kNumTables);
++  Output mod = FloorMod(s.WithOpName("mod"), unique_values, num);
++  Output group_ids = Cast(s.WithOpName("group_ids"), mod, DT_INT32);
++  Output div = FloorDiv(s.WithOpName("div"), unique_values, num);
++  Output size = Size(s.WithOpName("size"), unique_values);
++  Output range = Range(s.WithOpName("range"), Const(s, 0), size, Const(s, 1));
++  auto stitch_part = DynamicPartition(s.WithOpName("stitch_part"), range,
++                                      group_ids, kNumTables);
++  auto table_part = DynamicPartition(s.WithOpName("table_part"), div, group_ids,
++                                     kNumTables);
++
++  Output table0 = Placeholder(s.WithOpName("table0"), DT_FLOAT,
++                              Placeholder::Shape({10, 4}));
++  Output table1 = Placeholder(s.WithOpName("table1"), DT_FLOAT,
++                              Placeholder::Shape({10, 4}));
++  Output axis = Const(s.WithOpName("axis"), 0);
++  Output g0 = GatherV2(s.WithOpName("gather0"), table0, table_part.outputs[0],
++                       axis);
++  Output g1 = GatherV2(s.WithOpName("gather1"), table1, table_part.outputs[1],
++                       axis);
++  Output stitched = ParallelDynamicStitch(s.WithOpName("stitch"),
++                                          stitch_part.outputs, {g0, g1})
++                        .merged;
++
++  // Use int32 slice_input to produce int32 segment_ids directly, no Cast
++  Output slice_input = Placeholder(s.WithOpName("slice_input"), DT_INT32,
++                                   Placeholder::Shape({6, 2}));
++  Output begin = Const(s.WithOpName("begin"), {0, 1});
++  Output end = Const(s.WithOpName("end"), {0, 2});
++  Output strides = Const(s.WithOpName("strides"), {1, 1});
++  Output seg_ids = StridedSlice(
++      s.WithOpName("seg_ids"), slice_input, begin, end, strides,
++      StridedSlice::Attrs().BeginMask(1).EndMask(1).ShrinkAxisMask(2));
++  // No Cast here - seg_ids is directly int32
++  Output reduced = SparseSegmentSum(s.WithOpName("reduced"), stitched,
++                                    unique_indices, seg_ids);
++
++  GraphDef graph;
++  TF_ASSERT_OK(s.ToGraphDef(&graph));
++  TF_ASSERT_OK(RunGraphOpt(&graph));
++
++  if (annc::RuntimeSveSupported()) {
++    EXPECT_EQ(CountOp(graph, "KPFusedSparseDynamicStitchFastSum"), 1);
++  } else {
++    EXPECT_EQ(CountOp(graph, "KPFusedSparseDynamicStitchFastSum"), 0);
++  }
++}
++
 +}  // namespace
 +}  // namespace grappler
 +}  // namespace tensorflow
 diff --git a/tensorflow/core/grappler/optimizers/remapper.cc b/tensorflow/core/grappler/optimizers/remapper.cc
-index 427b3c3e51d5f3c4ae657169444acf964fd69958..526ea2e6c31fb15219e498597731993805c80a76 100644
+index 427b3c3e51d5f3c4ae657169444acf964fd69958..d5278d5635f777d919920cee40531cf60c9b1906 100644
 --- a/tensorflow/core/grappler/optimizers/remapper.cc
 +++ b/tensorflow/core/grappler/optimizers/remapper.cc
-@@ -43,7 +43,9 @@ limitations under the License.
+@@ -1,3 +1,17 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
+ /* Copyright 2018 The TensorFlow Authors. All Rights Reserved.
+ 
+ Licensed under the Apache License, Version 2.0 (the "License");
+@@ -43,7 +57,9 @@ limitations under the License.
  #include "tensorflow/core/util/env_var.h"
  #include "tensorflow/core/util/use_cudnn.h"
  #include "tsl/platform/errors.h"
@@ -2721,7 +3543,7 @@ index 427b3c3e51d5f3c4ae657169444acf964fd69958..526ea2e6c31fb15219e4985977319938
  #ifdef INTEL_MKL
  #include "tensorflow/core/util/mkl_heuristics.h"
  #endif  // INTEL_MKL
-@@ -51,6 +53,7 @@ limitations under the License.
+@@ -51,6 +67,7 @@ limitations under the License.
  
  #if GOOGLE_CUDA
  #include "third_party/gpus/cudnn/cudnn.h"
@@ -2729,7 +3551,7 @@ index 427b3c3e51d5f3c4ae657169444acf964fd69958..526ea2e6c31fb15219e4985977319938
  #endif  // GOOGLE_CUDA
  
  namespace tensorflow {
-@@ -5399,6 +5402,39 @@ absl::Status Remapper::Optimize(Cluster* cluster, const GrapplerItem& item,
+@@ -5399,6 +5416,39 @@ absl::Status Remapper::Optimize(Cluster* cluster, const GrapplerItem& item,
    }
    TF_RETURN_IF_ERROR(mutation->Apply());
  
@@ -2771,11 +3593,11 @@ index 427b3c3e51d5f3c4ae657169444acf964fd69958..526ea2e6c31fb15219e4985977319938
    return absl::OkStatus();
 diff --git a/tensorflow/core/kernels/embedding_fused_action_id_gather.cc b/tensorflow/core/kernels/embedding_fused_action_id_gather.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..e49f984f05b8e2f184fe775289c07e1efebc0a0f
+index 0000000000000000000000000000000000000000..dcdb5818582e037ada23acb991d02169ff4be22c
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_action_id_gather.cc
 @@ -0,0 +1,263 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -3041,24 +3863,24 @@ index 0000000000000000000000000000000000000000..e49f984f05b8e2f184fe775289c07e1e
 \ No newline at end of file
 diff --git a/tensorflow/core/kernels/embedding_fused_action_id_gather_test.cc b/tensorflow/core/kernels/embedding_fused_action_id_gather_test.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..16d96eff355738a791dab980fa205ceec01184e0
+index 0000000000000000000000000000000000000000..74d092d4a96457d761844a475606bd02682551ab
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_action_id_gather_test.cc
 @@ -0,0 +1,369 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
-+ *
-+ * Licensed under the Apache License, Version 2.0 (the "License");
-+ * you may not use this file except in compliance with the License.
-+ * You may obtain a copy of the License at
-+ *
-+ *     http://www.apache.org/licenses/LICENSE-2.0
-+ *
-+ *     Unless required by applicable law or agreed to in writing, software
-+ *     distributed under the License is distributed on an "AS IS" BASIS,
-+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-+ *     See the License for the specific language governing permissions and
-+ *     limitations under the License.
-+ *     ==============================================================================*/
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
 +
 +#include "tensorflow/core/common_runtime/kernel_benchmark_testlib.h"
 +#include "tensorflow/core/framework/allocator.h"
@@ -3416,11 +4238,11 @@ index 0000000000000000000000000000000000000000..16d96eff355738a791dab980fa205cee
 +}  // namespace tensorflow
 diff --git a/tensorflow/core/kernels/embedding_fused_gather.cc b/tensorflow/core/kernels/embedding_fused_gather.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..14de30e35ac8edc821dcb8d59e14e23ba5b860d1
+index 0000000000000000000000000000000000000000..405072848059c7b647620090e57745863d7641ac
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_gather.cc
 @@ -0,0 +1,90 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -3513,11 +4335,11 @@ index 0000000000000000000000000000000000000000..14de30e35ac8edc821dcb8d59e14e23b
 \ No newline at end of file
 diff --git a/tensorflow/core/kernels/embedding_fused_gather_test.cc b/tensorflow/core/kernels/embedding_fused_gather_test.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..c94770910fec821986eda72b2d0571688b46c012
+index 0000000000000000000000000000000000000000..7d3b174d3e17ef9cbdb9223ab0e40a629607a274
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_gather_test.cc
 @@ -0,0 +1,186 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -3706,11 +4528,11 @@ index 0000000000000000000000000000000000000000..c94770910fec821986eda72b2d057168
 \ No newline at end of file
 diff --git a/tensorflow/core/kernels/embedding_fused_padding.cc b/tensorflow/core/kernels/embedding_fused_padding.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..1030d6e87e6d0f17a9752f56c5e7660caa81f7f2
+index 0000000000000000000000000000000000000000..4418a4860f216634610965175c1380259658f7b7
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_padding.cc
 @@ -0,0 +1,126 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -3839,10 +4661,25 @@ index 0000000000000000000000000000000000000000..1030d6e87e6d0f17a9752f56c5e7660c
 \ No newline at end of file
 diff --git a/tensorflow/core/kernels/embedding_fused_padding_test.cc b/tensorflow/core/kernels/embedding_fused_padding_test.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..5137d51300ad862d7ffabd425bf549f07a172ae3
+index 0000000000000000000000000000000000000000..6d6870bb0a289824bf75a480d07e90e42e6e1216
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_padding_test.cc
-@@ -0,0 +1,307 @@
+@@ -0,0 +1,322 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
++
 +/* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
@@ -4152,11 +4989,11 @@ index 0000000000000000000000000000000000000000..5137d51300ad862d7ffabd425bf549f0
 +}  // end namespace tensorflow
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch.cc b/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..387b6713b6535760e06722e000540975b460b250
+index 0000000000000000000000000000000000000000..20bcfece5ca633bf52a034db845c299f1fdc929f
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch.cc
 @@ -0,0 +1,93 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -4251,11 +5088,11 @@ index 0000000000000000000000000000000000000000..387b6713b6535760e06722e000540975
 +                        KPFusedSparseDynamicStitchOp);
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch_reduce.cc b/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch_reduce.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..15dbd95130e005a5be69f257f56339f2d0c91c41
+index 0000000000000000000000000000000000000000..8815a6ba43b31996636d8fb8667620fba0074b79
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch_reduce.cc
-@@ -0,0 +1,243 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
+@@ -0,0 +1,248 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -4390,6 +5227,8 @@ index 0000000000000000000000000000000000000000..15dbd95130e005a5be69f257f56339f2
 +    const int64_t input_size = x_flat.size();
 +    int64_t previous_segment = -1;
 +    if (input_size > 0) {
++      OP_REQUIRES(context, segment_ids(0, column) >= 0,
++                  errors::InvalidArgument("segment_ids must be non-negative"));
 +      previous_segment = segment_ids(input_size - 1, column);
 +      OP_REQUIRES(context, previous_segment >= 0,
 +                  errors::InvalidArgument("segment_ids must be non-negative"));
@@ -4413,6 +5252,9 @@ index 0000000000000000000000000000000000000000..15dbd95130e005a5be69f257f56339f2
 +    float* group_result = nullptr;
 +    for (int64_t index = 0; index < input_size; ++index) {
 +      const int64_t segment_id = segment_ids(index, column);
++      OP_REQUIRES(context, segment_id <= previous_segment,
++                  errors::InvalidArgument(
++                      "segment id exceeds the final segment id"));
 +      OP_REQUIRES(context, segment_id >= current_segment,
 +                  errors::InvalidArgument(
 +                      "segment_ids must be sorted for fused reduction"));
@@ -4501,24 +5343,24 @@ index 0000000000000000000000000000000000000000..15dbd95130e005a5be69f257f56339f2
 \ No newline at end of file
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch_reduce_test.cc b/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch_reduce_test.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..412e47cf8983c2fa430fae495cfd2c31c5171ae2
+index 0000000000000000000000000000000000000000..1c813950bef311e8912c3c444b8835276573a1a7
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch_reduce_test.cc
-@@ -0,0 +1,204 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
-+ *
-+ * Licensed under the Apache License, Version 2.0 (the "License");
-+ * you may not use this file except in compliance with the License.
-+ * You may obtain a copy of the License at
-+ *
-+ *     http://www.apache.org/licenses/LICENSE-2.0
-+ *
-+ *     Unless required by applicable law or agreed to in writing, software
-+ *     distributed under the License is distributed on an "AS IS" BASIS,
-+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-+ *     See the License for the specific language governing permissions and
-+ *     limitations under the License.
-+ *     ==============================================================================*/
+@@ -0,0 +1,258 @@
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
 +
 +#include <cstdint>
 +#include <string>
@@ -4689,6 +5531,60 @@ index 0000000000000000000000000000000000000000..412e47cf8983c2fa430fae495cfd2c31
 +  EXPECT_TRUE(absl::StrContains(s.message(), "sorted"));
 +}
 +
++TEST_F(KPFusedSparseDynamicStitchReduceOpTest, TestLeadingNegativeSegmentId) {
++  MakeOp("KPFusedSparseDynamicStitchSum", 2, 2);
++
++  AddInputFromArray<int64>(TensorShape({2}), {0, 1});
++  AddInputFromArray<float>(TensorShape({2, 2}),
++                           {1.0f, 2.0f, 3.0f, 4.0f});
++  AddInputFromArray<float>(TensorShape({2, 2}),
++                           {5.0f, 6.0f, 7.0f, 8.0f});
++  AddInputFromArray<int64>(TensorShape({2, 1}), {-1, 0});
++  AddInputFromArray<int32>(TensorShape({2}), {0, 0});
++  AddInputFromArray<int32>(TensorShape({2}), {2, 1});
++  AddInputFromArray<int32>(TensorShape({2}), {1, 1});
++
++  Status s = RunOpKernel();
++  EXPECT_FALSE(s.ok());
++  EXPECT_TRUE(absl::StrContains(s.message(), "non-negative"));
++}
++
++TEST_F(KPFusedSparseDynamicStitchReduceOpTest, TestDescendingSegmentIds) {
++  MakeOp("KPFusedSparseDynamicStitchSum", 2, 2);
++
++  AddInputFromArray<int64>(TensorShape({2}), {0, 1});
++  AddInputFromArray<float>(TensorShape({2, 2}),
++                           {1.0f, 2.0f, 3.0f, 4.0f});
++  AddInputFromArray<float>(TensorShape({2, 2}),
++                           {5.0f, 6.0f, 7.0f, 8.0f});
++  AddInputFromArray<int64>(TensorShape({2, 1}), {2, 0});
++  AddInputFromArray<int32>(TensorShape({2}), {0, 0});
++  AddInputFromArray<int32>(TensorShape({2}), {2, 1});
++  AddInputFromArray<int32>(TensorShape({2}), {1, 1});
++
++  Status s = RunOpKernel();
++  EXPECT_FALSE(s.ok());
++  EXPECT_TRUE(absl::StrContains(s.message(), "final segment id"));
++}
++
++TEST_F(KPFusedSparseDynamicStitchReduceOpTest, TestSegmentIdAboveFinal) {
++  MakeOp("KPFusedSparseDynamicStitchSum", 2, 2);
++
++  AddInputFromArray<int64>(TensorShape({3}), {0, 1, 2});
++  AddInputFromArray<float>(TensorShape({2, 2}),
++                           {1.0f, 2.0f, 3.0f, 4.0f});
++  AddInputFromArray<float>(TensorShape({2, 2}),
++                           {5.0f, 6.0f, 7.0f, 8.0f});
++  AddInputFromArray<int64>(TensorShape({3, 1}), {0, 2, 0});
++  AddInputFromArray<int32>(TensorShape({2}), {0, 0});
++  AddInputFromArray<int32>(TensorShape({2}), {3, 1});
++  AddInputFromArray<int32>(TensorShape({2}), {1, 1});
++
++  Status s = RunOpKernel();
++  EXPECT_FALSE(s.ok());
++  EXPECT_TRUE(absl::StrContains(s.message(), "final segment id"));
++}
++
 +TEST_F(KPFusedSparseDynamicStitchReduceOpTest, TestRowIdOutOfRange) {
 +  MakeOp("KPFusedSparseDynamicStitchSum", 2, 2);
 +
@@ -4711,24 +5607,24 @@ index 0000000000000000000000000000000000000000..412e47cf8983c2fa430fae495cfd2c31
 +}  // namespace tensorflow
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch_test.cc b/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch_test.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..20f801f77bca330070e94796deb8678c78da99ed
+index 0000000000000000000000000000000000000000..075c4445f1149bd7b8bc462253c2046602efdfc1
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch_test.cc
 @@ -0,0 +1,179 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
-+ *
-+ * Licensed under the Apache License, Version 2.0 (the "License");
-+ * you may not use this file except in compliance with the License.
-+ * You may obtain a copy of the License at
-+ *
-+ *     http://www.apache.org/licenses/LICENSE-2.0
-+ *
-+ *     Unless required by applicable law or agreed to in writing, software
-+ *     distributed under the License is distributed on an "AS IS" BASIS,
-+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-+ *     See the License for the specific language governing permissions and
-+ *     limitations under the License.
-+ *     ==============================================================================*/
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
 +
 +#include <functional>
 +#include <memory>
@@ -4896,11 +5792,11 @@ index 0000000000000000000000000000000000000000..20f801f77bca330070e94796deb8678c
 +}  // namespace tensorflow
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_reshape.cc b/tensorflow/core/kernels/embedding_fused_sparse_reshape.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..9b03e429b67ec4563518d08a516c80311726a2fd
+index 0000000000000000000000000000000000000000..ba1366d6d67cccad1e5c2cac2cbc76ffc0368d68
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_reshape.cc
 @@ -0,0 +1,203 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -5105,11 +6001,11 @@ index 0000000000000000000000000000000000000000..9b03e429b67ec4563518d08a516c8031
 +#undef REGISTER_KERNEL
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_reshape_test.cc b/tensorflow/core/kernels/embedding_fused_sparse_reshape_test.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..874d48a5ed83720900d055999a23d7730ed01cd8
+index 0000000000000000000000000000000000000000..cdc11b52deb11cff110d97f059ad30f2167861e5
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_reshape_test.cc
 @@ -0,0 +1,281 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -5392,11 +6288,11 @@ index 0000000000000000000000000000000000000000..874d48a5ed83720900d055999a23d773
 +}  // namespace
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce.cc b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..33bbd312bea3f388707cb57a23a1c27eb2c2bb4a
+index 0000000000000000000000000000000000000000..eb23c7dbef55f20e11c98d7f101c4aef5f496e6e
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce.cc
 @@ -0,0 +1,165 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -5564,11 +6460,11 @@ index 0000000000000000000000000000000000000000..33bbd312bea3f388707cb57a23a1c27e
 \ No newline at end of file
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_nonzero.cc b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_nonzero.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..3f0a4dfd8f48019581071e4ed4130e69bfdeb015
+index 0000000000000000000000000000000000000000..83a0f867ab9175e2fdd3663893c2d4255b1d3357
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_nonzero.cc
 @@ -0,0 +1,387 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -5957,24 +6853,24 @@ index 0000000000000000000000000000000000000000..3f0a4dfd8f48019581071e4ed4130e69
 +#undef REGISTER_KERNEL
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_nonzero_test.cc b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_nonzero_test.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..1a83beb99484b175f3f5704f6385d473be83b29b
+index 0000000000000000000000000000000000000000..180ff4e91b138b452cb1d552b27c6bf317c343f8
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_nonzero_test.cc
 @@ -0,0 +1,183 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
-+ *
-+ * Licensed under the Apache License, Version 2.0 (the "License");
-+ * you may not use this file except in compliance with the License.
-+ * You may obtain a copy of the License at
-+ *
-+ *     http://www.apache.org/licenses/LICENSE-2.0
-+ *
-+ *     Unless required by applicable law or agreed to in writing, software
-+ *     distributed under the License is distributed on an "AS IS" BASIS,
-+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-+ *     See the License for the specific language governing permissions and
-+ *     limitations under the License.
-+ *     ==============================================================================*/
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
 +
 +#include <functional>
 +#include <memory>
@@ -6146,24 +7042,24 @@ index 0000000000000000000000000000000000000000..1a83beb99484b175f3f5704f6385d473
 +}  // namespace tensorflow
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_test.cc b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_test.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..558ab85505bb57559dc499c0510b39c6ee542f52
+index 0000000000000000000000000000000000000000..e7512ffd039f6f778371f63b4f306b7e52f8d011
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_test.cc
 @@ -0,0 +1,205 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
-+ *
-+ * Licensed under the Apache License, Version 2.0 (the "License");
-+ * you may not use this file except in compliance with the License.
-+ * You may obtain a copy of the License at
-+ *
-+ *     http://www.apache.org/licenses/LICENSE-2.0
-+ *
-+ *     Unless required by applicable law or agreed to in writing, software
-+ *     distributed under the License is distributed on an "AS IS" BASIS,
-+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-+ *     See the License for the specific language governing permissions and
-+ *     limitations under the License.
-+ *     ==============================================================================*/
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++==============================================================================*/
 +
 +#include <functional>
 +#include <memory>
@@ -6357,11 +7253,11 @@ index 0000000000000000000000000000000000000000..558ab85505bb57559dc499c0510b39c6
 +}  // namespace tensorflow
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_select.cc b/tensorflow/core/kernels/embedding_fused_sparse_select.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..bd68b44a168ddf635e7bdafcccd228e21a7e2c03
+index 0000000000000000000000000000000000000000..872222ec187801f94dfd81abe0cce442fbd15da5
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_select.cc
 @@ -0,0 +1,112 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -6476,11 +7372,11 @@ index 0000000000000000000000000000000000000000..bd68b44a168ddf635e7bdafcccd228e2
 \ No newline at end of file
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_select_test.cc b/tensorflow/core/kernels/embedding_fused_sparse_select_test.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..d649d63e60b2ed574e0dd44cdad28313aae83523
+index 0000000000000000000000000000000000000000..56e13a18906b4f68a8e6aa78f3cc833fedb0f107
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_select_test.cc
 @@ -0,0 +1,182 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -8927,11 +9823,11 @@ index be03e74cb4c3a677e5077867cc90f4905ece0ed9..7be8e0b2a45d68d59cf54ef2d874a71f
  
 diff --git a/tensorflow/core/ops/embedding_fused_ops.cc b/tensorflow/core/ops/embedding_fused_ops.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..920958d5b1b3cd3269624cc8da941e58d52f1806
+index 0000000000000000000000000000000000000000..f6ba0710248e5873cbdf97fba6d1336952fa573e
 --- /dev/null
 +++ b/tensorflow/core/ops/embedding_fused_ops.cc
 @@ -0,0 +1,162 @@
-+/* Copyright 2025 The Huawei Technologies Co. Authors. All Rights Reserved.
++/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -10310,10 +11206,10 @@ index 0000000000000000000000000000000000000000..1fb9134a7e02158b2f7460ce941e6aff
 +    return cases
 diff --git a/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedSparseDynamicStitchReduce_op.py b/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedSparseDynamicStitchReduce_op.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..f838d5fbe6077406091418dc46171b25e86de5ba
+index 0000000000000000000000000000000000000000..630ce34114e2647f3b4eac8817a9c573cf03ffa7
 --- /dev/null
 +++ b/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedSparseDynamicStitchReduce_op.py
-@@ -0,0 +1,182 @@
+@@ -0,0 +1,238 @@
 +"""Tests for the Unique -> DynamicStitch -> SparseSegment fusion pattern."""
 +
 +import numpy as np
@@ -10360,8 +11256,15 @@ index 0000000000000000000000000000000000000000..f838d5fbe6077406091418dc46171b25
 +    table_indices = tf.dynamic_partition(
 +        chunk_indices, group_ids, num_partitions=num_tables
 +    )
++    swap_gather = meta.get("swap_gather", False)
 +    gathered = [
-+        tf.gather(emb_tables[index], table_indices[index], axis=0)
++        tf.gather(
++            emb_tables[index],
++            table_indices[(index + 1) % num_tables]
++            if swap_gather
++            else table_indices[index],
++            axis=0,
++        )
 +        for index in range(num_tables)
 +    ]
 +    stitched = tf.raw_ops.ParallelDynamicStitch(
@@ -10416,8 +11319,25 @@ index 0000000000000000000000000000000000000000..f838d5fbe6077406091418dc46171b25
 +    if num_segments > num_ids:
 +        raise ValueError("num_segments cannot exceed num_ids")
 +
-+    total_ids = num_tables * rows
-+    request_x = rng.randint(0, total_ids, size=num_ids).astype(np.int64)
++    if meta.get("swap_gather", False):
++        # swapped 布线要求表侧各端口等长: data[t] 取自端口 (t+1)%N, 但
++        # ParallelDynamicStitch 仍要求它与 indices[t] 等长
++        per_port = num_ids // num_tables
++        if per_port * num_tables != num_ids or per_port > rows:
++            raise ValueError(
++                "swap_gather requires num_ids divisible by num_tables and "
++                "at most num_tables * table_rows distinct ids"
++            )
++        request_x = np.concatenate(
++            [
++                residue + num_tables * rng.permutation(rows)[:per_port]
++                for residue in range(num_tables)
++            ]
++        ).astype(np.int64)
++        rng.shuffle(request_x)
++    else:
++        total_ids = num_tables * rows
++        request_x = rng.randint(0, total_ids, size=num_ids).astype(np.int64)
 +    request_groups = rng.randint(0, num_segments, size=num_ids).astype(
 +        np.int64
 +    )
@@ -10495,6 +11415,38 @@ index 0000000000000000000000000000000000000000..f838d5fbe6077406091418dc46171b25
 +                        init_fn=lambda: tf.compat.v1.global_variables_initializer(),
 +                    )
 +                )
++    cases.append(
++        TestCase(
++            name="KPFusedSparseDynamicStitchReduce_swapped_gather_nofuse",
++            op_fn=_build_graph,
++            input_fn=_build_input,
++            fused_op_name="KPFusedSparseDynamicStitchFastSum",
++            is_fused=False,
++            num_iters=0,
++            meta={
++                "num_tables": 2,
++                "table_rows": 64,
++                "embedding_width": 4,
++                "num_ids": 128,
++                "num_segments": 16,
++                "reduce_mode": "sum",
++                "swap_gather": True,
++            },
++            fused_env={
++                "ANNC_FUSED_ALL": "0",
++                "ANNC_FUSED_SPS_STITCH_REDUCE": "1",
++                "ANNC_FUSED_SPS_STITCH": "0",
++                "ANNC_FUSED_SPS_REDUCE": "0",
++            },
++            unfused_env={
++                "ANNC_FUSED_ALL": "0",
++                "ANNC_FUSED_SPS_STITCH_REDUCE": "0",
++                "ANNC_FUSED_SPS_STITCH": "0",
++                "ANNC_FUSED_SPS_REDUCE": "0",
++            },
++            init_fn=lambda: tf.compat.v1.global_variables_initializer(),
++        )
++    )
 +    return cases
 diff --git a/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedSparseDynamicStitch_op.py b/tensorflow/python/grappler/embedding_fused_test/ops/KPFusedSparseDynamicStitch_op.py
 new file mode 100644

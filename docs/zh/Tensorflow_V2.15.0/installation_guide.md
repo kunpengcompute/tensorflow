@@ -9,18 +9,15 @@
 | 项目 | 版本或要求 |
 | --- | --- |
 | CPU | <ul><li>鲲鹏920 7282C处理器</li><li>鲲鹏950 7592C处理器</li></ul> |
-| OS | <ul><li>openEuler 22.03 LTS SP3</li><li>openEuler 24.03 LTS SP3</li></ul> |
+| OS | openEuler 24.03 LTS SP3 |
 | GCC/G++ | 12.3.1 |
 | Bazel | 6.5.0 |
 | Python | 3.11.x |
 
-安装基础依赖并启用GCC 12.3.1。
+安装基础依赖。
 
    ```bash
-   yum install -y gcc-toolset-12-gcc* git patch patchelf perl \
-   python3 python3-devel tar unzip wget zip
-   export PATH=/opt/openEuler/gcc-toolset-12/root/usr/bin/:$PATH
-   export LD_LIBRARY_PATH=/opt/openEuler/gcc-toolset-12/root/usr/lib64/:$LD_LIBRARY_PATH
+   yum install -y gcc gcc-c++ git patch python3 python3-devel unzip
    ```
 
 TensorFlow和TensorFlow Serving均使用Bazel 6.5.0构建。Bazel安装方法请参见《TensorFlow 移植指南》的“[安装Bazel](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlowServing/kunpengtfserving_02_0009.html)”章节。

@@ -53,7 +53,7 @@ KDNN对接TensorFlow软件架构图如[图1](#fig4919356464)所示。
 <td class="cellrowborder" valign="top" headers="mcps1.2.9.1.4 "><p id="p26461358164910"><a name="p26461358164910"></a><a name="p26461358164910"></a>无</p>
 </td>
 </tr>
-<tr id="row1663113411277"><td class="cellrowborder" colspan="2" valign="top" headers="mcps1.2.9.1.1 "><p id="p1663113411277"><a name="p1663113411277"></a><a name="p1663113411277"></a>SparseMatmul</p>
+<tr id="row1663113411277"><td class="cellrowborder" colspan="2" valign="top" headers="mcps1.2.9.1.1 "><p id="p1663113411277"><a name="p1663113411277"></a><a name="p1663113411277"></a>SparseMatMul</p>
 </td>
 <td class="cellrowborder" colspan="4" valign="top" headers="mcps1.2.9.1.2 "><p id="p563113411727"><a name="p563113411727"></a><a name="p563113411727"></a>fp32</p>
 </td>
@@ -178,7 +178,7 @@ emb_dim = 4
 
 输出结果为。
 
-```python
+```output
 indices = [[0, 0], [0, 2], [1, 1]]
 values = [1.0, 3.0, 2.5]
 dense_shape = [3, 4]  
@@ -211,9 +211,9 @@ dense_shape = [3, 4]
 
 为提升TensorFlow推理性能，鲲鹏BoostKit提出了TensorFlow ANNC静态图融合优化方案。鲲鹏BoostKit提供了多个自定义算子，在图优化阶段利用remapper机制将符合特定特征的计算子图替换为自定义算子。静态图融合通过消除中间内存开销、优化访存逻辑等，实现端到端的性能提升。
 
-**ANNC 静态图融合包含两类算子**：
+**ANNC静态图融合包含两类算子**：
 
-**CPU 算子（面向 CPU 推理场景的 Embedding 融合算子）**：
+**CPU算子（面向CPU推理场景的Embedding融合算子）**：
 
 - KPFusedEmbeddingActionIdGather
 - KPFusedGather
@@ -226,7 +226,7 @@ dense_shape = [3, 4]
 - KPFusedSparseSegmentReduceNonzero
 - KPFusedSparseSelect
 
-**GPU 算子（面向 GPU 推理场景的 FlashAttention 融合算子，需 CUDA 环境）**：
+**GPU算子（面向GPU推理场景的FlashAttention融合算子，需CUDA环境）**：
 
 - FlashAttentionForward
 
@@ -251,7 +251,7 @@ ANNC静态图融合软件架构图如[图5](#fig4919356463)所示。
 
 **开源子图结构**
 
-![KPFusedEmbeddingActionIdGather](figures/KPFusedEmbeddingActionIdGather.png "KPFusedEmbeddingActionIdGather 开源算子子图")
+![KPFusedEmbeddingActionIdGather](figures/KPFusedEmbeddingActionIdGather.png "KPFusedEmbeddingActionIdGather开源算子子图")
 
 **输入输出约束**
 
@@ -271,7 +271,7 @@ ANNC静态图融合软件架构图如[图5](#fig4919356463)所示。
 
 **开源子图结构**
 
-![KPFusedGather](figures/KPFusedGather.png "KPFusedGather 开源算子子图")
+![KPFusedGather](figures/KPFusedGather.png "KPFusedGather开源算子子图")
 
 **输入输出约束**
 
@@ -291,7 +291,7 @@ ANNC静态图融合软件架构图如[图5](#fig4919356463)所示。
 
 **开源子图结构**
 
-![KPFusedEmbeddingPadding](figures/KPFusedEmbeddingPadding.png "KPFusedEmbeddingPadding 开源算子子图")
+![KPFusedEmbeddingPadding](figures/KPFusedEmbeddingPadding.png "KPFusedEmbeddingPadding开源算子子图")
 
 **输入输出约束**
 
@@ -312,7 +312,7 @@ ANNC静态图融合软件架构图如[图5](#fig4919356463)所示。
 
 **开源子图结构**
 
-![KPFusedEmbeddingPaddingFast](figures/KPFusedEmbeddingPaddingFast.png "KPFusedEmbeddingPaddingFast 开源算子子图")
+![KPFusedEmbeddingPaddingFast](figures/KPFusedEmbeddingPaddingFast.png "KPFusedEmbeddingPaddingFast开源算子子图")
 
 **输入输出约束**
 
@@ -333,7 +333,7 @@ ANNC静态图融合软件架构图如[图5](#fig4919356463)所示。
 
 **开源子图结构**
 
-![KPFusedSparseDynamicStitch](figures/KPFusedSparseDynamicStitch.png "KPFusedSparseDynamicStitch 开源算子子图")
+![KPFusedSparseDynamicStitch](figures/KPFusedSparseDynamicStitch.png "KPFusedSparseDynamicStitch开源算子子图")
 
 **输入输出约束**
 
@@ -350,7 +350,7 @@ ANNC静态图融合软件架构图如[图5](#fig4919356463)所示。
 
 **开源子图结构**
 
-![KPFusedSparseDynamicStitchReduce](figures/KPFusedSparseDynamicStitchReduce.png "KPFusedSparseDynamicStitchSum/Mean/SqrtN 开源算子子图")
+![KPFusedSparseDynamicStitchReduce](figures/KPFusedSparseDynamicStitchReduce.png "KPFusedSparseDynamicStitchSum/Mean/SqrtN开源算子子图")
 
 KPFusedSparseDynamicStitchSum/Mean/SqrtN算子融合的是“ParallelDynamicStitch + SparseSegmentSum/SparseSegmentMean/SparseSegmentSqrtN”构成的按段归约子图，将多个embedding表的分片收集、拼接以及按段归约（求和、求均值或按sqrt(N)缩放）合并为一个融合算子。当参与拼接的embedding表数量为2的幂时，图优化器会自动选择访存更优的Fast变体（KPFusedSparseDynamicStitchFastSum/FastMean/FastSqrtN）。
 
@@ -373,7 +373,7 @@ KPFusedSparseDynamicStitchSum/Mean/SqrtN算子融合的是“ParallelDynamicStit
 
 **开源子图结构**
 
-![KPFusedSparseReshape](figures/KPFusedSparseReshape.png "KPFusedSparseReshape 开源算子子图")
+![KPFusedSparseReshape](figures/KPFusedSparseReshape.png "KPFusedSparseReshape开源算子子图")
 
 **输入输出约束**
 
@@ -393,7 +393,7 @@ KPFusedSparseDynamicStitchSum/Mean/SqrtN算子融合的是“ParallelDynamicStit
 
 **开源子图结构**
 
-![KPFusedSparseSegmentReduce](figures/KPFusedSparseSegmentReduce.png "KPFusedSparseSegmentReduce 开源算子子图")
+![KPFusedSparseSegmentReduce](figures/KPFusedSparseSegmentReduce.png "KPFusedSparseSegmentReduce开源算子子图")
 
 **输入输出约束**
 
@@ -414,7 +414,7 @@ KPFusedSparseDynamicStitchSum/Mean/SqrtN算子融合的是“ParallelDynamicStit
 
 **开源子图结构**
 
-![KPFusedSparseSegmentReduceNonzero](figures/KPFusedSparseSegmentReduceNonzero.png "KPFusedSparseSegmentReduceNonzero 开源算子子图")
+![KPFusedSparseSegmentReduceNonzero](figures/KPFusedSparseSegmentReduceNonzero.png "KPFusedSparseSegmentReduceNonzero开源算子子图")
 
 **输入输出约束**
 
@@ -461,7 +461,7 @@ KPFusedSparseDynamicStitchSum/Mean/SqrtN算子融合的是“ParallelDynamicStit
 
 **开源子图结构**
 
-![FlashAttentionForward](figures/FlashAttentionForward.png "FlashAttentionForward 开源算子子图")
+![FlashAttentionForward](figures/FlashAttentionForward.png "FlashAttentionForward开源算子子图")
 
 **输入输出约束**
 
@@ -477,7 +477,7 @@ KPFusedSparseDynamicStitchSum/Mean/SqrtN算子融合的是“ParallelDynamicStit
 | 输出1    | float    | 3维张量 |
 | 输出2    | float    | 2维张量 |
 
-**该算子为 GPU 算子，需 CUDA 环境支持**。
+**该算子为GPU算子，需CUDA环境支持**。
 
 > ![icon note](public_sys-resources/icon-note.gif) **说明：**
 > 开启Embedding算子融合条件下，如果存在符合要求的子图则会在图优化阶段替换为对应的自定义算子，否则使用TensorFlow开源接口。
@@ -486,8 +486,8 @@ KPFusedSparseDynamicStitchSum/Mean/SqrtN算子融合的是“ParallelDynamicStit
 
 TensorFlow ANNC静态图融合主要在高并发推理场景中使用，表现在吞吐量的提升和推理时延大幅下降。
 
-- **CPU 算子**：适用于纯 CPU 推理场景，优化 Embedding 层计算。
-- **GPU 算子**：适用于 GPU 推理场景，需 CUDA 环境支持。
+- **CPU算子**：适用于纯CPU推理场景，优化Embedding层计算。
+- **GPU算子**：适用于GPU推理场景，需CUDA环境支持。
 
 ### 原理描述
 
@@ -503,5 +503,4 @@ TensorFlow ANNC静态图融合主要在高并发推理场景中使用，表现�
 
 | 文档版本 | 发布日期 | 修改说明 |
 | ---- | ---- | ---- |
-| 02 | 2026-12-30 | 第二次正式发布。<ul><li>新增TensorFlow KDNN算子优化特性，增加对应特性介绍、软件架构等内容。</li><li>新增KEmbedding算子库EmbeddingTableLookup算子特性介绍内容。</li><li>新增TensorFlow ANNC静态图融合特性，增加对应特性介绍、软件架构等内容。</li></ul> |
-| 01 | 2026-09-30 | 第一次正式发布。 <ul><li>新增TensorFlow FAGO静态图融合特性，增加对应特性介绍、软件架构等内容。</li></ul> |
+| 01 | 2026-12-30 | 第一次正式发布。<ul><li>新增TensorFlow KDNN算子优化特性，增加对应特性介绍、软件架构等内容。</li><li>新增KEmbedding算子库EmbeddingTableLookup算子特性介绍内容。</li><li>新增TensorFlow ANNC静态图融合特性，增加对应特性介绍、软件架构等内容。</li></ul> |

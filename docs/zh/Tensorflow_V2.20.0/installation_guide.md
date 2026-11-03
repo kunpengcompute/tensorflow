@@ -16,13 +16,25 @@
 | CUDA  | 12.8.0 |
 | CuDNN | 9.5.0 |
 
-安装基础依赖。**当前维护特性中，仅 ANNC 特性包含 GPU 算子（FlashAttentionForward），其他特性（KDNN、KEmbedding）均为纯 CPU 优化**。如需使用 ANNC 的 GPU 算子，需安装 CUDA/CuDNN（CUDA 安装路径建议为 /usr/local/cuda-12.8）；纯 CPU 构建（仅使用 ANNC 的 KPFused CPU 算子）无需安装 CUDA。
+## 安装基础依赖
 
-TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请参见《TensorFlow 移植指南》的“[安装Bazel](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0008.html)”章节。
+安装基础依赖软件包。
+
+   ```bash
+   yum install -y gcc gcc-c++ git patch python3 python3-devel unzip
+   ```
+
+当前维护特性中，仅ANNC特性包含GPU算子（FlashAttentionForward），其他特性（KDNN、KEmbedding）均为纯CPU优化。
+
+如需使用ANNC的GPU算子，需安装CUDA/CuDNN，安装方法请参见“[CUDA安装指导](#cuda安装指导)”章节，CUDA安装路径建议为/usr/local/cuda-12.8。
+
+如果仅使用ANNC的KPFused CPU算子则为CPU构建，此时无需安装CUDA。
+
+TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请参见《TensorFlow移植指南》的“[安装Bazel](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0008.html)”章节。
 
 >![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
 >
->CUDA/CuDNN 仅 ANNC 特性的 GPU 算子（FlashAttentionForward）需要。KDNN、KEmbedding 特性均为纯 CPU 优化，不涉及 GPU。纯 CPU 构建可跳过”CUDA 安装指导”章节，直接进入”准备 TensorFlow 源码”。
+>CUDA/CuDNN仅GPU算子需要，纯CPU构建可跳过“CUDA安装指导”章节，直接进入“准备TensorFlow源码”。
 
 ### CUDA安装指导
 
@@ -34,6 +46,13 @@ TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请�
      lspci | grep -i nvidia
      ```
 
+     有回显信息即表示NVIDIA显卡存在，回显中第一行为GPU设备信息，类似如下信息。
+
+     ```output
+     2a:00.0 VGA compatible controller: NVIDIA Corporation Device 2685 (rev a1)
+     2a:00.1 Audio device: NVIDIA Corporation AD102 High Definition Audio Controller (rev a1)
+     ```
+
   2. 安装依赖。
 
      ```bash
@@ -41,7 +60,7 @@ TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请�
      yum install -y kernel-devel-$(uname -r) kernel-headers-$(uname -r)
      ```
 
-  3. 确认GPU支持CUDA：访问“[NVIDIA CUDA-GPU列表](https://developer.nvidia.com/cuda-gpus)”确认你的GPU支持CUDA。
+  3. 确认GPU支持CUDA：访问“[NVIDIA CUDA-GPU列表](https://developer.nvidia.com/cuda-gpus)”，在列表中查询GPU型号，查询到该型号即表明GPU支持CUDA。若步骤1回显未显示GPU型号（如Device 2685），可执行`lspci -nn | grep -i nvidia`查看带型号名称的设备信息。
 
 #### 安装CUDA
 
@@ -50,7 +69,7 @@ TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请�
      检查系统是否加载nouveau驱动，若有输出则代表启用了nouveau驱动，需要禁用nouveau驱动。
 
      ```bash
-     smod | grep nouveau
+     lsmod | grep nouveau
      ```
   
   2. 下载CUDA工具包。
@@ -118,10 +137,10 @@ TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请�
 
 #### 下载KDNN软件包及校验文件
 
-访问[KDNN 发布网页](https://gitcode.com/boostkit/boostsra/releases)，找到套件发行版v1.4.0，下载下面两个文件:
+访问[KDNN发布网页](https://gitcode.com/boostkit/boostsra/releases)，找到套件发行版v1.4.0，下载下面两个文件:
 
-- KDNN 软件包: `BoostKit-boostcore-kdnn_3.2.0.zip`
-- SHA256 校验文件: `BoostKit-boostcore-kdnn_3.2.0.zip.sha256`
+- KDNN软件包: `BoostKit-boostcore-kdnn_3.2.0.zip`
+- SHA256校验文件: `BoostKit-boostcore-kdnn_3.2.0.zip.sha256`
 
 #### 软件包完整性校验
 
@@ -141,20 +160,22 @@ TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请�
 
 文件完整性校验操作步骤如下：
 
-1. 计算软件包的sha256校验值。linux执行命令如下：
+1. 计算软件包的sha256校验值。
 
-   ```bash
-   sha256sum BoostKit-boostcore-kdnn_xxx.zip
-   ```
+   - linux执行命令如下。
 
-   windows执行命令如下：
+      ```bash
+      sha256sum BoostKit-boostcore-kdnn_xxx.zip
+      ```
 
-   ```bash
-   certutil -hashfile BoostKit-boostcore-kdnn_xxx.zip SHA256
-   ```
+   - windows执行命令如下。
 
-   命令执行完成后，输出校验值。
-2. 对比步骤 1 计算的校验值与校验文件中的 SHA256 值是否一致<br>
+      ```bash
+      certutil -hashfile BoostKit-boostcore-kdnn_xxx.zip SHA256
+      ```
+
+      命令执行完成后，输出校验值。
+2. 对比步骤1计算的校验值与校验文件中的SHA256值是否一致<br>
    如果校验值一致说明文件完整，如果校验值不一致则可以确认文件完整性已被破坏，需要重新获取。
 
 #### 安装KDNN软件包
@@ -192,9 +213,9 @@ ANNC静态图融合代码已经包含在`kdnn-annc`和`full-default`特性组合
 
 > ![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
 > 
-> ANNC 特性包含 GPU 算子，。
+> ANNC特性包含GPU算子。如需构建含GPU算子的版本，请按“[构建GPU版本](#构建gpu版本)”章节准备CUDA/CuDNN环境；仅使用CPU融合算子时无需GPU环境。
 
-构建前需完成 KDNN 依赖准备。
+构建前需完成KDNN依赖准备。
 
 ### KEmbedding
 
@@ -207,13 +228,17 @@ ANNC静态图融合代码已经包含在`kdnn-annc`和`full-default`特性组合
 
    >![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
    >
-   >- 若只需要KEmbedding动态库，可在生成的TensorFlow源码中单独构建，若需构建完整Tensorflow产物则跳过此步骤。
+   >若只需要KEmbedding动态库，可在生成的TensorFlow源码中单独构建，若需构建完整Tensorflow产物则跳过此步骤。
 
 2. 构建产物为`bazel-bin/third_party/kembedding/kembedding_embedding_table_lookup.so`。
 
 ## 构建TensorFlow产物
 
 不使用推理服务时，也可以直接在生成的源码中按需构建TensorFlow目标。
+
+>![表示说明的图片](public_sys-resources/icon-note.gif) **编译选项说明：**
+>
+>`--define=enable_kdnn=true`用于开启KDNN算子优化，选择`kdnn-core`、`kdnn-annc`或`full-default`特性组合时添加该选项，`common-only`组合不包含KDNN代码，无需添加。下面给出的编译示例均默认开启了KDNN。
 
 ### 构建TensorFlow pip包
 
@@ -273,21 +298,8 @@ ANNC静态图融合代码已经包含在`kdnn-annc`和`full-default`特性组合
    --host_copt=-march=armv8.5-a \
    --check_direct_dependencies=off \
    -c opt \
-   //tensorflow/tools/pip_package:wheel
-   ```
-
-   构建`eigen-core`和`full-default`特性组合时，追加`--copt=-DEIGEN_NEON_USE_KGEMM=1`以开启Eigen KGemm矩阵乘加速。
-
-   ```bash
-   bazel build \
-   --experimental_repo_remote_exec \
-   --cxxopt=-std=c++17 \
-   --host_cxxopt=-std=c++17 \
-   --copt=-march=armv8.5-a \
-   --host_copt=-march=armv8.5-a \
-   --copt=-DEIGEN_NEON_USE_KGEMM=1 \
-   --check_direct_dependencies=off \
-   -c opt \
+   --define=enable_kdnn=true \
+   --linkopt=-Wl,--stub-group-size=0x2000000 \
    //tensorflow/tools/pip_package:wheel
    ```
 
@@ -311,9 +323,11 @@ pip install bazel-bin/tensorflow/tools/pip_package/wheel_house/tensorflow-2.20.0
 
 ### 构建GPU版本
 
-**若要构建支持FAGO特性的TensorFlow，请编译包含GPU支持的TensorFlow。**
+>![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
+>
+>若要构建支持ANNC GPU算子的TensorFlow，请编译包含GPU支持的TensorFlow。
 
-`fago-core`和`full-default`特性组合包含FAGO静态图融合算子，其算子实现依赖CUDA，必须构建GPU版本。`common-only`和`eigen-core`组合不包含GPU算子，使用上述CPU流程构建即可。
+`kdnn-annc`和`full-default`特性组合包含ANNC静态图融合的GPU算子。GPU算子实现依赖CUDA，必须构建GPU版本。`common-only`和`kdnn-core`组合不包含GPU算子，使用上述“[构建TensorFlow pip包](#构建tensorflow-pip包)”章节的CPU流程构建即可。
 
 #### 环境要求
 
@@ -336,7 +350,14 @@ CUDA安装路径建议为`/usr/local/cuda-12.8`。
       yum install -y kernel-devel-$(uname -r) kernel-headers-$(uname -r)
       ```
 
-      确认GPU支持CUDA：访问“[NVIDIA CUDA-GPU列表](https://developer.nvidia.com/cuda-gpus)”确认你的GPU支持CUDA。
+      有回显信息即表示NVIDIA显卡存在，回显中第一行为GPU设备信息，类似如下信息。
+
+      ```output
+      2a:00.0 VGA compatible controller: NVIDIA Corporation Device 2685 (rev a1)
+      2a:00.1 Audio device: NVIDIA Corporation AD102 High Definition Audio Controller (rev a1)
+      ```
+
+      确认GPU支持CUDA：访问“[NVIDIA CUDA-GPU列表](https://developer.nvidia.com/cuda-gpus)”，在列表中查询GPU型号，查询到该型号即表明GPU支持CUDA。
 
    2. 禁用nouveau驱动。
 
@@ -435,6 +456,8 @@ bazel --output_base="$PWD/output" build \
   --cxxopt=-std=c++17 --host_cxxopt=-std=c++17 \
   --copt=-march=armv8.5-a --linkopt=-fuse-ld=gold \
   --config=opt \
+  --define=enable_kdnn=true \
+  --linkopt=-Wl,--stub-group-size=0x2000000 \
   --action_env=CLANG_CUDA=0 \
   --repo_env=CLANG_CUDA=0 \
   --repo_env=PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ \
@@ -456,7 +479,7 @@ bazel --output_base="$PWD/output" build \
 
 ### ANNC静态图融合
 
-#### CPU 算子验证
+#### CPU算子验证
 
 进入测试目录后，执行测试命令。
 
@@ -466,9 +489,9 @@ python main.py --list
 python main.py --op {op_name}
 ```
 
-ANNC CPU 算子静态图融合只对满足特定结构和输入约束的子图生效。
+ANNC CPU算子静态图融合只对满足特定结构和输入约束的子图生效。
 
-#### GPU 算子验证
+#### GPU算子验证
 
 进入测试目录后，执行测试命令。
 
@@ -478,7 +501,7 @@ python main.py --list
 python main.py --op {op_name}
 ```
 
-ANNC GPU 算子（FlashAttentionForward）静态图融合只对满足特定结构和输入约束的子图生效，需 CUDA 环境支持。
+ANNC GPU算子（FlashAttentionForward）静态图融合只对满足特定结构和输入约束的子图生效，需CUDA环境支持。
 
 ### KDNN
 
@@ -492,10 +515,23 @@ ANNC GPU 算子（FlashAttentionForward）静态图融合只对满足特定结�
 2. 从查询结果中选择算子并运行测试。
 
    ```bash
-   numactl -C 0-15 python main.py --op {op_name} --performance_test True
+   python main.py --op {op_name} --performance_test True
    ```
 
-   执行通过即表示相关算子集成成功。
+   命令执行完成后，回显信息类似如下（每个测试用例依次输出功能与性能测试结果）。
+
+   ```output
+   Function testing: batch_matmul_2D_fp32_bcFalse_taTrue_tbTrue ...
+   功能测试通过
+   Performance testing: MatMul_2D_79_1570_256_False_False ...
+   Testing: MatMul_2D_79_1570_256_False_False ...
+   ✅ Profile 已固化至: bench_logs/plugins/profile/MatMul_2D_79_1570_256_False_False_kdnn_0
+   Testing: MatMul_2D_79_1570_256_False_False ...
+   ✅ Profile 已固化至: bench_logs/plugins/profile/MatMul_2D_79_1570_256_False_False_kdnn_1
+   性能测试通过, 性能提升187.43%, KDNN开启状态下耗时150.41us, 关闭状态下耗时432.33us
+   ```
+
+   出现“功能测试通过”和“性能测试通过”回显时，表示执行通过，相关算子集成成功。
 
 ### KEmbedding
 
@@ -539,7 +575,7 @@ TensorFlow Serving通过本地TensorFlow源码完成集成。更换特性组合�
 
 ### 提示找不到libnvrtc-builtins.so.12.5文件报错
 
-#### 问题现象描述
+**问题现象描述**
 
 Tensorflow编译安装后，python import tensorflow报错，提示“libnvrtc-builtins.so.12.5: cannot open shared object file: No such file or directory”。详细信息如下所示。
 
@@ -556,11 +592,11 @@ from tensorflow.python.platform import _pywrap_cpu_feature_guard
 ImportError: libnvrtc-builtins.so.12.5: cannot open shared object file: No such file or directory
 ```
 
-#### 根本原因分析
+**关键过程、根本原因分析**
 
 TensorFlow构建脚本中硬编码了libnvrtc-builtins.so.12.5作为依赖版本，但实际安装的是CUDA 12.8，对应库文件为libnvrtc-builtins.so.12.8，运行时动态链接器找不到对应版本的库，触发导入失败。
 
-#### 解决方案及效果
+**结论、解决方案及效果**
 
 NVIDIA保证CUDA同大版本（12.x）内的nvrtc-builtins库二进制向下兼容，直接创建版本软链接即可正常运行，不影响功能与性能。
 
@@ -584,5 +620,4 @@ NVIDIA保证CUDA同大版本（12.x）内的nvrtc-builtins库二进制向下兼�
 
 | 文档版本 | 发布日期 | 修改说明 |
 | ---- | ---- | ---- |
-| 02 | 2026-12-30 | 第二次正式发布。<ul><li>新增TensorFlow KDNN算子优化特性的适配环境和安装指导内容。</li><li>新增TensorFlow ANNC静态图融合特性的适配环境和安装指导内容。</li><li>新增KEmbedding自定义算子库的适配环境和安装指导内容。</li></ul> |
-| 01 | 2026-09-30 | 第一次正式发布。<ul><li>新增TensorFlow 2.20.0的安装步骤内容。</li><li>新增TensorFlow FAGO静态图融合特性的适配环境和安装指导内容。</li></ul> |
+| 01 | 2026-12-30 | 第一次正式发布。<ul><li>新增TensorFlow KDNN算子优化特性的适配环境和安装指导内容。</li><li>新增TensorFlow ANNC静态图融合特性的适配环境和安装指导内容。</li><li>新增KEmbedding自定义算子库的适配环境和安装指导内容。</li></ul> |
