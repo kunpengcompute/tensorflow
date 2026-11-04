@@ -1333,9 +1333,15 @@ cc_library(
     srcs = [
         ":lib_internal_private_headers",
         "//tensorflow/core/platform:legacy_lib_internal_srcs",
+        "gflags.cc",
     ],
     hdrs = [":lib_internal_public_headers"],
-    copts = tf_copts(),
+    copts = tf_copts() + select({
+        # predictor_server 路径（//:gflags_switch_flag=on）：gflags.cc 编出
+        # 13 个功能开关旗标；默认配置为空翻译单元，gflags 不进 so/wheel。
+        "//:gflags_switch_on": ["-DKDNN_SWITCH_GFLAGS"],
+        "//conditions:default": [],
+    }),
     features = ["-layering_check"],
     deps = tf_additional_lib_deps() + [
         ":core_stringpiece",
@@ -1516,6 +1522,10 @@ cc_library(
             "//tensorflow/lite/toco:toco_flags_proto_cc_impl",
             "//tensorflow/lite/toco:types_proto_cc_impl",
         ],
+    }) + select({
+        # KDNN 功能开关 gflag 分支（predictor_server 路径）才引入 gflags。
+        "//:gflags_switch_on": ["@com_github_gflags_gflags//:gflags"],
+        "//conditions:default": [],
     }),
     # Alwayslink causes a cc_binary to "always link" in the
     # srcs for a given cc_library, even if they are unreferenced, see:
@@ -2002,6 +2012,25 @@ tf_cc_test(
         ":test_main",
         "@com_google_absl//absl/memory",
     ],
+)
+
+# KDNN 功能开关 gflag 分支单测：默认配置（环境变量分支）跳过；gflag 语义
+# 用 --//:gflags_switch_flag=on 跑（与 predictor_server 同配置）。
+tf_cc_test(
+    name = "gflags_switch_test",
+    srcs = ["gflags_test.cc"],
+    extra_copts = select({
+        "//:gflags_switch_on": ["-DKDNN_SWITCH_GFLAGS"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":lib_internal_impl",
+        ":test",
+        ":test_main",
+    ] + select({
+        "//:gflags_switch_on": ["@com_github_gflags_gflags//:gflags"],
+        "//conditions:default": [],
+    }),
 )
 
 tf_cc_test_mkl(

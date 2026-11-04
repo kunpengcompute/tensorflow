@@ -35,6 +35,7 @@ DEFINE_int32(idle_timeout_s, -1, "Connection will be closed if there is no "
 DEFINE_bool(enable_checksum, false, "Enable checksum or not");
 DEFINE_string(model_path, "", "tf SavedModel path");
 DEFINE_int32(batch_size, 1, "Batch size for model inference (used for dynamic dimensions)");
+DEFINE_int32(thread_num, 16, "Number of worker threads for brpc server");
 DEFINE_bool(debug, false, "Enable debug logs");
 DEFINE_bool(trace_timing, false, "Log server-side per-request timing breakdown");
 DEFINE_int32(trace_timing_max_requests, 100, "Maximum server-side timing logs to print");
@@ -183,6 +184,7 @@ while (0);
 
     // Start the server.
     brpc::ServerOptions options;
+    options.num_threads = FLAGS_thread_num;
     options.idle_timeout_sec = FLAGS_idle_timeout_s;
     if (server.Start(point, &options) != 0) {
         LOG(ERROR) << "Fail to start EchoServer";

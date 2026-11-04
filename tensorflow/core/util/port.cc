@@ -19,6 +19,12 @@ limitations under the License.
 #include "tensorflow/core/platform/cpu_info.h"
 #include "tensorflow/core/util/env_var.h"
 
+#ifdef KDNN_SWITCH_GFLAGS
+#include "gflags/gflags.h"
+
+DECLARE_bool(enable_kdnn);
+#endif  // KDNN_SWITCH_GFLAGS
+
 namespace tensorflow {
 
 bool IsGoogleCudaEnabled() {
@@ -193,25 +199,38 @@ bool IsKDNNEnabled() {
   return false;
 #else
   static absl::once_flag once;
-  static bool KDNN_enabled = true;
+#ifndef KDNN_SWITCH_GFLAGS
+  static bool FLAGS_enable_kdnn = true;
+#endif  // KDNN_SWITCH_GFLAGS
   absl::call_once(once, [&] {
-    auto status = ReadBoolFromEnvVar("TF_ENABLE_KDNN_OPTS", KDNN_enabled,
-                                     &KDNN_enabled);
+#ifdef KDNN_SWITCH_GFLAGS
+    if (FLAGS_enable_kdnn) {
+      LOG(INFO) << "KDNN custom operations are on. "
+                << "You may see slightly different numerical results due to "
+                << "floating-point round-off errors from different computation "
+                << "orders. To turn them off, set the flag "
+                << "`--enable_kdnn=false`.";
+    }
+#else
+    auto status = ReadBoolFromEnvVar("TF_ENABLE_KDNN_OPTS",
+                                     FLAGS_enable_kdnn,
+                                     &FLAGS_enable_kdnn);
 
     if (!status.ok()) {
       LOG(WARNING) << "TF_ENABLE_KDNN_OPTS is not set to either '0', 'false',"
                    << " '1', or 'true'. Using the default setting: "
-                   << KDNN_enabled;
+                   << FLAGS_enable_kdnn;
     }
-    if (KDNN_enabled) {
+    if (FLAGS_enable_kdnn) {
       LOG(INFO) << "KDNN custom operations are on. "
                 << "You may see slightly different numerical results due to "
                 << "floating-point round-off errors from different computation "
                 << "orders. To turn them off, set the environment variable "
                 << "`TF_ENABLE_KDNN_OPTS=0`.";
     }
+#endif  // KDNN_SWITCH_GFLAGS
   });
-  return KDNN_enabled;
+  return FLAGS_enable_kdnn;
 #endif  // !KDNN
 }
 

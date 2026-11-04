@@ -14,13 +14,22 @@ cc_library(
     linkstatic = True,
     alwayslink = True,
     visibility = ["//visibility:public"],
+    copts = select({
+        # KDNN 功能开关 gflag 分支（predictor_server 路径）：读点走 FLAGS_*；
+        # 默认（so/wheel）走环境变量分支。
+        "//:gflags_switch_on": ["-DKDNN_SWITCH_GFLAGS"],
+        "//conditions:default": [],
+    }),
     deps = [
         "//tensorflow/core/framework:node_def_util",
         "//tensorflow/core:framework",
         "//tensorflow/core/grappler:graph_view",
         "//tensorflow/core/grappler:grappler_item",
         "//tensorflow/core/grappler:op_types",
-    ],
+    ] + select({
+        "//:gflags_switch_on": ["@com_github_gflags_gflags//:gflags"],
+        "//conditions:default": [],
+    }),
 )
 
 cc_library(
@@ -30,12 +39,21 @@ cc_library(
     linkstatic = True,
     alwayslink = True,
     visibility = ["//visibility:public"],
+    copts = select({
+        # KDNN 功能开关 gflag 分支（predictor_server 路径）：读点走 FLAGS_*；
+        # 默认（so/wheel）走环境变量分支。
+        "//:gflags_switch_on": ["-DKDNN_SWITCH_GFLAGS"],
+        "//conditions:default": [],
+    }),
     deps = [
         "//tensorflow/core/grappler:graph_view",
         "//tensorflow/core/grappler:grappler_item",
         "//tensorflow/core/grappler:op_types",
         "//tensorflow/core/grappler/costs:graph_properties",
-    ],
+    ] + select({
+        "//:gflags_switch_on": ["@com_github_gflags_gflags//:gflags"],
+        "//conditions:default": [],
+    }),
 )
 
 tf_cc_test(

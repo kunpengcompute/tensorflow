@@ -24,6 +24,22 @@ limitations under the License.
 
 #include "graph_opt.h"
 
+#ifdef KDNN_SWITCH_GFLAGS
+#include "gflags/gflags.h"
+
+DECLARE_bool(annc);
+DECLARE_bool(annc_fused_sps_stitch);
+DECLARE_bool(annc_fused_sps_stitch_reduce);
+DECLARE_bool(annc_fused_sps_reduce);
+DECLARE_bool(annc_fused_emb_padding);
+DECLARE_bool(annc_fused_emb_padding_fast);
+DECLARE_bool(annc_fused_sps_select);
+DECLARE_bool(annc_fused_gather);
+DECLARE_bool(annc_fused_sps_reshape);
+DECLARE_bool(annc_fused_emb_actionid_gather);
+DECLARE_bool(annc_fused_sps_reduce_nonzero);
+#endif  // KDNN_SWITCH_GFLAGS
+
 using namespace tensorflow;
 using namespace tensorflow::grappler;
 
@@ -1127,12 +1143,22 @@ class KPFusedEmbeddingActionIdGatherRewriter : public PatternRewriter {
   }
 };
 
+#ifndef KDNN_SWITCH_GFLAGS
 static bool IsEnvEnabled(const char* name) {
   const char* value = getenv(name);
   return value != nullptr && strcmp(value, "1") == 0;
 }
+#endif  // KDNN_SWITCH_GFLAGS
 
 bool ANNCAnyFusionEnabled() {
+#ifdef KDNN_SWITCH_GFLAGS
+  return FLAGS_annc || FLAGS_annc_fused_sps_stitch ||
+         FLAGS_annc_fused_sps_stitch_reduce || FLAGS_annc_fused_sps_reduce ||
+         FLAGS_annc_fused_emb_padding || FLAGS_annc_fused_emb_padding_fast ||
+         FLAGS_annc_fused_sps_select || FLAGS_annc_fused_gather ||
+         FLAGS_annc_fused_sps_reshape || FLAGS_annc_fused_emb_actionid_gather ||
+         FLAGS_annc_fused_sps_reduce_nonzero;
+#else
   // Keep this list in sync with the env vars consumed by
   // run_graph_optimization below. Deliberately not cached: callers may
   // change the env between sessions.
@@ -1152,6 +1178,7 @@ bool ANNCAnyFusionEnabled() {
     if (IsEnvEnabled(env_name)) return true;
   }
   return false;
+#endif  // KDNN_SWITCH_GFLAGS
 }
 
 bool RuntimeSveSupported() {
@@ -1169,6 +1196,7 @@ bool RuntimeSveSupported() {
 void run_graph_optimization(GraphDef* graph, GraphProperties props) {
   GraphOptimizer optimizer(graph, props);
 
+#ifndef KDNN_SWITCH_GFLAGS
   const char* annc_fused_all = getenv("ANNC_FUSED_ALL");
   const char* annc_fused_sps_stitch = getenv("ANNC_FUSED_SPS_STITCH");
   const char* annc_fused_sps_stitch_reduce = getenv("ANNC_FUSED_SPS_STITCH_REDUCE");
@@ -1184,47 +1212,67 @@ void run_graph_optimization(GraphDef* graph, GraphProperties props) {
   const char* annc_fused_sps_reduce_nonzero =
       getenv("ANNC_FUSED_SPS_REDUCE_NONZERO");
 
-  bool enable_all =
+  bool FLAGS_annc =
       (annc_fused_all != nullptr) && strcmp(annc_fused_all, "1") == 0;
-
+  bool FLAGS_annc_fused_sps_stitch =
+      (annc_fused_sps_stitch != nullptr) &&
+      strcmp(annc_fused_sps_stitch, "1") == 0;
+  bool FLAGS_annc_fused_sps_stitch_reduce =
+      (annc_fused_sps_stitch_reduce != nullptr) &&
+      strcmp(annc_fused_sps_stitch_reduce, "1") == 0;
+  bool FLAGS_annc_fused_sps_reduce =
+      (annc_fused_sps_reduce != nullptr) &&
+      strcmp(annc_fused_sps_reduce, "1") == 0;
+  bool FLAGS_annc_fused_emb_padding =
+      (annc_fused_emb_padding != nullptr) &&
+      strcmp(annc_fused_emb_padding, "1") == 0;
+  bool FLAGS_annc_fused_emb_padding_fast =
+      (annc_fused_emb_padding_fast != nullptr) &&
+      strcmp(annc_fused_emb_padding_fast, "1") == 0;
+  bool FLAGS_annc_fused_sps_select =
+      (annc_fused_sps_select != nullptr) &&
+      strcmp(annc_fused_sps_select, "1") == 0;
+  bool FLAGS_annc_fused_gather =
+      (annc_fused_gather != nullptr) &&
+      strcmp(annc_fused_gather, "1") == 0;
+  bool FLAGS_annc_fused_sps_reshape =
+      (annc_fused_sps_reshape != nullptr) &&
+      strcmp(annc_fused_sps_reshape, "1") == 0;
+  bool FLAGS_annc_fused_emb_actionid_gather =
+      (annc_fused_emb_actionid_gather != nullptr) &&
+      strcmp(annc_fused_emb_actionid_gather, "1") == 0;
+  bool FLAGS_annc_fused_sps_reduce_nonzero =
+      (annc_fused_sps_reduce_nonzero != nullptr) &&
+      strcmp(annc_fused_sps_reduce_nonzero, "1") == 0;
+#endif  // KDNN_SWITCH_GFLAGS
   if (RuntimeSveSupported() &&
-      (enable_all || (annc_fused_sps_stitch_reduce != nullptr &&
-                      strcmp(annc_fused_sps_stitch_reduce, "1") == 0)))
+      (FLAGS_annc || FLAGS_annc_fused_sps_stitch_reduce))
     optimizer.register_rewriter(
         std::make_unique<KPFusedSparseDynamicStitchReduceRewriter>());
-  if (enable_all || (annc_fused_sps_stitch != nullptr &&
-                     strcmp(annc_fused_sps_stitch, "1") == 0))
+  if (FLAGS_annc || FLAGS_annc_fused_sps_stitch)
     optimizer.register_rewriter(
         std::make_unique<KPFusedSparseDynamicStitchRewriter>());
-  if (enable_all || (annc_fused_sps_reduce != nullptr &&
-                     strcmp(annc_fused_sps_reduce, "1") == 0))
+  if (FLAGS_annc || FLAGS_annc_fused_sps_reduce)
     optimizer.register_rewriter(
         std::make_unique<KPFusedSparseSegmentReduceRewriter>());
-  if (enable_all || (annc_fused_emb_padding_fast != nullptr &&
-                     strcmp(annc_fused_emb_padding_fast, "1") == 0))
+  if (FLAGS_annc || FLAGS_annc_fused_emb_padding_fast)
     optimizer.register_rewriter(
         std::make_unique<KPFusedEmbeddingPaddingFastRewriter>());
-  if (enable_all || (annc_fused_emb_padding != nullptr &&
-                     strcmp(annc_fused_emb_padding, "1") == 0))
+  if (FLAGS_annc || FLAGS_annc_fused_emb_padding)
     optimizer.register_rewriter(
         std::make_unique<KPFusedEmbeddingPaddingRewriter>());
-  if (enable_all || (annc_fused_sps_select != nullptr &&
-                     strcmp(annc_fused_sps_select, "1") == 0))
+  if (FLAGS_annc || FLAGS_annc_fused_sps_select)
     optimizer.register_rewriter(
         std::make_unique<KPFusedSparseSelectRewriter>());
-  if (enable_all ||
-      (annc_fused_gather != nullptr && strcmp(annc_fused_gather, "1") == 0))
+  if (FLAGS_annc || FLAGS_annc_fused_gather)
     optimizer.register_rewriter(std::make_unique<KPFusedGatherRewriter>());
-  if (enable_all || (annc_fused_sps_reshape != nullptr &&
-                     strcmp(annc_fused_sps_reshape, "1") == 0))
+  if (FLAGS_annc || FLAGS_annc_fused_sps_reshape)
     optimizer.register_rewriter(
         std::make_unique<KPFusedSparseReshapeRewriter>());
-  if (enable_all || annc_fused_emb_actionid_gather != nullptr &&
-      strcmp(annc_fused_emb_actionid_gather, "1") == 0)
+  if (FLAGS_annc || FLAGS_annc_fused_emb_actionid_gather)
     optimizer.register_rewriter(
         std::make_unique<KPFusedEmbeddingActionIdGatherRewriter>());
-  if (enable_all || annc_fused_sps_reduce_nonzero != nullptr &&
-      strcmp(annc_fused_sps_reduce_nonzero, "1") == 0)
+  if (FLAGS_annc || FLAGS_annc_fused_sps_reduce_nonzero)
     optimizer.register_rewriter(
         std::make_unique<KPFusedSparseSegmentReduceNonzeroRewriter>());
 
