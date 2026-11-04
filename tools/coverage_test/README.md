@@ -14,6 +14,10 @@ python3 tools/coverage_test/run_coverage.py --feature annc
 # 收集覆盖率并分析增量（<ref> 到 HEAD 的变更，含该 commit）
 python3 tools/coverage_test/run_coverage.py --feature annc \
     --since 086c065e758 --enable-coverage
+
+# ASAN 模式（与覆盖率同跑：覆盖到的行 = 被 ASAN 检查过的行）
+python3 tools/coverage_test/run_coverage.py --feature annc \
+    --since 086c065e758 --enable-coverage --asan
 ```
 
 ## 命令行选项
@@ -28,6 +32,7 @@ python3 tools/coverage_test/run_coverage.py --feature annc \
 | `--commit <ref>` | 增量范围：单个 commit |
 | `--patch <file>` | 增量范围：patch 文件 |
 | `--base-ref <r> --target-ref <r>` | 增量范围：两个 ref 之间的 diff |
+| `--asan` | ASAN 模式编译并运行单测（默认关闭，报告在 `asan_log/`） |
 
 四种增量来源（`--since` / `--commit` / `--patch` / `--base-ref`+`--target-ref`）四选一。
 

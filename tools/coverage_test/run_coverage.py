@@ -31,6 +31,10 @@ Usage:
     # Run all features and report ONE aggregate incremental coverage number
     python3 tools/coverage_test/run_coverage.py --all \
         --since 086c065e75843cddaa17188cd84943ad2d9d74f1 --enable-coverage
+
+    # ASAN 模式（--config=asan，-O0；recover 模式不失败用例，报告在 asan_log/）
+    python3 tools/coverage_test/run_coverage.py --feature annc \
+        --since 716b3149563 --enable-coverage --asan
 """
 
 import argparse
@@ -173,10 +177,12 @@ def _generate_incremental_html(
 def run_feature_tests(
     feature: str,
     enable_coverage: bool,
+    enable_asan: bool = False,
 ):
     """Build and run all gtest targets for one feature.
 
-    Returns ``(config, results, coverage_files, failed_count)``.
+    Returns ``(config, results, coverage_files, failed_count, aborted)``；
+    ``aborted`` 表示因构建失败提前终止（剩余 target 未执行）。
     """
     feature_dir = FEATURES_DIR / feature
     config = load_feature_config(feature_dir)
@@ -186,12 +192,18 @@ def run_feature_tests(
     print(f"Feature: {config.name}")
     print(f"Description: {config.description}")
     print(f"Coverage enabled: {enable_coverage}")
+    print(f"ASAN enabled: {enable_asan}")
     print(f"{'=' * 70}\n")
 
-    runner = TestRunner(repository_root=repo_root, enable_coverage=enable_coverage)
+    runner = TestRunner(
+        repository_root=repo_root,
+        enable_coverage=enable_coverage,
+        enable_asan=enable_asan,
+    )
 
     results = []
     coverage_files = []
+    aborted = False
 
     for test_config in config.test_targets:
         if not test_config.enabled:
@@ -220,16 +232,21 @@ def run_feature_tests(
         success, build_output = runner.build_target(
             test_config.target,
             bazel_args=merged_bazel_args,
+            asan_prefix=f"bzcov_{test_config.id}",
         )
         if not success:
             print(f"❌ Build failed")
             print(build_output[-1000:])
             results.append({
                 "target_id": test_config.id,
+                "target": test_config.target,
                 "passed": False,
                 "error": "Build failed",
             })
-            continue
+
+            aborted = True
+            print(f"❌ 构建失败，终止本轮（剩余 target 未执行）")
+            break
 
         print(f"✅ Build succeeded\n")
 
@@ -259,7 +276,17 @@ def run_feature_tests(
         if result.passed:
             print(f"✅ PASSED")
         else:
-            print(f"❌ FAILED: {result.error}")
+            reason = "、".join(result.failed_cases) or result.error
+            print(f"❌ FAILED: {reason}")
+
+        # recover 模式（halt_on_error=0）下用例不会因 ASAN 而失败，
+        # 发现数单独报告，结论以日志文件为准。
+        if result.asan_error_count:
+            reports = ", ".join(p.name for p in result.asan_report_files)
+            print(
+                f"⚠️  ASAN: {result.asan_error_count} 个发现"
+                f"（{runner.asan_log_dir}/{reports}）"
+            )
 
         if result.coverage_file:
             coverage_files.append(result.coverage_file)
@@ -272,11 +299,14 @@ def run_feature_tests(
             "duration": result.duration,
             "cases_run": result.cases_run,
             "cases_failed": result.cases_failed,
+            "failed_cases": result.failed_cases,
             "coverage_file": str(result.coverage_file) if result.coverage_file else None,
+            "asan_error_count": result.asan_error_count,
+            "asan_report_files": [str(p) for p in result.asan_report_files],
         })
 
     failed_count = sum(1 for r in results if not r.get("passed"))
-    return config, results, coverage_files, failed_count
+    return config, results, coverage_files, failed_count, aborted
 
 
 def run_feature_with_coverage(
@@ -287,12 +317,13 @@ def run_feature_with_coverage(
     target_ref: str | None = None,
     since_ref: str | None = None,
     enable_coverage: bool = False,
+    enable_asan: bool = False,
 ) -> int:
     """Run tests for a single feature with per-feature incremental analysis."""
 
     repo_root = SCRIPT_DIR.parent.parent
-    _, results, coverage_files, failed_count = run_feature_tests(
-        feature, enable_coverage
+    _, results, coverage_files, failed_count, aborted = run_feature_tests(
+        feature, enable_coverage, enable_asan
     )
 
     # Analyze incremental coverage over the whole diff
@@ -343,6 +374,10 @@ def run_feature_with_coverage(
         "feature": feature,
         "timestamp": datetime.now().isoformat(),
         "coverage_enabled": enable_coverage,
+        "asan_enabled": enable_asan,
+        "asan_error_count": sum(
+            r.get("asan_error_count", 0) for r in results
+        ),
         "patch_file": str(patch_file) if patch_file else None,
         "commit_ref": commit_ref,
         "since_ref": since_ref,
@@ -371,6 +406,9 @@ def run_feature_with_coverage(
     print(f"Total targets: {len(results)}")
     print(f"Passed: {len(results) - failed_count}")
     print(f"Failed: {failed_count}")
+    if enable_asan:
+        asan_total = sum(r.get("asan_error_count", 0) for r in results)
+        print(f"ASAN findings: {asan_total}")
     print(f"Report: {report_file}")
     print(f"{'=' * 70}\n")
 
@@ -384,6 +422,7 @@ def run_all_with_coverage(
     target_ref: str | None = None,
     since_ref: str | None = None,
     enable_coverage: bool = False,
+    enable_asan: bool = False,
 ) -> int:
     """Run every feature's tests, then report ONE aggregate incremental
     coverage total computed over the whole diff with all collected lcov data.
@@ -398,13 +437,16 @@ def run_all_with_coverage(
 
     for feature in AVAILABLE_FEATURES:
         ran_features.append(feature)
-        _, results, coverage_files, failed_count = run_feature_tests(
-            feature, enable_coverage
+        _, results, coverage_files, failed_count, aborted = run_feature_tests(
+            feature, enable_coverage, enable_asan
         )
         all_results.extend(results)
         all_coverage_files.extend(coverage_files)
         if failed_count:
             failed_features.append(feature)
+        if aborted:
+            print(f"❌ {feature} 构建失败，终止整轮（剩余特性未执行）")
+            break
 
     # Single aggregate incremental coverage across all features.
     incremental_report = None
@@ -452,6 +494,10 @@ def run_all_with_coverage(
         "feature": "all",
         "timestamp": datetime.now().isoformat(),
         "coverage_enabled": enable_coverage,
+        "asan_enabled": enable_asan,
+        "asan_error_count": sum(
+            r.get("asan_error_count", 0) for r in all_results
+        ),
         "patch_file": str(patch_file) if patch_file else None,
         "commit_ref": commit_ref,
         "since_ref": since_ref,
@@ -482,6 +528,9 @@ def run_all_with_coverage(
     print(f"Total targets: {len(all_results)}")
     print(f"Passed: {passed_count}")
     print(f"Failed: {failed_count}")
+    if enable_asan:
+        asan_total = sum(r.get("asan_error_count", 0) for r in all_results)
+        print(f"ASAN findings: {asan_total}")
     print(f"Report: {report_file}")
     print(f"{'=' * 70}\n")
 
@@ -518,6 +567,14 @@ def main():
         "--enable-coverage",
         action="store_true",
         help="Enable coverage collection (requires lcov)",
+    )
+
+    parser.add_argument(
+        "--asan",
+        action="store_true",
+        help="ASAN 模式编译并运行单测（--config=asan，-O0）。"
+             "recover 模式不失败用例，发现数进 report.json，"
+             "报告文件在 asan_log/asan_<target_id>.<pid>。",
     )
 
     parser.add_argument(
@@ -573,27 +630,33 @@ def main():
         print("Warning: --enable-coverage specified without --patch, --commit, --since, or --base-ref/--target-ref")
         print("Coverage will be collected but no incremental analysis will be performed")
 
-    if args.all:
-        print("Running all features...")
-        return run_all_with_coverage(
-            patch_file=args.patch,
-            commit_ref=args.commit,
-            base_ref=args.base_ref,
-            target_ref=args.target_ref,
-            since_ref=args.since,
-            enable_coverage=args.enable_coverage,
-        )
+    try:
+        if args.all:
+            print("Running all features...")
+            return run_all_with_coverage(
+                patch_file=args.patch,
+                commit_ref=args.commit,
+                base_ref=args.base_ref,
+                target_ref=args.target_ref,
+                since_ref=args.since,
+                enable_coverage=args.enable_coverage,
+                enable_asan=args.asan,
+            )
 
-    if args.feature:
-        return run_feature_with_coverage(
-            args.feature,
-            patch_file=args.patch,
-            commit_ref=args.commit,
-            base_ref=args.base_ref,
-            target_ref=args.target_ref,
-            since_ref=args.since,
-            enable_coverage=args.enable_coverage,
-        )
+        if args.feature:
+            return run_feature_with_coverage(
+                args.feature,
+                patch_file=args.patch,
+                commit_ref=args.commit,
+                base_ref=args.base_ref,
+                target_ref=args.target_ref,
+                since_ref=args.since,
+                enable_coverage=args.enable_coverage,
+                enable_asan=args.asan,
+            )
+    except RuntimeError as e:
+        print(f"❌ {e}", file=sys.stderr)
+        return 2
 
     parser.print_help()
     return 1
