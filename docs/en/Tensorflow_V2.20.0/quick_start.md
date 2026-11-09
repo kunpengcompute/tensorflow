@@ -133,6 +133,7 @@
       --cxxopt=-std=c++17 --host_cxxopt=-std=c++17 \
       --copt=-march=armv8.5-a --linkopt=-fuse-ld=gold \
       --config=opt \
+      --copt=-DEIGEN_NEON_USE_KGEMM=1 \
       --action_env=CLANG_CUDA=0 \
       --repo_env=CLANG_CUDA=0 \
       --repo_env=PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ \
@@ -152,8 +153,19 @@
 
 If you encounter any problem during the compilation, see [TensorFlow Porting Guide](https://www.hikunpeng.com/document/detail/en/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0001.html).
 
+## Using Eigen KGemm MatMul Acceleration
+
+Eigen KGemm MatMul acceleration is a compile-time feature and has no runtime switch. The `--copt=-DEIGEN_NEON_USE_KGEMM=1` option has been added when building the TensorFlow pip package, so the built package enables the KGemm kernel. To disable it, rebuild the package without this option.
+
+KGemm takes effect when the data type is fp32, the operator is a 2D `tf.matmul`, the operands use a contiguous memory layout, and the number of contraction dimensions is 1. A batch MatMul whose batch dimension is 1 is flattened into a 2D MatMul and also takes effect. If these conditions are not met, the computation falls back to the open-source Eigen implementation and the result is not affected.
+
+When KDNN operator optimization is enabled as well (for example, the `full-default` profile), fp32 MatMul is handled by KDNN first and KGemm does not take effect. To accelerate MatMul with KGemm, use the `eigen-core` profile, which does not contain KDNN, or set `TF_ENABLE_KDNN_OPTS=0` to disable KDNN.
+
+For the verification method and the principle description, see the [Installation Guide](./installation_guide.md#eigen-kgemm-matmul-acceleration) and the [Feature Introduction](./feature_introduction.md#effective-scope).
+
 ## Change History
 
 | Date | Description |
 | ---- | ---- |
+| 2026-12-30 | Added the usage instructions and verification method of the Eigen KGemm MatMul acceleration feature. |
 | 2026-09-30 | This is the first official release.<ul><li>Added the installation steps for TensorFlow 2.20.0.</li><li>Added the installation guide for the TensorFlow FAGO static graph fusion feature.</li></ul> |

@@ -16,9 +16,25 @@
 | CUDA  | 12.8.0 |
 | CuDNN | 9.5.0 |
 
-安装基础依赖并启用CUDA，CUDA安装路径建议为/usr/local/cuda-12.8。
+## 安装基础依赖
 
-TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请参见《TensorFlow 移植指南》的“[安装Bazel](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0008.html)”章节。
+安装基础依赖软件包。
+
+   ```bash
+   yum install -y gcc gcc-c++ git patch python3 python3-devel unzip
+   ```
+
+当前维护特性中，仅ANNC特性包含GPU算子（FlashAttentionForward），其他特性（KDNN、KEmbedding）均为纯CPU优化。
+
+如需使用ANNC的GPU算子，需安装CUDA/CuDNN，安装方法请参见“[CUDA安装指导](#cuda安装指导)”章节，CUDA安装路径建议为/usr/local/cuda-12.8。
+
+如果仅使用ANNC的KPFused CPU算子则为CPU构建，此时无需安装CUDA。
+
+TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请参见《TensorFlow移植指南》的“[安装Bazel](https://www.hikunpeng.com/document/detail/zh/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0008.html)”章节。
+
+>![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
+>
+>CUDA/CuDNN仅GPU算子需要，纯CPU构建可跳过“CUDA安装指导”章节，直接进入“准备TensorFlow源码”。
 
 ### CUDA安装指导
 
@@ -30,6 +46,13 @@ TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请�
      lspci | grep -i nvidia
      ```
 
+     有回显信息即表示NVIDIA显卡存在，回显中第一行为GPU设备信息，类似如下信息。
+
+     ```output
+     2a:00.0 VGA compatible controller: NVIDIA Corporation Device 2685 (rev a1)
+     2a:00.1 Audio device: NVIDIA Corporation AD102 High Definition Audio Controller (rev a1)
+     ```
+
   2. 安装依赖。
 
      ```bash
@@ -37,7 +60,7 @@ TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请�
      yum install -y kernel-devel-$(uname -r) kernel-headers-$(uname -r)
      ```
 
-  3. 确认GPU支持CUDA：访问“[NVIDIA CUDA-GPU列表](https://developer.nvidia.com/cuda-gpus)”确认你的GPU支持CUDA。
+  3. 确认GPU支持CUDA：访问“[NVIDIA CUDA-GPU列表](https://developer.nvidia.com/cuda-gpus)”，在列表中查询GPU型号，查询到该型号即表明GPU支持CUDA。若步骤1回显未显示GPU型号（如Device 2685），可执行`lspci -nn | grep -i nvidia`查看带型号名称的设备信息。
 
 #### 安装CUDA
 
@@ -46,7 +69,7 @@ TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请�
      检查系统是否加载nouveau驱动，若有输出则代表启用了nouveau驱动，需要禁用nouveau驱动。
 
      ```bash
-     smod | grep nouveau
+     lsmod | grep nouveau
      ```
   
   2. 下载CUDA工具包。
@@ -79,7 +102,11 @@ TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请�
 
 | 特性组合 | 包含内容 | 对应补丁（按应用顺序） | 适用场景 |
 | --- | --- | --- | --- |
-| common-fago | 公共构建集成（common）、FAGO静态图融合 | patches/Tensorflow_V2.20.0/feature/0001-tensorflow_2.20.0-common.patch<br>patches/Tensorflow_V2.20.0/feature/0002-tensorflow_2.20.0-fago.patch | 使用FAGO静态图融合。 |
+| common-only | 公共构建集成（common）与gtest覆盖率测试框架 | patches/Tensorflow_V2.20.0/feature/0001-tensorflow_2.20.0-common.patch | 检查公共改动，不启用加速特性。 |
+| kdnn-core | 公共构建集成（common）、KDNN算子优化 | patches/Tensorflow_V2.20.0/feature/0001-tensorflow_2.20.0-common.patch<br>patches/Tensorflow_V2.20.0/feature/0002-tensorflow_2.20.0-kdnn.patch | 使用KDNN算子优化。 |
+| kdnn-annc | 公共构建集成（common）、KDNN算子优化、ANNC静态图融合 | patches/Tensorflow_V2.20.0/feature/0001-tensorflow_2.20.0-common.patch<br>patches/Tensorflow_V2.20.0/feature/0002-tensorflow_2.20.0-kdnn.patch<br>patches/Tensorflow_V2.20.0/feature/0003-tensorflow_2.20.0-annc.patch | 使用KDNN和ANNC静态图融合。 |
+| eigen-core | 公共构建集成（common）、Eigen KGemm矩阵乘加速 | patches/Tensorflow_V2.20.0/feature/0001-tensorflow_2.20.0-common.patch<br>patches/Tensorflow_V2.20.0/feature/0005-tensorflow_2.20.0-eigen-kgemm.patch | 使用Eigen KGemm矩阵乘加速。 |
+| full-default | 公共构建集成（common）、KDNN算子优化、ANNC静态图融合、KEmbedding自定义算子、Eigen KGemm矩阵乘加速 | patches/Tensorflow_V2.20.0/feature/0001-tensorflow_2.20.0-common.patch<br>patches/Tensorflow_V2.20.0/feature/0002-tensorflow_2.20.0-kdnn.patch<br>patches/Tensorflow_V2.20.0/feature/0003-tensorflow_2.20.0-annc.patch<br>patches/Tensorflow_V2.20.0/feature/0004-tensorflow_2.20.0-kembedding.patch<br>patches/Tensorflow_V2.20.0/feature/0005-tensorflow_2.20.0-eigen-kgemm.patch | 使用当前维护的全部特性。 |
 
 ### 生成完整源码
 
@@ -92,9 +119,10 @@ TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请�
    git fetch tensorflow-upstream refs/tags/v2.20.0:refs/tags/v2.20.0
    ```
 
-2. 根据需要创建TensorFlow完整源码。以下以完整默认特性为例。
+2. 根据需要创建TensorFlow完整源码。纯CPU构建与GPU构建均使用`full-default`组合，构建时通过是否启用CUDA区分。
 
    ```bash
+   # 创建包含全部特性的TensorFlow完整源码（纯CPU与GPU构建通用）
    python3 patches/Tensorflow_V2.20.0/prepare_source.py \
      --feature-set full-default \
      --output-dir ../tensorflow-full-default
@@ -102,16 +130,123 @@ TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请�
 
    如需其他组合，只需修改`--feature-set`。输出目录包含官方TensorFlow `v2.20.0`完整源码、所选补丁。
 
+## 准备特性依赖
+
+### KDNN
+
+`kdnn-core`、`kdnn-annc`和`full-default`均需要KDNN头文件和静态库。
+
+#### 下载KDNN软件包及校验文件
+
+访问[KDNN发布网页](https://gitcode.com/boostkit/boostsra/releases)，找到套件发行版v1.4.0，下载下面两个文件:
+
+- KDNN软件包: `BoostKit-boostcore-kdnn_3.2.0.zip`
+- SHA256校验文件: `BoostKit-boostcore-kdnn_3.2.0.zip.sha256`
+
+#### 软件包完整性校验
+
+##### 简介
+
+为了检查软件包在传输或存储过程中是否因网络或设备问题而不完整，在获取到软件包后，需要对软件包的完整性进行校验，通过了校验的软件包才能部署。<br>
+这里通过对比校验文件中记录的校验值和手动方式计算的软件包校验值，判断软件包是否完整。若两个值相同，说明文件完整，否则，文件完整性被破坏，请重新获取软件包。
+
+##### 前提条件
+
+在校验软件包完整性之前，需要准备如下文件：
+
+- 软件包：BoostKit-boostcore-kdnn_xxx.zip。
+- 校验文件：同名的.sha256文件。
+
+##### 操作指导
+
+文件完整性校验操作步骤如下：
+
+1. 计算软件包的sha256校验值。
+
+   - linux执行命令如下。
+
+      ```bash
+      sha256sum BoostKit-boostcore-kdnn_xxx.zip
+      ```
+
+   - windows执行命令如下。
+
+      ```bash
+      certutil -hashfile BoostKit-boostcore-kdnn_xxx.zip SHA256
+      ```
+
+      命令执行完成后，输出校验值。
+2. 对比步骤1计算的校验值与校验文件中的SHA256值是否一致<br>
+   如果校验值一致说明文件完整，如果校验值不一致则可以确认文件完整性已被破坏，需要重新获取。
+
+#### 安装KDNN软件包
+
+1. 将KDNN软件包解压缩，并使用rpm -ivh命令安装。
+
+   ```bash
+   unzip BoostKit-boostcore-kdnn_3.2.0.zip
+   rpm -ivh boostcore-kdnn-3.2.0-1.aarch64.rpm
+   ```
+
+   安装后，头文件位于`/usr/local/kdnn/include`，线程池和OpenMP库分别位于`/usr/local/kdnn/lib/threadpool`和`/usr/local/kdnn/lib/omp`。
+    TensorFlow集成使用线程池版本。
+
+2. 将KDNN头文件和线程池静态库放入生成的TensorFlow源码。
+
+   ```bash
+    export TF_PATH=/path/to/tensorflow
+    mkdir -p $TF_PATH/third_party/KDNN/src
+    cp -r /usr/local/kdnn/include $TF_PATH/third_party/KDNN/
+    cp /usr/local/kdnn/lib/threadpool/libkdnn.a \
+     $TF_PATH/third_party/KDNN/src/
+   ```
+
+3. 应用KDNN头文件适配补丁。
+
+   ```bash
+   cd $TF_PATH/third_party/KDNN
+   patch -p0 < tensorflow_kdnn_include_adapter.patch
+   ```
+
+### ANNC静态图融合
+
+ANNC静态图融合代码已经包含在`kdnn-annc`和`full-default`特性组合中，不需要重复下载或应用TensorFlow补丁。构建前仅需完成KDNN依赖准备。
+
+> ![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
+> 
+> ANNC特性包含GPU算子。如需构建含GPU算子的版本，请按“[构建GPU版本](#构建gpu版本)”章节准备CUDA/CuDNN环境；仅使用CPU融合算子时无需GPU环境。
+
+构建前需完成KDNN依赖准备。
+
+### KEmbedding
+
+1. KEmbedding代码已经包含在`full-default`特性组合中，无需额外下载源码。
+
+   ```bash
+   cd /path/to/tensorflow
+   bazel build //third_party/kembedding:kembedding_embedding_table_lookup.so
+   ```
+
+   >![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
+   >
+   >若只需要KEmbedding动态库，可在生成的TensorFlow源码中单独构建，若需构建完整Tensorflow产物则跳过此步骤。
+
+2. 构建产物为`bazel-bin/third_party/kembedding/kembedding_embedding_table_lookup.so`。
+
 ## 构建TensorFlow产物
 
 不使用推理服务时，也可以直接在生成的源码中按需构建TensorFlow目标。
+
+>![表示说明的图片](public_sys-resources/icon-note.gif) **编译选项说明：**
+>
+>`--define=enable_kdnn=true`用于开启KDNN算子优化，选择`kdnn-core`、`kdnn-annc`或`full-default`特性组合时添加该选项，`common-only`组合不包含KDNN代码，无需添加。下面给出的编译示例均默认开启了KDNN。
 
 ### 构建TensorFlow pip包
 
 1. 配置bazel。
 
    ```bash
-   cd ../tensorflow-full-default
+   cd /path/to/tensorflow
    ./configure
    You have bazel 7.4.1 installed.
    Please specify the location of python. [Default is /usr/bin/python3]: 
@@ -124,6 +259,168 @@ TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请�
    /usr/local/lib64/python3.11/site-packages
    Please input the desired Python library path to use.  Default is [/usr/lib/python3.11/site-packages]
 
+   Do you wish to build TensorFlow with ROCm support? [y/N]: n
+   No ROCm support will be enabled for TensorFlow.
+
+   Do you wish to build TensorFlow with CUDA support? [y/N]: n
+   No CUDA support will be enabled for TensorFlow.
+
+   Do you want to use Clang to build TensorFlow? [Y/n]: n
+   GCC will be used to compile TensorFlow.
+
+   Please specify optimization flags to use during compilation when bazel option "--config=opt" is specified [Default is -Wno-sign-compare]: 
+
+
+   Would you like to interactively configure ./WORKSPACE for Android builds? [y/N]: n
+   Not configuring the WORKSPACE for Android builds.
+
+   Preconfigured Bazel build configs. You can use any of the below by adding "--config=<>" to your build command. See .bazelrc for more details.
+         --config=mkl            # Build with MKL support.
+         --config=mkl_aarch64    # Build with oneDNN and Compute Library for the Arm Architecture (ACL).
+         --config=monolithic     # Config for mostly static monolithic build.
+         --config=numa           # Build with NUMA support.
+         --config=dynamic_kernels        # (Experimental) Build kernels into separate shared objects.
+         --config=v1             # Build with TensorFlow 1 API instead of TF 2 API.
+   Preconfigured Bazel build configs to DISABLE default on features:
+         --config=nogcp          # Disable GCP support.
+         --config=nonccl         # Disable NVIDIA NCCL support.
+   Configuration finished
+   ```
+
+2. 构建TensorFlow pip包。
+
+   ```bash
+   cd /path/to/tensorflow
+   bazel build \
+   --experimental_repo_remote_exec \
+   --cxxopt=-std=c++17 \
+   --host_cxxopt=-std=c++17 \
+   --copt=-march=armv8.5-a \
+   --host_copt=-march=armv8.5-a \
+   --check_direct_dependencies=off \
+   -c opt \
+   --define=enable_kdnn=true \
+   --linkopt=-Wl,--stub-group-size=0x2000000 \
+   //tensorflow/tools/pip_package:wheel
+   ```
+
+   若使用`eigen-core`特性组合，需在构建命令中追加`--copt=-DEIGEN_NEON_USE_KGEMM=1`以启用Eigen KGemm矩阵乘加速。若GPU特性组合`full-default`也需要该加速，请在“[构建GPU版本](#构建gpu版本)”章节的构建命令中追加相同选项。
+
+   ```bash
+   cd /path/to/tensorflow
+   bazel build \
+   --experimental_repo_remote_exec \
+   --cxxopt=-std=c++17 \
+   --host_cxxopt=-std=c++17 \
+   --copt=-march=armv8.5-a \
+   --host_copt=-march=armv8.5-a \
+   --copt=-DEIGEN_NEON_USE_KGEMM=1 \
+   --check_direct_dependencies=off \
+   -c opt \
+   --linkopt=-Wl,--stub-group-size=0x2000000 \
+   //tensorflow/tools/pip_package:wheel
+   ```
+
+3. 编译完成后，检查产物目录。
+
+   ```bash
+   ls bazel-bin/tensorflow/tools/pip_package/wheel_house/
+   ```
+
+   回显类似如下信息时，表示pip包构建成功。
+
+   ```output
+   tensorflow-2.20.0.dev0+selfbuilt-cp311-cp311-linux_aarch64.whl
+   ```
+
+### 安装tensorflow pip包
+
+```bash
+pip install bazel-bin/tensorflow/tools/pip_package/wheel_house/tensorflow-2.20.0.dev0+selfbuilt-cp311-cp311-linux_aarch64.whl
+```
+
+### 构建GPU版本
+
+>![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
+>
+>若要构建支持ANNC GPU算子的TensorFlow，请编译包含GPU支持的TensorFlow。
+
+`kdnn-annc`和`full-default`特性组合包含ANNC静态图融合的GPU算子。GPU算子实现依赖CUDA，必须构建GPU版本。`common-only`和`kdnn-core`组合不包含GPU算子，使用上述“[构建TensorFlow pip包](#构建tensorflow-pip包)”章节的CPU流程构建即可。
+
+#### 环境要求
+
+除“[准备构建环境](#准备构建环境)”的基础依赖外，GPU版本还需要以下环境。
+
+| 项目 | 版本或要求 |
+| --- | --- |
+| CUDA | 12.8.0 |
+| CuDNN | 9.5.0 |
+
+CUDA安装路径建议为`/usr/local/cuda-12.8`。
+
+1. 安装CUDA。
+
+   1. 检查硬件与系统：检查显卡是否存在，并安装依赖。
+
+      ```bash
+      lspci | grep -i nvidia
+      yum install -y gcc make dkms
+      yum install -y kernel-devel-$(uname -r) kernel-headers-$(uname -r)
+      ```
+
+      有回显信息即表示NVIDIA显卡存在，回显中第一行为GPU设备信息，类似如下信息。
+
+      ```output
+      2a:00.0 VGA compatible controller: NVIDIA Corporation Device 2685 (rev a1)
+      2a:00.1 Audio device: NVIDIA Corporation AD102 High Definition Audio Controller (rev a1)
+      ```
+
+      确认GPU支持CUDA：访问“[NVIDIA CUDA-GPU列表](https://developer.nvidia.com/cuda-gpus)”，在列表中查询GPU型号，查询到该型号即表明GPU支持CUDA。
+
+   2. 禁用nouveau驱动。
+
+      检查系统是否加载nouveau驱动，若有输出则代表启用了nouveau驱动，需要禁用nouveau驱动。
+
+      ```bash
+      lsmod | grep nouveau
+      ```
+
+   3. 下载CUDA工具包。
+
+      CUDA 12.8官网下载链接“[CUDA Toolkit 12.8 Downloads](https://developer.nvidia.com/cuda-12-8-0-download-archive?target_os=Linux&target_arch=arm64-sbsa&Compilation=Native&Distribution=RHEL&target_version=8)”。
+
+      下载对应版本的CUDA工具包，且仅需下载CUDA工具包，无需单独下载GPU驱动。CUDA工具包`cuda_12.8.0_***_linux_sbsa.run`内含GPU驱动。
+
+   4. 安装CUDA工具包。
+
+      安装工具包，赋予可执行权限并运行.run文件，根据提示完成安装。
+
+      ```bash
+      ./cuda_12.8.0_***_linux_sbsa.run
+      ```
+
+      添加环境变量。安装完成后，需要将CUDA路径添加到系统环境变量（建议采用默认安装路径`/usr/local/cuda-12.8`）。
+
+   5. 验证安装。
+
+      检查CUDA版本，若输出CUDA 12.8.0相关信息，则安装成功。
+
+      ```bash
+      nvcc --version
+      ```
+
+#### 配置bazel
+
+1. 开启CUDA支持。
+
+   ```bash
+   cd /path/to/tensorflow
+   ./configure
+   ```
+
+   在交互式配置中，`Do you wish to build TensorFlow with CUDA support? [y/N]`选择`y`，并按提示完成其后各项CUDA参数配置，未显示N或n的选项使用回车`[Enter]`确认。关键配置项如下。
+
+   ```bash
    Do you wish to build TensorFlow with ROCm support? [y/N]: n
    No ROCm support will be enabled for TensorFlow.
 
@@ -154,27 +451,8 @@ TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请�
    nvcc will be used as CUDA compiler.
 
    Please specify which gcc should be used by nvcc as the host compiler. [Default is /usr/bin/gcc]: 
-
-
-   Please specify optimization flags to use during compilation when bazel option "--config=opt" is specified [Default is -Wno-sign-compare]: 
-
-
-   Would you like to interactively configure ./WORKSPACE for Android builds? [y/N]: n
-   Not configuring the WORKSPACE for Android builds.
-
-   Preconfigured Bazel build configs. You can use any of the below by adding "--config=<>" to your build command. See .bazelrc for more details.
-         --config=mkl            # Build with MKL support.
-         --config=mkl_aarch64    # Build with oneDNN and Compute Library for the Arm Architecture (ACL).
-         --config=monolithic     # Config for mostly static monolithic build.
-         --config=numa           # Build with NUMA support.
-         --config=dynamic_kernels        # (Experimental) Build kernels into separate shared objects.
-         --config=v1             # Build with TensorFlow 1 API instead of TF 2 API.
-   Preconfigured Bazel build configs to DISABLE default on features:
-         --config=nogcp          # Disable GCP support.
-         --config=nonccl         # Disable NVIDIA NCCL support.
-   Configuration finished
    ```
-  
+
 2. 打开`.tf_configure.bazelrc`，在`build --action_env LD_LIBRARY_PATH=...`行前添加以下build配置。
 
    ```bash
@@ -184,46 +462,222 @@ TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请�
    build:cuda --config=cuda_version
    ```
 
-3. 构建TensorFlow pip包。
-
-   ```bash
-   bazel build \
-     --experimental_repo_remote_exec \
-     --verbose_failures \
-     --config=cuda --config=cuda_nvcc --config=cuda_wheel \
-     --cxxopt=-std=c++17 --host_cxxopt=-std=c++17 \
-     --copt=-march=armv8.5-a --linkopt=-fuse-ld=gold \
-     --config=opt \
-     --action_env=CLANG_CUDA=0 \
-     --repo_env=CLANG_CUDA=0 \
-     --repo_env=PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ \
-     --repo_env=PIP_TRUSTED_HOST=mirrors.aliyun.com \
-     --@local_config_cuda//cuda:override_include_cuda_libs=true \
-     --repo_env=CC=/usr/bin/gcc \
-     --repo_env=CXX=/usr/bin/g++ \
-     --repo_env=CUDA_PATH=/usr/local/cuda-12.8 \
-     //tensorflow/tools/pip_package:wheel
-   ```
-
-### 安装tensorflow pip包
+#### 构建GPU版本pip包
 
 ```bash
-pip install bazel-bin/tensorflow/tools/pip_package/wheel_house/tensorflow-2.20.0.dev0+selfbuilt-cp311-cp311-linux_aarch64.whl
+cd /path/to/tensorflow
+bazel --output_base="$PWD/output" build \
+  --distdir="$PWD/distdir" \
+  --experimental_repo_remote_exec \
+  --verbose_failures \
+  --config=cuda --config=cuda_nvcc --config=cuda_wheel \
+  --cxxopt=-std=c++17 --host_cxxopt=-std=c++17 \
+  --copt=-march=armv8.5-a --linkopt=-fuse-ld=gold \
+  --config=opt \
+  --define=enable_kdnn=true \
+  --linkopt=-Wl,--stub-group-size=0x2000000 \
+  --action_env=CLANG_CUDA=0 \
+  --repo_env=CLANG_CUDA=0 \
+  --repo_env=PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ \
+  --repo_env=PIP_TRUSTED_HOST=mirrors.aliyun.com \
+  --@local_config_cuda//cuda:override_include_cuda_libs=true \
+  --repo_env=CC=/usr/bin/gcc \
+  --repo_env=CXX=/usr/bin/g++ \
+  --repo_env=CUDA_PATH=/usr/local/cuda-12.8 \
+  //tensorflow/tools/pip_package:wheel
 ```
+
+安装方式同“[安装tensorflow pip包](#安装tensorflow-pip包)”。
 
 ## 验证特性
 
-### FAGO静态图融合
+>![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
+>
+>需完成构建TensorFlow pip包并安装后，才能验证特性。请勿在TensorFlow源码根目录下执行验证命令，否则Python会优先加载源码目录下的`tensorflow/`包而非已安装的pip包，导致导入报错。
+
+### ANNC静态图融合
+
+#### CPU算子验证
+
+进入测试目录后，执行测试命令。
+
+```bash
+cd tensorflow/python/grappler/embedding_fused_test
+python main.py --list
+python main.py --op {op_name}
+```
+
+ANNC CPU算子静态图融合只对满足特定结构和输入约束的子图生效。
+
+#### GPU算子验证
 
 进入测试目录后，执行测试命令。
 
 ```bash
 cd tensorflow/python/grappler/flash_attn_opt_test
 python main.py --list
-python main.py --op {op_name} --performance_test False > result.txt
+python main.py --op {op_name}
 ```
 
-FAGO静态图融合只对满足特定结构和输入约束的子图生效。
+ANNC GPU算子（FlashAttentionForward）静态图融合只对满足特定结构和输入约束的子图生效，需CUDA环境支持。
+
+### KDNN
+
+1. 进入测试目录并查询支持的模块。
+
+   ```bash
+   cd /path/to/tensorflow/tensorflow/python/kernel_tests/benchmark
+   python main.py --list
+   ```
+
+2. 从查询结果中选择算子并运行测试。
+
+   ```bash
+   python main.py --op {op_name} --performance_test True
+   ```
+
+   命令执行完成后，回显信息类似如下（每个测试用例依次输出功能与性能测试结果）。
+
+   ```output
+   Function testing: batch_matmul_2D_fp32_bcFalse_taTrue_tbTrue ...
+   功能测试通过
+   Performance testing: MatMul_2D_79_1570_256_False_False ...
+   Testing: MatMul_2D_79_1570_256_False_False ...
+   ✅ Profile 已固化至: bench_logs/plugins/profile/MatMul_2D_79_1570_256_False_False_kdnn_0
+   Testing: MatMul_2D_79_1570_256_False_False ...
+   ✅ Profile 已固化至: bench_logs/plugins/profile/MatMul_2D_79_1570_256_False_False_kdnn_1
+   性能测试通过, 性能提升187.43%, KDNN开启状态下耗时150.41us, 关闭状态下耗时432.33us
+   ```
+
+   出现“功能测试通过”和“性能测试通过”回显时，表示执行通过，相关算子集成成功。
+
+### KEmbedding
+
+进入测试目录后，执行测试命令。
+
+```bash
+cd /path/to/tensorflow
+bazel test //third_party/kembedding:embedding_table_lookup_op_test \
+  --test_output=errors
+bazel run //third_party/kembedding:embedding_table_lookup_benchmark
+```
+
+### Eigen KGemm矩阵乘加速
+
+CPU版本即可验证。Eigen KGemm加速对连续内存、单收缩维的二维`tf.matmul`生效，权重矩阵（K）越大加速越明显。GPU版本的构建产物必须在脚本中显式指定在CPU上执行，否则矩阵乘会优先走GPU，无法验证到KGemm。
+
+> ![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
+> 当KDNN算子优化与Eigen KGemm矩阵乘加速同时启用时（例如使用`full-default`档位并在构建命令中追加`--copt=-DEIGEN_NEON_USE_KGEMM=1`），fp32矩阵乘会先由KDNN处理，KGemm不生效；两者不冲突，计算结果不受影响。若需矩阵乘由KGemm加速，请使用不含KDNN的`eigen-core`档位，或在运行时设置环境变量`TF_ENABLE_KDNN_OPTS=0`关闭KDNN（该方式会同时关闭KDNN的softmax等其他算子优化）。
+
+1. 验证矩阵乘结果正确性。
+
+   ```bash
+   cd ~
+   python3 -c "
+   import numpy as np, tensorflow as tf
+   rng = np.random.RandomState(0)
+   a = rng.normal(0, 0.1, size=(59, 1570)).astype(np.float32)
+   b = rng.normal(0, 0.1, size=(1570, 256)).astype(np.float32)
+   with tf.device('/CPU:0'):
+       got = tf.matmul(tf.constant(a), tf.constant(b))
+   print('device =', got.device)
+   got = got.numpy()
+   exp = np.matmul(a, b)
+   print('max_abs_err =', np.max(np.abs(got - exp)))
+   print('allclose =', np.allclose(got, exp, rtol=1e-4, atol=1e-5))
+   "
+   ```
+
+   回显类似如下信息时，表示矩阵乘结果正确。
+
+   ```output
+   device = /job:localhost/replica:0/task:0/device:CPU:0
+   max_abs_err = 1.132e-06
+   allclose = True
+   ```
+
+2. 对比加速效果。
+
+   ```bash
+   cd ~
+   python3 -c "
+   import time, numpy as np, tensorflow as tf
+   tf.config.threading.set_intra_op_parallelism_threads(16)
+   rng = np.random.RandomState(0)
+   with tf.device('/CPU:0'):
+       a = tf.constant(rng.normal(0, 0.1, size=(59, 1570)).astype(np.float32))
+       b = tf.constant(rng.normal(0, 0.1, size=(1570, 256)).astype(np.float32))
+       f = tf.function(lambda: tf.matmul(a, b)).get_concrete_function()
+   print('device =', f().device)
+   for _ in range(500):
+       f()
+   t = time.perf_counter()
+   for _ in range(100):
+       f()
+   print('avg_us = %.1f' % ((time.perf_counter() - t) / 100 * 1e6))
+   "
+   ```
+
+   可对比开启和关闭KGemm加速的构建产物耗时。以`59x1570x256`形状为例，开启后耗时约为关闭时的1/2。
+
+3. 运行性能测试脚本，对比两个构建产物的性能。
+
+   `tensorflow/python/kernel_tests/benchmark`目录下提供了性能测试脚本。脚本会先安装baseline wheel运行全部用例，再安装candidate wheel重复一遍，最后输出对比报告。`--warmup`建议不低于100，否则首次采样会偏大。
+
+   若使用GPU版本的构建产物，需屏蔽GPU，确保矩阵乘在CPU上执行。
+
+   ```bash
+   cd /path/to/tensorflow/tensorflow/python/kernel_tests/benchmark
+
+   CUDA_VISIBLE_DEVICES= python3 compare_wheels.py \
+     --python /usr/bin/python3 \
+     --baseline-wheel  /path/to/dist/tensorflow-nokgemm-*.whl \
+     --baseline-label  nokgemm \
+     --candidate-wheel /path/to/dist/tensorflow-kgemm-*.whl \
+     --candidate-label kgemm \
+     --intra-threads 16 \
+     --warmup 500 \
+     --iterations 100 \
+     --samples 7 \
+     --output-dir ./kgemm-vs-nokgemm
+   ```
+
+   `comparison.md`给出每个形状的耗时与加速比，`summarize_comparison.py`可按模型分组汇总。
+
+   ```bash
+   python3 summarize_comparison.py ./kgemm-vs-nokgemm/comparison.md
+   ```
+
+   > ![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
+   >
+   > 建议用`taskset`将测试进程绑定到同一NUMA节点内的CPU核，并保持`--intra-threads`与该核数一致，以减少跨节点访存引起的抖动。
+
+   `tensorflow/python/kernel_tests/math_ops/matmul_model_shapes_test.py`对同一批形状做了正确性校验，可通过`bazel test //tensorflow/python/kernel_tests/math_ops:matmul_model_shapes_test_cpu`运行。
+
+## 构建推理服务（可选）
+
+当前版本支持基于开源TensorFlow Serving构建推理服务。
+
+### 构建TensorFlow Serving
+
+按照《搜推排序模型推理Benchmark》的“[编译TensorFlow Serving](https://www.hikunpeng.com/document/detail/zh/SRA/perfEval/benchmarksra/kunpengmodelzoo_06_0011.html)”章节准备TensorFlow Serving源码、Bazel和编译依赖。
+
+1. 编译时将`--tensorflow_dir`指向本指南生成的TensorFlow完整源码。
+
+   ```bash
+   cd /path/to/serving
+   sh compile_serving.sh \
+     --tensorflow_dir /path/to/tensorflow \
+     --features gcc12
+   ```
+
+2. 检查构建产物。
+
+   ```output
+   /path/to/serving/bazel-bin/tensorflow_serving/model_servers/tensorflow_model_server
+   ```
+
+TensorFlow Serving通过本地TensorFlow源码完成集成。更换特性组合时，无需重新整理Serving源码，只需重新生成对应TensorFlow源码、准备其依赖并重新构建Serving。
 
 ## 故障案例
 
@@ -231,7 +685,7 @@ FAGO静态图融合只对满足特定结构和输入约束的子图生效。
 
 ### 提示找不到libnvrtc-builtins.so.12.5文件报错
 
-#### 问题现象描述
+**问题现象描述**
 
 Tensorflow编译安装后，python import tensorflow报错，提示“libnvrtc-builtins.so.12.5: cannot open shared object file: No such file or directory”。详细信息如下所示。
 
@@ -248,11 +702,11 @@ from tensorflow.python.platform import _pywrap_cpu_feature_guard
 ImportError: libnvrtc-builtins.so.12.5: cannot open shared object file: No such file or directory
 ```
 
-#### 根本原因分析
+**关键过程、根本原因分析**
 
 TensorFlow构建脚本中硬编码了libnvrtc-builtins.so.12.5作为依赖版本，但实际安装的是CUDA 12.8，对应库文件为libnvrtc-builtins.so.12.8，运行时动态链接器找不到对应版本的库，触发导入失败。
 
-#### 解决方案及效果
+**结论、解决方案及效果**
 
 NVIDIA保证CUDA同大版本（12.x）内的nvrtc-builtins库二进制向下兼容，直接创建版本软链接即可正常运行，不影响功能与性能。
 
@@ -276,4 +730,4 @@ NVIDIA保证CUDA同大版本（12.x）内的nvrtc-builtins库二进制向下兼�
 
 | 文档版本 | 发布日期 | 修改说明 |
 | ---- | ---- | ---- |
-| 01 | 2026-09-30 | 第一次正式发布。|
+| 01 | 2026-12-30 | 第一次正式发布。<ul><li>新增TensorFlow KDNN算子优化特性的适配环境和安装指导内容。</li><li>新增TensorFlow ANNC静态图融合特性的适配环境和安装指导内容。</li><li>新增KEmbedding自定义算子库的适配环境和安装指导内容。</li><li>新增Eigen KGemm矩阵乘加速特性的安装说明与验证步骤。</li><li>默认安装流程调整为CPU版本，GPU相关内容独立为“构建GPU版本”章节。</li></ul> |

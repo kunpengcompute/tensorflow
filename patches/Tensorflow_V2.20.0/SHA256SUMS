@@ -1,2 +1,5 @@
-dbcf57f9090c66c2459d2630e447ac6e1d354a83fb52d33e73565ba2fe70ceca  feature/0001-tensorflow_2.20.0-common.patch
-a0e4ce2d65780ec234b5bcc17520b46dc160144e1589c9aa6a57dad1dd503360  feature/0002-tensorflow_2.20.0-fago.patch
+b2876ad8fc5a044a00a1ddda1eccabe87a0ce07ba733844dc2ce1da091ec10b8  feature/0001-tensorflow_2.20.0-common.patch
+514733897614bb490bef123c955f18a900634a79cab2f38b55964c4fe04a03d2  feature/0002-tensorflow_2.20.0-kdnn.patch
+e137b2393b9a33abc069cf2752245bc2cd97108d967f273abc916cbe73c6ef3d  feature/0003-tensorflow_2.20.0-annc.patch
+ff8db5cb7fad4906eae36b71fcd432b4d386a5cf67e84dc2a27c545ba9cf25df  feature/0004-tensorflow_2.20.0-kembedding.patch
+43f4094220b995018f5342014a76fae471037f8694b3c3e72067ba5d7088df17  feature/0005-tensorflow_2.20.0-eigen-kgemm.patch

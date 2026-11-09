@@ -1,0 +1,572 @@
+diff --git a/tensorflow/python/kernel_tests/benchmark/BUILD b/tensorflow/python/kernel_tests/benchmark/BUILD
+new file mode 100644
+index 0000000000000000000000000000000000000000..a3a70b13a23e9ec52f0e1df0ff633056861c26ee
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/benchmark/BUILD
+@@ -0,0 +1,10 @@
++package(
++    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
++    default_visibility = ["//tensorflow:internal"],
++    licenses = ["notice"],
++)
++
++py_library(
++    name = "matmul_cases",
++    srcs = ["matmul_cases.py"],
++)
+diff --git a/tensorflow/python/kernel_tests/benchmark/compare_wheels.py b/tensorflow/python/kernel_tests/benchmark/compare_wheels.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..7c27418277cb2bc455f9206c084d5e62a6fb82f2
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/benchmark/compare_wheels.py
+@@ -0,0 +1,141 @@
++"""Installs two TensorFlow wheels, benchmarks them, and writes Markdown."""
++
++import argparse
++import json
++import os
++import subprocess
++import sys
++import tempfile
++from pathlib import Path
++
++
++_SCRIPT_DIR = Path(__file__).resolve().parent
++_WORKER = _SCRIPT_DIR / "run_wheel_matmul.py"
++
++
++def _run(command, **kwargs):
++  return subprocess.run(command, check=True, text=True, **kwargs)
++
++
++def _last_json_line(output):
++  for line in reversed(output.splitlines()):
++    try:
++      return json.loads(line)
++    except json.JSONDecodeError:
++      pass
++  raise RuntimeError("benchmark worker did not produce a JSON result")
++
++
++def _install_wheel(python, wheel):
++  # Retain the environment's dependencies.  Only TensorFlow itself is swapped
++  # between the baseline and candidate runs.
++  _run([python, "-m", "pip", "uninstall", "--yes", "tensorflow"])
++  _run([
++      python, "-m", "pip", "install", "--no-deps", wheel,
++  ])
++
++
++def _run_wheel(python, args):
++  environment = os.environ.copy()
++  environment["TF_CPP_MIN_LOG_LEVEL"] = "2"
++  environment["TF_ENABLE_KDNN_OPTS"] = "0"
++  environment.pop("PYTHONPATH", None)
++  command = [
++      python,
++      _WORKER,
++      "--warmup", str(args.warmup),
++      "--iterations", str(args.iterations),
++      "--samples", str(args.samples),
++      "--intra-threads", str(args.intra_threads),
++  ]
++  for name in args.case:
++    command.extend(["--case", name])
++  completed = _run(command, cwd=tempfile.gettempdir(), env=environment,
++                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
++  return _last_json_line(completed.stdout)
++
++
++def _format_us(value):
++  return "%.3f" % value
++
++
++def _write_markdown(path, baseline_label, baseline, candidate_label, candidate):
++  candidate_by_name = {case["name"]: case for case in candidate["cases"]}
++  lines = [
++      "# MatMul Wheel Comparison",
++      "",
++      "KDNN is disabled for both processes (`TF_ENABLE_KDNN_OPTS=0`). "
++      "Numbers are median wall time in microseconds per `tf.matmul`; lower is better.",
++      "",
++      "| Case | A shape | B shape | %s (us) | %s (us) | Speedup (%s/%s) |" % (
++          baseline_label, candidate_label, baseline_label, candidate_label),
++      "| --- | --- | --- | ---: | ---: | ---: |",
++  ]
++  for base in baseline["cases"]:
++    comparison = candidate_by_name[base["name"]]
++    speedup = base["median_us"] / comparison["median_us"]
++    lines.append("| %s | %s | %s | %s | %s | %.3fx |" % (
++        base["name"], base["shape_a"], base["shape_b"],
++        _format_us(base["median_us"]), _format_us(comparison["median_us"]),
++        speedup))
++  lines.extend([
++      "",
++      "## Run Metadata",
++      "",
++      "| Wheel | TensorFlow version | Warmup | Timed iterations | Samples | Intra-op threads |",
++      "| --- | --- | ---: | ---: | ---: | ---: |",
++      "| %s | %s | %d | %d | %d | %d |" % (
++          baseline_label, baseline["tensorflow_version"], baseline["warmup"],
++          baseline["iterations"], baseline["samples"], baseline["intra_threads"]),
++      "| %s | %s | %d | %d | %d | %d |" % (
++          candidate_label, candidate["tensorflow_version"], candidate["warmup"],
++          candidate["iterations"], candidate["samples"], candidate["intra_threads"]),
++      "",
++  ])
++  path.write_text("\n".join(lines), encoding="utf-8")
++
++
++def main():
++  parser = argparse.ArgumentParser(
++      description="Compare two TensorFlow 2.20 wheels on logged MatMul shapes.")
++  parser.add_argument(
++      "--python", required=True, type=Path,
++      help="Python executable for the dedicated benchmark environment.")
++  parser.add_argument("--baseline-wheel", required=True, type=Path)
++  parser.add_argument("--candidate-wheel", required=True, type=Path)
++  parser.add_argument("--baseline-label", default="baseline")
++  parser.add_argument("--candidate-label", default="candidate")
++  parser.add_argument("--output-dir", type=Path,
++                      default=Path("matmul_wheel_results"))
++  parser.add_argument("--warmup", type=int, default=10)
++  parser.add_argument("--iterations", type=int, default=100)
++  parser.add_argument("--samples", type=int, default=7)
++  parser.add_argument("--intra-threads", type=int, default=16)
++  parser.add_argument("--case", action="append", default=[])
++  args = parser.parse_args()
++
++  if args.baseline_wheel == args.candidate_wheel:
++    raise ValueError("baseline-wheel and candidate-wheel must be different files")
++  if not args.python.is_file():
++    raise ValueError("Python executable does not exist: %s" % args.python)
++  for wheel in (args.baseline_wheel, args.candidate_wheel):
++    if not wheel.is_file() or wheel.suffix != ".whl":
++      raise ValueError("wheel does not exist: %s" % wheel)
++
++  args.output_dir.mkdir(parents=True, exist_ok=True)
++  _install_wheel(args.python, args.baseline_wheel)
++  baseline = _run_wheel(args.python, args)
++  _install_wheel(args.python, args.candidate_wheel)
++  candidate = _run_wheel(args.python, args)
++
++  (args.output_dir / "baseline.json").write_text(
++      json.dumps(baseline, indent=2, sort_keys=True) + "\n", encoding="utf-8")
++  (args.output_dir / "candidate.json").write_text(
++      json.dumps(candidate, indent=2, sort_keys=True) + "\n", encoding="utf-8")
++  _write_markdown(args.output_dir / "comparison.md", args.baseline_label,
++                  baseline, args.candidate_label, candidate)
++  print(args.output_dir / "comparison.md")
++
++
++if __name__ == "__main__":
++  main()
+diff --git a/tensorflow/python/kernel_tests/benchmark/matmul_cases.py b/tensorflow/python/kernel_tests/benchmark/matmul_cases.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..ec519ec2891e4356fdbe828d9ea670c17249b9fd
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/benchmark/matmul_cases.py
+@@ -0,0 +1,68 @@
++"""MatMul inputs collected from the production-model log."""
++
++
++def _case(name, shape_a, shape_b, transpose_a=False, transpose_b=False):
++  return (name, tuple(shape_a), tuple(shape_b), transpose_a, transpose_b)
++
++
++# Duplicate operators in test.log are intentionally kept once.  The remaining
++# cases cover all distinct input shapes from h, a, p, and c.
++MODEL_SHAPES = (
++    _case("h_59x30x16", (59, 30), (30, 16)),
++    _case("h_59x16x8", (59, 16), (16, 8)),
++    _case("h_59x8x1", (59, 8), (8, 1)),
++    _case("h_4130x116x32", (4130, 116), (116, 32)),
++    _case("h_4130x104x32", (4130, 104), (104, 32)),
++    _case("h_4130x32x16", (4130, 32), (32, 16)),
++    _case("h_4130x16x1", (4130, 16), (16, 1)),
++    _case("h_59x1570x128", (59, 1570), (1570, 128)),
++    _case("h_59x1570x256", (59, 1570), (1570, 256)),
++    _case("h_59x256x128", (59, 256), (256, 128)),
++    _case("h_59x128x64", (59, 128), (128, 64)),
++    _case("h_59x64x2", (59, 64), (64, 2)),
++    _case("h_59x64x32", (59, 64), (64, 32)),
++    _case("h_59x32x64", (59, 32), (32, 64)),
++    _case("h_59x32x2", (59, 32), (32, 2)),
++    _case("a_35x400x400", (35, 400), (400, 400)),
++    _case("a_35x800x1", (35, 800), (800, 1)),
++    _case("a_39x5x1", (39, 5), (5, 1)),
++    _case("a_39x492x1", (39, 492), (492, 1)),
++    _case("a_39x400x400", (39, 400), (400, 400)),
++    _case("a_39x800x1", (39, 800), (800, 1)),
++    _case("a_46x5x1", (46, 5), (5, 1)),
++    _case("a_46x492x1", (46, 492), (492, 1)),
++    _case("p_self_attention_qkv", (1, 32, 16), (16, 8)),
++    _case("p_self_attention_scores", (1, 32, 8), (1, 32, 8),
++          transpose_b=True),
++    _case("p_self_attention_values", (1, 32, 32), (1, 32, 8)),
++    _case("p_50x32x32x16", (50, 32, 32), (32, 16)),
++    _case("p_50x32x64x16", (50, 32, 64), (64, 16)),
++    _case("p_50x32x16x8", (50, 32, 16), (16, 8)),
++    _case("p_50x32x8x4", (50, 32, 8), (8, 4)),
++    _case("p_50x32x4x1", (50, 32, 4), (4, 1)),
++    _case("p_attention_query", (50, 1, 32), (50, 32, 16)),
++    _case("p_50x1298x250", (50, 1298), (1298, 250)),
++    _case("p_50x250x250", (50, 250), (250, 250)),
++    _case("p_50x250x100", (50, 250), (250, 100)),
++    _case("p_50x100x1", (50, 100), (100, 1)),
++    _case("c_19x8x4", (19, 8), (8, 4)),
++    _case("c_16x8x4", (16, 8), (8, 4)),
++    _case("c_37x8x4", (37, 8), (8, 4)),
++    _case("c_1x24x16", (1, 24), (24, 16)),
++    _case("c_1x14x28x16", (1, 14, 28), (28, 16)),
++    _case("c_1x48x28x16", (1, 48, 28), (28, 16)),
++    _case("c_1x77x20x16", (1, 77, 20), (20, 16)),
++    _case("c_1x16x16", (1, 16), (16, 16)),
++    _case("c_1x80x36x16", (1, 80, 36), (36, 16)),
++    _case("c_1x32x16", (1, 32), (32, 16)),
++    _case("c_59x1540x64", (59, 1540), (1540, 64)),
++    _case("c_59x48x80", (59, 48), (48, 80)),
++    _case("c_59x48x48", (59, 48), (48, 48)),
++    _case("c_59x1316x2", (59, 1316), (1316, 2)),
++    _case("c_59x1316x256", (59, 1316), (1316, 256)),
++    _case("c_59x256x128", (59, 256), (256, 128)),
++    _case("c_moe_combine", (59, 1, 2), (59, 2, 128)),
++    _case("c_59x128x64", (59, 128), (128, 64)),
++    _case("c_59x64x1", (59, 64), (64, 1)),
++    _case("c_59x64x6", (59, 64), (64, 6)),
++)
+diff --git a/tensorflow/python/kernel_tests/benchmark/run_wheel_matmul.py b/tensorflow/python/kernel_tests/benchmark/run_wheel_matmul.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..0c100f824c19c300837aeadd7b478d5d2b7ede0d
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/benchmark/run_wheel_matmul.py
+@@ -0,0 +1,116 @@
++"""Runs the logged MatMul shapes against one installed TensorFlow wheel.
++
++CHANGE vs original: operands are materialised as tensors ONCE (tf.constant)
++instead of being passed as NumPy arrays, so the NumPy -> Tensor conversion is
++no longer inside the timed loop.  CLI, JSON schema and the kdnn switch are
++unchanged.
++"""
++
++import argparse
++import json
++import statistics
++import time
++
++import numpy as np
++
++from matmul_cases import MODEL_SHAPES
++
++
++def _percentile(values, percentile):
++  ordered = sorted(values)
++  index = round((len(ordered) - 1) * percentile)
++  return ordered[index]
++
++
++def _to_numpy(x):
++  return x.numpy() if hasattr(x, "numpy") else np.asarray(x)
++
++
++def _run_case(tf, case, warmup, iterations, samples):
++  name, shape_a, shape_b, transpose_a, transpose_b = case
++  rng = np.random.RandomState(20260826)
++  a_np = rng.normal(0.0, 0.1, size=shape_a).astype(np.float32)
++  b_np = rng.normal(0.0, 0.1, size=shape_b).astype(np.float32)
++
++  # NumPy reference (unchanged).
++  expected = np.matmul(
++      np.swapaxes(a_np, -1, -2) if transpose_a else a_np,
++      np.swapaxes(b_np, -1, -2) if transpose_b else b_np)
++
++  # Materialise operands as tensors ONCE -- no conversion inside the loop.
++  a = tf.constant(a_np)
++  b = tf.constant(b_np)
++
++  def matmul():
++    return tf.matmul(a, b, transpose_a=transpose_a, transpose_b=transpose_b)
++
++  result = matmul()
++  if not np.allclose(_to_numpy(result), expected, rtol=1e-4, atol=1e-5):
++    raise RuntimeError("%s produced a result different from NumPy" % name)
++
++  for _ in range(warmup):
++    matmul()
++
++  samples_us = []
++  for _ in range(samples):
++    start_ns = time.perf_counter_ns()
++    for _ in range(iterations):
++      matmul()
++    samples_us.append((time.perf_counter_ns() - start_ns) / iterations / 1000.0)
++
++  return {
++      "name": name,
++      "shape_a": list(shape_a),
++      "shape_b": list(shape_b),
++      "transpose_a": transpose_a,
++      "transpose_b": transpose_b,
++      "samples_us": samples_us,
++      "mean_us": statistics.fmean(samples_us),
++      "median_us": statistics.median(samples_us),
++      "p95_us": _percentile(samples_us, 0.95),
++  }
++
++
++def main():
++  parser = argparse.ArgumentParser()
++  parser.add_argument("--warmup", type=int, required=True)
++  parser.add_argument("--iterations", type=int, required=True)
++  parser.add_argument("--samples", type=int, required=True)
++  parser.add_argument("--intra-threads", type=int, required=True)
++  parser.add_argument("--case", action="append", dest="case_names")
++  args = parser.parse_args()
++
++  if min(args.warmup, args.iterations, args.samples, args.intra_threads) < 1:
++    raise ValueError("warmup, iterations, samples, and intra-threads must be positive")
++
++  # TensorFlow must be configured before the first op is executed.
++  import tensorflow as tf  # pylint: disable=g-import-not-at-top
++  tf.config.threading.set_intra_op_parallelism_threads(args.intra_threads)
++  tf.config.threading.set_inter_op_parallelism_threads(1)
++
++  cases = MODEL_SHAPES
++  if args.case_names:
++    selected = set(args.case_names)
++    cases = tuple(case for case in cases if case[0] in selected)
++    missing = selected.difference(case[0] for case in cases)
++    if missing:
++      raise ValueError("unknown case(s): %s" % ", ".join(sorted(missing)))
++
++  report = {
++      "tensorflow_version": tf.__version__,
++      "warmup": args.warmup,
++      "iterations": args.iterations,
++      "samples": args.samples,
++      "intra_threads": args.intra_threads,
++      "kdnn_enabled": False,
++      "operands": "tf.constant",
++      "cases": [
++          _run_case(tf, case, args.warmup, args.iterations, args.samples)
++          for case in cases
++      ],
++  }
++  print(json.dumps(report, sort_keys=True))
++
++
++if __name__ == "__main__":
++  main()
+diff --git a/tensorflow/python/kernel_tests/benchmark/summarize_comparison.py b/tensorflow/python/kernel_tests/benchmark/summarize_comparison.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..51a39f798f34bc0ddccab1a59349931d3a37119f
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/benchmark/summarize_comparison.py
+@@ -0,0 +1,90 @@
++"""Summarizes MatMul wheel-comparison Markdown by production model."""
++
++import argparse
++from collections import defaultdict
++from pathlib import Path
++
++
++_GROUPS = ("h", "a", "p", "c")
++
++
++def _parse_rows(path):
++  rows = []
++  in_results_table = False
++  for line in path.read_text(encoding="utf-8").splitlines():
++    if line.startswith("| Case | A shape | B shape |"):
++      in_results_table = True
++      continue
++    if not in_results_table:
++      continue
++    if not line.startswith("|"):
++      break
++    if line.startswith("| ---"):
++      continue
++    fields = [field.strip() for field in line.strip().strip("|").split("|")]
++    if len(fields) != 6:
++      raise ValueError("invalid result row: %s" % line)
++    name, unused_shape_a, unused_shape_b, baseline, candidate, unused_speedup = fields
++    try:
++      rows.append((name, float(baseline), float(candidate)))
++    except ValueError as error:
++      raise ValueError("invalid timing row: %s" % line) from error
++  if not rows:
++    raise ValueError("no MatMul result rows found in %s" % path)
++  return rows
++
++
++def _summarize(rows):
++  totals = defaultdict(lambda: [0.0, 0.0])
++  for name, baseline_us, candidate_us in rows:
++    group = name.split("_", 1)[0]
++    if group not in _GROUPS:
++      raise ValueError("unrecognized model prefix in case: %s" % name)
++    totals["all"][0] += baseline_us
++    totals["all"][1] += candidate_us
++    totals[group][0] += baseline_us
++    totals[group][1] += candidate_us
++  return totals
++
++
++def _write_summary(path, source, totals):
++  lines = [
++      "# MatMul Performance Summary",
++      "",
++      "Source: `%s`" % source,
++      "",
++      "Each value is the sum of the per-case median times in microseconds. "
++      "Lower time is better.",
++      "",
++      "| Group | baseline (us) | candidate (us) | Speedup (baseline/candidate) |",
++      "| --- | ---: | ---: | ---: |",
++  ]
++  for group in ("all",) + _GROUPS:
++    baseline_us, candidate_us = totals[group]
++    if candidate_us == 0.0:
++      # A partial run may not cover every model group.
++      continue
++    lines.append("| %s | %.3f | %.3f | %.3fx |" % (
++        group, baseline_us, candidate_us, baseline_us / candidate_us))
++  lines.append("")
++  path.write_text("\n".join(lines), encoding="utf-8")
++
++
++def main():
++  parser = argparse.ArgumentParser(
++      description="Summarize MatMul timings from comparison.md.")
++  parser.add_argument("comparison", type=Path,
++                      help="Path to compare_wheels.py output comparison.md.")
++  parser.add_argument("--output", type=Path,
++                      help="Output Markdown path; defaults beside comparison.md.")
++  args = parser.parse_args()
++
++  if not args.comparison.is_file():
++    raise ValueError("comparison file does not exist: %s" % args.comparison)
++  output = args.output or args.comparison.with_name("summary.md")
++  _write_summary(output, args.comparison, _summarize(_parse_rows(args.comparison)))
++  print(output)
++
++
++if __name__ == "__main__":
++  main()
+diff --git a/tensorflow/python/kernel_tests/math_ops/BUILD b/tensorflow/python/kernel_tests/math_ops/BUILD
+index 237e39435036ef24135164077baf30ed57ff20fe..4025934861d12c1b0e40f093ce15078e0d7e2219 100644
+--- a/tensorflow/python/kernel_tests/math_ops/BUILD
++++ b/tensorflow/python/kernel_tests/math_ops/BUILD
+@@ -373,6 +373,24 @@ cuda_py_strict_test(
+     ],
+ )
+ 
++cuda_py_strict_test(
++    name = "matmul_model_shapes_test",
++    size = "medium",
++    srcs = ["matmul_model_shapes_test.py"],
++    shard_count = 4,
++    tags = [
++        "no_mac_arm64",
++    ],
++    deps = [
++        "//tensorflow/python/framework:test_lib",
++        "//tensorflow/python/ops:math_ops",
++        "//tensorflow/python/platform:client_testlib",
++        "//tensorflow/python/kernel_tests/benchmark:matmul_cases",
++        "//third_party/py/numpy",
++        "@absl_py//absl/testing:parameterized",
++    ],
++)
++
+ cuda_py_benchmark_test(
+     name = "reduce_benchmark_test",
+     srcs = ["reduce_benchmark_test.py"],
+diff --git a/tensorflow/python/kernel_tests/math_ops/matmul_model_shapes_test.py b/tensorflow/python/kernel_tests/math_ops/matmul_model_shapes_test.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..9e3a63997ff40181bc147f49513b0415b4fadebd
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/math_ops/matmul_model_shapes_test.py
+@@ -0,0 +1,52 @@
++# Copyright 2026 The TensorFlow Authors. All Rights Reserved.
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++# ============================================================================
++"""MatMul coverage for the matrix shapes observed in ``test.log``.
++
++The log was produced from several production models.  It contains operator
++input shapes, but not the MatMul transpose attributes, so the one attention
++case that requires a transposed right hand side records that attribute
++explicitly below.
++"""
++
++import numpy as np
++
++from absl.testing import parameterized
++from tensorflow.python.framework import test_util
++from tensorflow.python.ops import math_ops
++from tensorflow.python.platform import test
++from tensorflow.python.kernel_tests.benchmark.matmul_cases import MODEL_SHAPES
++
++
++class MatMulModelShapesTest(test.TestCase, parameterized.TestCase):
++
++  @parameterized.parameters(*MODEL_SHAPES)
++  @test_util.run_without_tensor_float_32("Tests production MatMul shapes")
++  def testMatchesNumpy(self, unused_name, shape_a, shape_b, transpose_a,
++                       transpose_b):
++    rng = np.random.RandomState(20260826)
++    a = rng.normal(0.0, 0.1, size=shape_a).astype(np.float32)
++    b = rng.normal(0.0, 0.1, size=shape_b).astype(np.float32)
++
++    effective_a = np.swapaxes(a, -1, -2) if transpose_a else a
++    effective_b = np.swapaxes(b, -1, -2) if transpose_b else b
++    expected = np.matmul(effective_a, effective_b)
++
++    output = self.evaluate(math_ops.matmul(
++        a, b, transpose_a=transpose_a, transpose_b=transpose_b))
++    self.assertAllClose(expected, output, rtol=1e-4, atol=1e-5)
++
++
++if __name__ == "__main__":
++  test.main()
+diff --git a/third_party/xla/third_party/eigen3/workspace.bzl b/third_party/xla/third_party/eigen3/workspace.bzl
+index 24e48e1bde7b19c3c1c189395f5ad71b1926c3a0..b89aed3e048dab56b0821aa7a287a6a1d20e5cfe 100644
+--- a/third_party/xla/third_party/eigen3/workspace.bzl
++++ b/third_party/xla/third_party/eigen3/workspace.bzl
+@@ -7,14 +7,21 @@ def repo():
+ 
+     # Attention: tools parse and update these lines.
+     # LINT.IfChange
+-    EIGEN_COMMIT = "4c38131a16803130b66266a912029504f2cf23cd"
+-    EIGEN_SHA256 = "1a432ccbd597ea7b9faa1557b1752328d6adc1a3db8969f6fe793ff704be3bf0"
++    # KGemm kernels come from the boostkit Eigen fork. The archive is pinned to
++    # an exact commit so the content behind the fixed sha256 can never change,
++    # which keeps the build reproducible even if the branch keeps moving.
++    # Note: gitcode does not serve archives under archive/<commit>.tar.gz or
++    # archive/refs/tags/..., but it does resolve a commit id on the
++    # archive/refs/heads/ path. The extracted top-level directory is still named
++    # after the branch (eigen-dev-tf-2.20.0), hence the strip_prefix below.
++    EIGEN_COMMIT = "a515c422db5f4ab2bda2b36ff3017f339b759969"
++    EIGEN_SHA256 = "3b329f365350336a70be221454907aabe13f4f038bec7cea8bafbe1b1e7eace1"
+     # LINT.ThenChange(//tensorflow/lite/tools/cmake/modules/eigen.cmake)
+ 
+     tf_http_archive(
+         name = "eigen_archive",
+         build_file = "//third_party/eigen3:eigen_archive.BUILD",
+         sha256 = EIGEN_SHA256,
+-        strip_prefix = "eigen-{commit}".format(commit = EIGEN_COMMIT),
+-        urls = tf_mirror_urls("https://gitlab.com/libeigen/eigen/-/archive/{commit}/eigen-{commit}.tar.gz".format(commit = EIGEN_COMMIT)),
++        strip_prefix = "eigen-dev-tf-2.20.0",
++        urls = tf_mirror_urls("https://raw.gitcode.com/boostkit/eigen/archive/refs/heads/{commit}.tar.gz".format(commit = EIGEN_COMMIT)),
+     )

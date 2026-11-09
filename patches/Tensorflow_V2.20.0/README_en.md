@@ -14,15 +14,21 @@ bf5899deaf70fa45173c5c7b8dc9ace8824dc980
 
 | Order | Group | Description |
 | --- | --- | --- |
-| 1 | `common` | Common Bazel, repository integration, and general build fixes |
-| 2 | `fago` | FAGO static graph fusion operators and tests |
+| 1 | `common` | Common Bazel, repository integration, general build fixes, and the gtest coverage framework |
+| 2 | `kdnn` | KDNN acceleration library integration and sparse matrix multiplication fast path |
+| 3 | `annc` | KPFused embedding fusion operators and graph optimization |
+| 4 | `kembedding` | KEmbedding embedding table lookup operators and benchmarks |
+| 5 | `eigen` | Eigen KGemm NEON fp32 GEMM acceleration |
 
 The following build profiles are supported:
 
 | Profile | Groups | Purpose |
 | --- | --- | --- |
 | `common-only` | `common` | Validate shared changes |
-| `common-fago` | `common` + `fago` | FAGO static graph fusion feature |
+| `kdnn-core` | `common` + `kdnn` | KDNN acceleration feature |
+| `kdnn-annc` | `common` + `kdnn` + `annc` | KDNN acceleration and embedding fusion feature |
+| `eigen-core` | `common` + `eigen` | Eigen KGemm MatMul acceleration |
+| `full-default` | `common` + `kdnn` + `annc` + `kembedding` + `eigen` | All features |
 
 Because `tensorflow/feature_copts.bzl` is generated for each feature set, use `prepare_source.py` to create buildable source code. Do not apply patches manually in sequence.
 
@@ -33,8 +39,8 @@ git remote add tensorflow-upstream https://github.com/tensorflow/tensorflow.git
 git fetch tensorflow-upstream refs/tags/v2.20.0:refs/tags/v2.20.0
 
 python3 patches/Tensorflow_V2.20.0/prepare_source.py \
-  --feature-set fago-core \
-  --output-dir ../tensorflow-fago-core
+  --feature-set full-default \
+  --output-dir ../tensorflow-full-default
 ```
 
 Change `--feature-set` to create another profile.
