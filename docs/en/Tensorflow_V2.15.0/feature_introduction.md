@@ -685,7 +685,7 @@ XLA-enabled deployments create threads for XLA computation.
 
 **Figure 13** Inference request handling process<a name="fig1746025495015"></a><a id="inference-request-handling-process"></a>
 
-![TF Serving inference request handling process, where client requests are parsed by grpcpp_sync_ser threads and then executed in parallel layers by tf_Compute and Eigen threads](figures/inference-request-handling-process.png "Inference request handling process")
+![TF Serving inference request handling process, where client requests are parsed by grpcpp_sync_ser threads and then executed in parallel layers by tf_Compute and Eigen threads](./figures/Inference-request-handing-process.png "Inference request handling process")
 
 Client inference requests are parsed by `grpcpp_sync_ser` threads before triggering session-based inference execution. Parallel operator processing occurs through `tf_Compute or host_executor` threads, with `tf_numa_-1_Eige` or `tf_XLAEigen` threads handling intra-operator parallel computing.
 
