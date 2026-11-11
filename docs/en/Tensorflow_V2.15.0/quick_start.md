@@ -97,7 +97,7 @@ KDNN (Kunpeng Deep Neural Network Library) is a high-performance AI operator lib
 
 #### Using ANNC Static Graph Fusion
 
-The Kunpeng TensorFlow ANNC (Ascend Neural Network Compiler) static graph fusion feature provides environment variables to enable operator fusion either individually or globally. This section provides usage examples only. For details, see [API Reference](./api_reference.md).
+The Kunpeng TensorFlow ANNC (Accelerated Neural Network Compiler) static graph fusion feature provides environment variables to enable operator fusion either individually or globally. This section provides usage examples only. For details, see [API Reference](./api_reference.md).
 
 1. Start the server.
 
