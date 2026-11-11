@@ -4,7 +4,7 @@
 
 ## 最新消息
 
-- \[2026-12-30\]：Tensorflow V2.15.0 KEmbedding优化特性、ANNC图融合特性、KDNN算子优化迁移至V2.20.0；新增SparseMatmul低稀疏度场景转稠密运算优化；ANNC图融合优化特性新增KPFusedSparseDynamicStitchSum等算子。
+- \[2026-12-30\]：Tensorflow V2.20.0新增SparseMatmul低稀疏度场景转稠密运算优化，ANNC图融合优化特性新增KPFusedSparseDynamicStitchSum等算子。
 - \[2026-09-30\]：Tensorflow V2.20.0新增FlashAttentionGraphOptimization(FAGO)静态图融合特性，支持FlashAttentionForward算子。Tensorflow V2.15.0新增KEmbedding自定义算子库，提供EmbeddingTableLookup算子；新增KDNN SparseMatmul多线程优化；重构补丁发布方式，按公共构建集成（common）、KDNN算子优化、ANNC静态图融合和KEmbedding自定义算子四个维度进行拆分和补丁维护，将Runtime、旧融合Embedding及旧XLA执行能力冻结为独立Legacy补丁。
 - \[2026-06-30\]：Tensorflow V2.15.0新增TensorFlow ANNC静态图融合特性, 适配鲲鹏950 7592C处理器，支持KPFusedGather、KPFusedSparseReshape等算子；TensorFlow ANNC图编译优化特性新增常量折叠优化，适配鲲鹏950 7592C处理器。
 - \[2026-03-30\]：Tensorflow V2.15.0新增TensorFlow KDNN线程直通特性, 支持batchmatmul、concat、softmax等算子对接KDNN。
@@ -79,11 +79,10 @@ tensorflow
 
 | 特性 | 状态 | 简介 |
 | --- | --- | --- |
-| KDNN线程直通 | 维护中 | 将TensorFlow线程池透传到KDNN算子库，减少线程调度开销。 |
-| KDNN SparseMatmul多线程优化 | 维护中 | 通过数据并行、无锁设计和负载均衡降低稀疏矩阵乘法耗时。 |
-| ANNC静态图融合 | 维护中 | 通过remapper机制将符合固定结构的Embedding子图替换为融合算子。 |
-| KEmbedding自定义算子 | 维护中 | 提供面向推荐推理场景的EmbeddingTableLookup算子。 |
-| Runtime、旧融合Embedding及旧XLA执行优化 | Legacy | 作为独立冻结补丁提供，不进入当前默认组合。 |
+| KDNN线程直通 | 演进中 | 将TensorFlow线程池透传到KDNN算子库，减少线程调度开销。 |
+| KDNN SparseMatmul多线程优化 | 演进中 | 通过数据并行、无锁设计和负载均衡降低稀疏矩阵乘法耗时。 |
+| ANNC静态图融合 | 演进中 | 通过remapper机制将符合固定结构的Embedding子图替换为融合算子。 |
+| KEmbedding自定义算子 | 演进中 | 提供面向推荐推理场景的EmbeddingTableLookup算子。 |
 
 关于鲲鹏TensorFlow V2.15.0的特性详细介绍请参见《[特性介绍](./docs/zh/Tensorflow_V2.15.0/feature_introduction.md)》。
 
@@ -108,9 +107,9 @@ Legacy补丁只允许独立应用到官方基线，不依赖公共构建集成�
 
 | 特性 | 状态 | 简介 |
 | --- | --- | --- |
-| KDNN算子优化 | 维护中 | 将TensorFlow线程池透传到KDNN算子库，减少线程调度开销。支持SparseMatmul等算子。 |
-| ANNC静态图融合 | 维护中 | 通过remapper机制将符合固定结构的子图替换为融合算子。 |
-| KEmbedding自定义算子 | 维护中 | 提供面向推荐推理场景的EmbeddingTableLookup算子。 |
+| KDNN算子优化 | 演进中 | 将TensorFlow线程池透传到KDNN算子库，减少线程调度开销。支持SparseMatmul等算子。 |
+| ANNC静态图融合 | 演进中 | 通过remapper机制将符合固定结构的子图替换为融合算子。 |
+| KEmbedding自定义算子 | 演进中 | 提供面向推荐推理场景的EmbeddingTableLookup算子。 |
 
 关于鲲鹏TensorFlow V2.20.0的特性详细介绍请参见《[特性介绍](./docs/zh/Tensorflow_V2.20.0/feature_introduction.md)》。
 

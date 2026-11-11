@@ -1,5 +1,7 @@
 # 特性介绍
 
+本文档介绍鲲鹏BoostKit TensorFlow推理优化特性，涵盖KDNN线程直通、SparseMatmul多线程优化、EmbeddingTableLookup算子、ANNC静态图融合、ANNC图编译优化及TF Serving线程调度优化，适用于需要提升TensorFlow推理吞吐量、降低推理时延的用户。
+
 ## TensorFlow KDNN线程直通
 
 ### 简介
@@ -707,6 +709,4 @@ TensorFlow Serving用于推理的线程大致分为两类：通信线程和计�
 
 | 文档版本 | 发布日期 | 修改说明 |
 | ---- | ---- | --- |
-| 03 | 2026-09-30 | 第三次正式发布。 <ul><li>新增KDNN SparseMatmul多线程优化特性介绍内容。</li><li>新增kembedding算子库EmbeddingTableLookup算子特性介绍内容。</li></ul> |
-| 02 | 2026-06-30 | 第二次正式发布。 <ul><li>TensorFlow ANNC图编译优化特性增加常量折叠优化特性介绍内容。</li><li>新增TensorFlow ANNC静态图融合特性，增加对应特性介绍，软件架构等内容。</li></ul> |
-| 01 | 2026-03-30 | 第一次正式发布。 <ul><li>新增TensorFlow KDNN线程直通特性，增加对应特性介绍，软件架构等内容。</li></ul> |
+| 01 | 2026-09-30 | 第一次正式发布。|

@@ -1,5 +1,7 @@
 # API参考
 
+本文档介绍TensorFlow FAGO静态图融合特性使用说明与使用示例，适用于需要使用TensorFlow FAGO的用户。
+
 ## TensorFlow ANNC静态图融合特性使用说明
 
 ANNC静态图融合包含CPU算子和GPU算子。**GPU算子需要CUDA环境支持，CPU算子无此要求**。

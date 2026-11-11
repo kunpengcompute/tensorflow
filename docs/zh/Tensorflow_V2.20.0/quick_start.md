@@ -1,5 +1,7 @@
 # 快速入门
 
+本文档介绍鲲鹏TensorFlow V2.20.0的快速安装与调用方法，适用于需要在鲲鹏平台部署TensorFlow的环境搭建人员。
+
 ## 安装鲲鹏TensorFlow
 
 1. 获取鲲鹏TensorFlow补丁仓。

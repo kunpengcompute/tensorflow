@@ -1,6 +1,8 @@
 # API Reference
 
-<!-- md-trans-meta sourceCommit=062d2574fdfde12276d08b23b05dc9d9d8b875e2 translatedAt=2026-08-31T03:36:25.440Z pushedAt=2026-09-15T01:55:45.638Z -->
+<!-- md-trans-meta sourceCommit=5304d8020211b4715dabef7af6cb1c8f8366924b translatedAt=2026-10-29T06:49:43.340Z pushedAt=2026-10-30T02:00:33.512Z -->
+
+This document describes the usage instructions and examples of the TensorFlow FAGO static graph fusion feature. It is intended for users who need to use the TensorFlow FAGO feature.
 
 ## Using the TensorFlow FAGO Static Graph Fusion Feature
 
@@ -18,14 +20,14 @@ os.environ['ANNC_FUSED_FLASHATTN_FWD'] = '1'
 
 | Environment Variable | Type | Value | Function |
 | -------- | ------------ | --------------- | ------------------ |
-| ANNC_FUSED_ALL | Process environment variable | `1`: Enable `0`: Disable | Enables static graph fusion for all FAGO fused operators.    |
-| ANNC_FUSED_FLASHATTN_FWD | Process environment variable | `1`: Enable `0`: Disable | Enables static graph fusion for the FlashAttentionForward operator.    |
+| ANNC_FUSED_ALL | Process environment variable | `1`: Enable `0`: Disable | Enables static graph fusion for all FAGO fused operators. |
+| ANNC_FUSED_FLASHATTN_FWD | Process environment variable | `1`: Enable `0`: Disable | Enables static graph fusion for the FlashAttentionForward operator. |
 
 > ![icon note](public_sys-resources/icon-note.gif) **NOTE:**
 > Operator fusion will not be performed for any of the above operators if and only if `ANNC_FUSED_ALL` is set to `0` and the environment variable corresponding to the specific operator is also set to `0`.
 
 ## Change History
 
-| Date   | Description         |
-| ---------- | ---------------- |
-| 2026-09-30 | This is the first official release. Added the description of using the TensorFlow FAGO static graph fusion feature. |
+| Version | Date | Description |
+| ----| ---- | ---- |
+| 01 | 2026-09-30 | This is the first official release. |
