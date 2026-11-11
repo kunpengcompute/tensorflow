@@ -1,6 +1,8 @@
 # Feature Introduction
 
-<!-- md-trans-meta sourceCommit=50c6aa44e4779ee097085a37fd0c469acbb90932 translatedAt=2026-10-12T10:56:11.517Z pushedAt=2026-10-12T12:06:07.729Z -->
+<!-- md-trans-meta sourceCommit=5304d8020211b4715dabef7af6cb1c8f8366924b translatedAt=2026-10-29T10:56:11.517Z pushedAt=2026-10-30T12:06:07.729Z -->
+
+This document describes the Kunpeng BoostKit TensorFlow inference optimization features, covering KDNN thread passthrough, SparseMatmul multi-threading optimization, the EmbeddingTableLookup operator, ANNC static graph fusion, ANNC graph compilation optimization, and TF Serving thread scheduling optimization. It is intended for users who need to improve TensorFlow inference throughput and reduce inference latency.
 
 ## TensorFlow KDNN Thread Passthrough
 
@@ -18,7 +20,7 @@ The software architecture of KDNN integrated with TensorFlow is shown in [Figure
 
 **Figure 1**  Software architecture of KDNN integrated with TensorFlow<a id="fig4919356464"></a>
 
-![software architecture of KDNN integrated with TensorFlow](figures/software-architecture-of-kdnn-integrated-with-tensorflow.png)
+![Software architecture of KDNN integrated with TensorFlow, showing how the Kernels implementation layer dispatches operators to the KDNN backend through the dispatch component and how computation tasks are submitted to the framework thread pool](figures/software-architecture-of-kdnn-integrated-with-tensorflow.png)
 
 ### Specifications
 
@@ -116,13 +118,13 @@ This section describes the optimization feature of KDNN thread passthrough to he
 
 **Figure 2**  OMP parallelism<a id="omp-parallel"></a>
 
-![OMP parallelism](figures/omp-parallelism.png)
+![Thread creation of the OMP version of KDNN, where each operator creates N OMP threads and the thread count inflates to M×N when M kernels run concurrently](figures/omp-parallelism.png)
 
 As shown in [**Figure 2**](#omp-parallel), in the OMP version of KDNN, each operator creates *N* OMP threads for computation, and *M* concurrent kernels create `M × N` OMP threads.
 
 **Figure 3** Passthrough to the threadpool<a id="fig1203165984517"></a>
 
-![Passthrough to the threadpool](figures/passthrough-to-the-threadpool.png)
+![Thread passthrough mode of KDNN reusing the framework thread pool, where computation tasks are submitted to the framework thread pool for unified scheduling and the thread count does not inflate with kernel concurrency](figures/passthrough-to-the-threadpool.png)
 
 As shown in [**Figure 3**](#fig1203165984517), when thread passthrough is enabled, the framework thread pool is reused. KDNN submits computation tasks to the framework thread pool for unified scheduling, which reduces thread creation overhead and avoids the problem of thread count explosion.
 
@@ -131,22 +133,22 @@ As shown in [**Figure 3**](#fig1203165984517), when thread passthrough is enable
 ### Overview
 
 The SparseMatmul operator belongs to the KDNN operator library and is used to compute the product of a sparse matrix and a dense matrix, supporting single-precision FP32 input. This operator serves as the core component of the NN layer in recommendation models.
-The operator is designed based on the Compressed Sparse Row (CSR) storage structure, achieving efficient utilization of computation and memory access by skipping zero blocks during the loading and computation stages. The core computation kernel has been SIMD-optimized for the Kunpeng platform, supports the NEON instruction set, and implements multi-thread optimization.
+The operator is designed based on the Compressed Sparse Row (CSR) storage structure, achieving efficient utilization of computation and memory access by skipping zero blocks during the loading and computation stages. The core computation kernel has been SIMD-optimized for the Kunpeng platform, supports the NEON instruction set, and implements multi-threading optimization.
 
 ### Optimization Design
 
-The SparseMatmul multi-thread optimization includes the following key design aspects:
+The SparseMatmul multi-threading optimization includes the following key design aspects:
 
 - **Data parallelism**: The output matrix is partitioned based on the column dimension, and each thread processes a distinct column block.
 - **Lock-free design**: An independent buffer is allocated for each thread, avoiding synchronization overhead between threads and eliminating false sharing issues.
 - **Load balancing**: The uniform slicing strategy is used to distribute workloads evenly across threads.
 - **Memory optimization**: Memory-aligned allocation interfaces are used to improve SIMD vectorization execution efficiency.
 
-In the following scenarios, the system automatically falls back to the serial algorithm to avoid the additional overhead introduced by multi-thread scheduling:
+In the following scenarios, the system automatically falls back to the serial algorithm to avoid the additional overhead introduced by multi-threaded scheduling:
 
 - The thread pool is unavailable.
 - Nested parallelism exists.
-- Only single-thread execution is used.
+- Only single-threaded execution is used.
 
 Through the parallelization transformation and execution path optimization of Sparse MatMul, the operator can more fully utilize hardware resources in multi-core CPU scenarios, thereby reducing computation time.
 
@@ -157,7 +159,7 @@ Through the parallelization transformation and execution path optimization of Sp
 - **Column sharding strategy**: Evenly divide the columns of the output matrix by the number of threads.
 - **Thread-private buffer**: Allocate an independent computation buffer for each thread to avoid data contentions.
 - **Parallel execution**: Reuse the framework thread pool, where KDNN submits computation tasks to the framework thread pool for unified scheduling.
-- **Single-thread fallback condition**: The serial algorithm is used when the thread pool pointer is null, the current execution is already within a parallel region, or the number of threads in the thread pool is less than or equal to 1.
+- **Single-threaded fallback condition**: The serial algorithm is used when the thread pool pointer is null, the current execution is already within a parallel region, or the number of threads in the thread pool is less than or equal to 1.
 
 **Interface Change**
 
@@ -195,25 +197,25 @@ After loading is complete, the resource table is internally stored in a bucketed
 
 ### Example Description
 
-Assume the following content is constructed:
+1. Assume the following content is constructed:
 
-- key `101` -> `(0, 1.0)`, `(2, 3.0)`
-- key `202` -> `(1, 2.5)`
+   - key `101` -> `(0, 1.0)`, `(2, 3.0)`
+   - key `202` -> `(1, 2.5)`
 
-Use the following input for lookup:
+2. Use the following input for lookup:
 
-```python
-keys = [101, 202, 999]  
-emb_dim = 4
-```
+   ```python
+   keys = [101, 202, 999]  
+   emb_dim = 4
+   ```
 
-The output result is:
+   The output result is:
 
-```python
-indices = [[0, 0], [0, 2], [1, 1]]
-values = [1.0, 3.0, 2.5]
-dense_shape = [3, 4]  
-```
+   ```output
+   indices = [[0, 0], [0, 2], [1, 1]]
+   values = [1.0, 3.0, 2.5]
+   dense_shape = [3, 4]  
+   ```
 
 ### Arm Optimization Design
 
@@ -261,7 +263,7 @@ The software architecture of the ANNC static graph fusion is shown in [Figure 4]
 
 **Figure 4**  Software architecture of the ANNC static graph fusion<a id="fig4919356463"></a>
 
-![Software architecture of the ANNC static graph fusion](figures/software-architecture-of-the-annc-static-graph-fusion.png)
+![Software architecture of the ANNC static graph fusion, showing where the matching subgraph is replaced with the Kunpeng custom operator by the remapper mechanism during graph optimization](figures/software-architecture-of-the-annc-static-graph-fusion.png)
 
 ### Specifications
 
@@ -271,7 +273,7 @@ This section describes the currently supported custom operators and their usage 
 
 **Open-source subgraph structure**
 
-![1KPFusedEmbeddingActionIdGather](figures/1KPFusedEmbeddingActionIdGather.png)
+![Open-source subgraph structure of the KPFusedEmbeddingActionIdGather operator, marking the original operators participating in the fusion and the connectivity of its five inputs and one output](figures/1KPFusedEmbeddingActionIdGather.png)
 
 **Input/Output Constraints**
 
@@ -291,7 +293,7 @@ This section describes the currently supported custom operators and their usage 
 
 **Open-source subgraph structure**
 
-![2KPFusedGather](figures/2KPFusedGather.png)
+![Open-source subgraph structure of the KPFusedGather operator, showing the original TensorFlow subgraph node connections and three inputs before being replaced by the custom Gather operator](figures/2KPFusedGather.png)
 
 **Input/Output Constraints**
 
@@ -311,7 +313,7 @@ This section describes the currently supported custom operators and their usage 
 
 **Open-source subgraph structure**
 
-![3KPFusedEmbeddingPadding](figures/3KPFusedEmbeddingPadding.png)
+![Open-source subgraph structure of the KPFusedEmbeddingPadding operator, showing the combination order of padding-related operators in the original graph and the connectivity of its five inputs and two outputs](figures/3KPFusedEmbeddingPadding.png)
 
 **Input/Output Constraints**
 
@@ -332,7 +334,7 @@ This section describes the currently supported custom operators and their usage 
 
 **Open-source subgraph structure**
 
-![4KPFusedEmbeddingPaddingFast](figures/4KPFusedEmbeddingPaddingFast.png)
+![Open-source subgraph structure of the KPFusedEmbeddingPaddingFast operator, showing the node combination different from the basic EmbeddingPadding subgraph and its two integer outputs](figures/4KPFusedEmbeddingPaddingFast.png)
 
 **Input/Output Constraints**
 
@@ -353,7 +355,7 @@ This section describes the currently supported custom operators and their usage 
 
 **Open-source subgraph structure**
 
-![5KPFusedSparseDynamicStitch](figures/5KPFusedSparseDynamicStitch.png)
+![Open-source subgraph structure of the KPFusedSparseDynamicStitch operator, showing the input node relationships between the index tensors and data tensors before sparse tensor stitching](figures/5KPFusedSparseDynamicStitch.png)
 
 **Input/Output Constraints**
 
@@ -370,7 +372,7 @@ This section describes the currently supported custom operators and their usage 
 
 **Open-source subgraph structure**
 
-![6KPFusedSparseReshape](figures/6KPFusedSparseReshape.png)
+![Open-source subgraph structure of the KPFusedSparseReshape operator, showing the four input connections between the shape tensor and index tensor before and after sparse tensor reshape](figures/6KPFusedSparseReshape.png)
 
 **Input/Output Constraints**
 
@@ -390,7 +392,7 @@ This section describes the currently supported custom operators and their usage 
 
 **Open-source subgraph structure**
 
-![7KPFusedSparseSegmentReduce](figures/7KPFusedSparseSegmentReduce.png)
+![Open-source subgraph structure of the KPFusedSparseSegmentReduce operator, showing the original operator combination of the sparse segment reduction, its segment index inputs, and two outputs](figures/7KPFusedSparseSegmentReduce.png)
 
 **Input/Output Constraints**
 
@@ -411,7 +413,7 @@ This section describes the currently supported custom operators and their usage 
 
 **Open-source subgraph structure**
 
-![8KPFusedSparseSegmentReduceNonzero](figures/8KPFusedSparseSegmentReduceNonzero.png)
+![Open-source subgraph structure of the KPFusedSparseSegmentReduceNonzero operator, showing the original node combination of the non-zero segment reduction, four inputs, and three outputs](figures/8KPFusedSparseSegmentReduceNonzero.png)
 
 **Input/Output Constraints**
 
@@ -432,7 +434,7 @@ This section describes the currently supported custom operators and their usage 
 
 **Open-source subgraph structure**
 
-![9KPFusedSparseSelect](figures/9KPFusedSparseSelect.png)
+![Open-source subgraph structure of the KPFusedSparseSelect operator, showing the original node combination of selecting sparse segments by condition and its four scalar inputs](figures/9KPFusedSparseSelect.png)
 
 **Input/Output Constraints**
 
@@ -467,7 +469,7 @@ After ANNC static graph fusion is enabled, subgraphs meeting the requirements ar
 
 **Figure 5** Operator fusion principle<a name="fig4919356474"></a>
 
-![Operator fusion principle](figures/operator-fusion-principle.png)
+![ANNC static graph fusion principle, where a subgraph matching the characteristics is replaced as a whole with a single custom operator during graph optimization to eliminate intermediate memory overhead](figures/operator-fusion-principle.png)
 
 ## TensorFlow ANNC Graph Compilation Optimization Feature (Legacy)
 
@@ -563,15 +565,15 @@ Some subgraphs in TensorFlow models contain redundant computations. By identifyi
 
 **Figure 7** TensorFlow graph fusion<a id="tensorflow-graph-fusion"></a>
 
-![TensorFlow graph fusion](figures/tensorflow-graph-fusion.png)
+![TensorFlow graph fusion, comparing multiple redundant operator subgraphs before fusion with a single fused operator after fusion](figures/tensorflow-graph-fusion.png)
 
 **XLA Graph Fusion**
 
-XLA provides multiple hardware-agnostic graph fusion optimization policies. However, the resulting cluster (including the fused parts) may still contain redundant computations. For example, sub-expressions are repeated or can be merged across different fusion operations. For details, see [**Figure 8** XLA graph fusion](#xla-graph-fusion). This function aims to identify redundant computations after fusion, such as the F1 operations. Redundant computations can be eliminated using pre-fusion policies, such as the fusion of F4, F5, and F6 operations, to further improve the model inference efficiency.
+XLA provides multiple hardware-agnostic graph fusion optimization policies. However, the resulting cluster (including the fused parts) may still contain redundant computations. For example, sub-expressions are repeated or can be merged across different fusion operations. As shown by the F1 operations in [**Figure 8** XLA graph fusion](#xla-graph-fusion), this function aims to identify redundant computations after fusion, and eliminates redundant computations through pre-fusion policies, such as the fusion of the F4, F5, and F6 operations in [**Figure 8** XLA graph fusion](#xla-graph-fusion), to further improve the model inference efficiency.
 
 **Figure 8** XLA graph fusion<a name="fig5154159193015"></a><a id="xla-graph-fusion"></a>
 
-![xla-graph-fusion](figures/xla-graph-fusion.png "XLA graph fusion diagram")
+![XLA graph fusion, showing the F1 operations with redundant computations in the post-fusion cluster and the pre-fusion elimination of redundancy in the F4, F5, and F6 operations](figures/xla-graph-fusion.png "XLA graph fusion diagram")
 
 **Operator Optimization**
 
@@ -583,11 +585,11 @@ This function focuses on optimizing the packing overhead of constant operands in
 
 **Figure 9** Data packing<a name="fig836316691916"></a><a id="data-packing"></a>
 
-![Data packing](figures/data-packing.png)
+![Workflow without constant folding, where the runtime packs and rearranges constant operand data to meet hardware memory access alignment and cache locality](figures/data-packing.png)
 
 **Figure 10** Constant folding workflow<a name="fig836316691917"></a><a id="constant-folding-workflow"></a>
 
-![Constant folding workflow](figures/constant-folding-workflow.png)
+![Workflow with constant folding enabled, where the packing of constant operands is moved to compile time, and the offline packing tool and repack-free backend eliminate the runtime packing overhead](figures/constant-folding-workflow.png)
 
 For details about function configuration, see <a href="./quick_start.md">*Quick Start*</a>.
 
@@ -683,7 +685,7 @@ XLA-enabled deployments create threads for XLA computation.
 
 **Figure 13** Inference request handling process<a name="fig1746025495015"></a><a id="inference-request-handling-process"></a>
 
-![Inference request handling process](./figures/Inference-request-handing-process.png "Inference request handling process")
+![TF Serving inference request handling process, where client requests are parsed by grpcpp_sync_ser threads and then executed in parallel layers by tf_Compute and Eigen threads](figures/inference-request-handling-process.png "Inference request handling process")
 
 Client inference requests are parsed by `grpcpp_sync_ser` threads before triggering session-based inference execution. Parallel operator processing occurs through `tf_Compute or host_executor` threads, with `tf_numa_-1_Eige` or `tf_XLAEigen` threads handling intra-operator parallel computing.
 
@@ -691,7 +693,7 @@ Kunpeng BoostKit improves the operator scheduling algorithm and uses batch opera
 
 **Figure 14** Inference process after optimization<a name="fig1321324116542"></a><a id="inference-process-after-optimization"></a>
 
-![inference-process-after-optimization](figures/inference-process-after-optimization.png "Inference process after optimization")
+![Inference process after operator batch scheduling optimization, where operators run sequentially in tf_Compute threads and intra-operator parallel computing is disabled](figures/inference-process-after-optimization.png "Inference process after optimization")
 
 Client inference requests are parsed by `grpcpp_sync_ser` threads before triggering session-based inference, with operators running sequentially in `tf_Compute` threads (disabling intra-operator parallelism).
 
@@ -709,6 +711,4 @@ For details about function configuration, see <a href="./quick_start.md">Quick S
 
 | Version | Date | Description |
 | ---- | ---- | ---- |
-| 03 | 2026-09-30 | This is the third official release. <ul><li>Added the introduction of the KDNN SparseMatmul multi-thread optimization feature.</li><li>Added the introduction of the kembedding operator library EmbeddingTableLookup operator feature.</li></ul> |
-| 02 | 2026-06-30 | This is the second official release. <ul><li>Added the introduction of the constant folding optimization feature to the TensorFlow ANNC graph compilation optimization feature.</li><li>Added the TensorFlow ANNC static graph fusion feature, including the corresponding feature introduction, software architecture, and other content.</li></ul> |
-| 01 | 2026-03-30 | This is the first official release. <ul><li>Added the TensorFlow KDNN thread passthrough feature, including the corresponding feature introduction, software architecture, and other content.</li></ul> |
+| 01 | 2026-09-30 | This is the first official release. <ul><li>Added the introduction to the KDNN SparseMatmul multi-threading optimization feature.</li><li>Added the introduction of the kembedding operator library EmbeddingTableLookup operator feature.</li></ul> |

@@ -1,6 +1,8 @@
 # Feature Introduction
 
-<!-- md-trans-meta sourceCommit=c700db08dbad7073836f1f07e4120868e3d93a59 translatedAt=2026-10-12T06:49:27.355Z pushedAt=2026-10-13T02:13:34.227Z -->
+<!-- md-trans-meta sourceCommit=5304d8020211b4715dabef7af6cb1c8f8366924b translatedAt=2026-10-29T06:49:27.355Z pushedAt=2026-10-30T02:13:34.227Z -->
+
+This document describes the TensorFlow FAGO static graph fusion feature, covering its basic concepts, software architecture, supported operators, and input/output constraints. It applies to performance optimization scenarios for high-concurrency inference based on TensorFlow.
 
 ## TensorFlow FAGO Static Graph Fusion
 

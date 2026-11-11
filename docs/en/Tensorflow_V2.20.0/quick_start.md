@@ -1,6 +1,8 @@
 # Quick Start
 
-<!-- md-trans-meta sourceCommit=7cc97f4b89994805c365839c45d47415fd06ffdb translatedAt=2026-10-12T06:48:30.720Z pushedAt=2026-10-13T02:43:28.000Z -->
+<!-- md-trans-meta sourceCommit=5304d8020211b4715dabef7af6cb1c8f8366924b translatedAt=2026-10-29T06:48:30.720Z pushedAt=2026-10-30T02:43:28.000Z -->
+
+This document describes how to quickly install and call Kunpeng TensorFlow V2.20.0. It is intended for environment setup personnel who need to deploy TensorFlow on the Kunpeng platform.
 
 ## Installing the Kunpeng TensorFlow
 
@@ -30,7 +32,7 @@
 
 4. Select the required build target based on your actual use scenario. You do not need to build all targets at the same time. The following provides the reference commands for the pip build target.
 
-   4.1 Configure Bazel.
+   1. Configure Bazel.
 
       ```bash
       cd ../tensorflow-full-default
@@ -97,7 +99,7 @@
       Configuration finished
       ```
 
-   4.2 Open `.tf_configure.bazelrc` and add the following build configuration before the line `build --action_env LD_LIBRARY_PATH=...`.
+   2. Open `.tf_configure.bazelrc` and add the following build configuration before the line `build --action_env LD_LIBRARY_PATH=...`.
 
       ```bash
       build:cuda --repo_env TF_NEED_CUDA=1
@@ -106,47 +108,47 @@
       build:cuda --config=cuda_version
       ```
 
-   4.3 Build the TensorFlow pip package.
+   3. Build the TensorFlow pip package.
 
-     ```bash
-     bazel build \
-      --experimental_repo_remote_exec \
-      --verbose_failures \
-      --config=cuda --config=cuda_nvcc --config=cuda_wheel \
-      --cxxopt=-std=c++17 --host_cxxopt=-std=c++17 \
-      --copt=-march=armv8.5-a --linkopt=-fuse-ld=gold \
-      --config=opt \
-      --action_env=CLANG_CUDA=0 \
-      --repo_env=CLANG_CUDA=0 \
-      --repo_env=PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ \
-      --repo_env=PIP_TRUSTED_HOST=mirrors.aliyun.com \
-      --@local_config_cuda//cuda:override_include_cuda_libs=true \
-      --repo_env=CC=/usr/bin/gcc \
-      --repo_env=CXX=/usr/bin/g++ \
-      --repo_env=CUDA_PATH=/usr/local/cuda-12.8 \
-      //tensorflow/tools/pip_package:wheel
-     ```
+      ```bash
+      bazel build \
+       --experimental_repo_remote_exec \
+       --verbose_failures \
+       --config=cuda --config=cuda_nvcc --config=cuda_wheel \
+       --cxxopt=-std=c++17 --host_cxxopt=-std=c++17 \
+       --copt=-march=armv8.5-a --linkopt=-fuse-ld=gold \
+       --config=opt \
+       --action_env=CLANG_CUDA=0 \
+       --repo_env=CLANG_CUDA=0 \
+       --repo_env=PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ \
+       --repo_env=PIP_TRUSTED_HOST=mirrors.aliyun.com \
+       --@local_config_cuda//cuda:override_include_cuda_libs=true \
+       --repo_env=CC=/usr/bin/gcc \
+       --repo_env=CXX=/usr/bin/g++ \
+       --repo_env=CUDA_PATH=/usr/local/cuda-12.8 \
+       //tensorflow/tools/pip_package:wheel
+      ```
 
-   4.4 Install the TensorFlow pip package.
+   4. Install the TensorFlow pip package.
 
-     ```bash
-     pip install bazel-bin/tensorflow/tools/pip_package/wheel_house/tensorflow-2.20.0.dev0+selfbuilt-cp311-cp311-linux_aarch64.whl
-     ```
+      ```bash
+      pip install bazel-bin/tensorflow/tools/pip_package/wheel_house/tensorflow-2.20.0.dev0+selfbuilt-cp311-cp311-linux_aarch64.whl
+      ```
 
 5. Call TensorFlow interfaces.
 
-   5.1 C++ interface call. The expected output is the system dynamic libraries that the TensorFlow C++ shared library depends on.
+   1. C++ interface call. The expected output is the system dynamic libraries that the TensorFlow C++ shared library depends on.
 
-     ```bash
-     ldd /usr/local/lib64/python3.11/site-packages/tensorflow/libtensorflow_cc.so.2
-     ```
+      ```bash
+      ldd /usr/local/lib64/python3.11/site-packages/tensorflow/libtensorflow_cc.so.2
+      ```
 
-   5.2 Python interface call. The expected output is the TensorFlow lib path.
+   2. Python interface call. The expected output is the TensorFlow lib path.
 
-     ```bash
-     cd ..
-     python3 -c "import tensorflow; print(tensorflow.sysconfig.get_lib())"
-     ```
+      ```bash
+       cd ..
+       python3 -c "import tensorflow; print(tensorflow.sysconfig.get_lib())"
+      ```
 
 If you encounter any problem during the compilation, see [TensorFlow Porting Guide](https://www.hikunpeng.com/document/detail/en/SRA/ecosystemEnable/TensorFlow/kunpengtensorflow_02_0001.html).
 

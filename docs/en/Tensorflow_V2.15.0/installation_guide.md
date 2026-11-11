@@ -1,8 +1,8 @@
 # Installation Guide
 
-<!-- md-trans-meta sourceCommit=e98cf0d4e88f1b0406fb0a2fff9214e7c26cad25 translatedAt=2026-10-13T11:08:15.888Z pushedAt=2026-10-13T12:33:28.005Z -->
+<!-- md-trans-meta sourceCommit=5304d8020211b4715dabef7af6cb1c8f8366924b translatedAt=2026-10-29T11:08:15.888Z pushedAt=2026-10-30T12:33:28.005Z -->
 
-This document describes the installation process in the following order: preparing the TensorFlow source code, building the inference service, and verifying the features.
+This document describes the installation process in the following order: preparing the build environment, preparing the TensorFlow source code, preparing feature dependencies, building TensorFlow artifacts, and verifying the features.
 
 ## Preparing the Build Environment
 
@@ -91,14 +91,14 @@ Here, we determine whether the software package is complete by comparing the che
 
 ##### Prerequisites
 
-Prepare the following files before verifying package integrity:
+Prepare the following files before verifying package integrity.
 
 - Package: `BoostKit-boostcore-kdnn_xxx.zip`
 - Checksum file: a `.sha256` file with the same name as the package
 
 ##### Procedure
 
-To verify package integrity, perform the following steps:
+To verify package integrity, perform the following steps.
 
 1. Calculate the SHA256 checksum of the package. On Linux, run the following command:
 
@@ -113,8 +113,8 @@ To verify package integrity, perform the following steps:
    ```
 
    After the command is executed, the checksum is displayed.
-2. Compare the checksum calculated in step 1 with the SHA256 value in the checksum file.<br>
-   If they match, the package is intact. Otherwise, download the package again.
+
+2. Compare the checksum calculated in step 1 with the SHA256 value in the checksum file. If they match, the package is intact. Otherwise, download the package again.
 
 #### Installing the KDNN Software Package
 
@@ -131,11 +131,11 @@ To verify package integrity, perform the following steps:
 2. Place the KDNN header files and the thread pool static library into the generated TensorFlow source code.
 
    ```bash
-    export TF_PATH=/path/to/tensorflow
-    mkdir -p $TF_PATH/third_party/KDNN/src
-    cp -r /usr/local/kdnn/include $TF_PATH/third_party/KDNN/
-    cp /usr/local/kdnn/lib/threadpool/libkdnn.a \
-     $TF_PATH/third_party/KDNN/src/
+   export TF_PATH=/path/to/tensorflow
+   mkdir -p $TF_PATH/third_party/KDNN/src
+   cp -r /usr/local/kdnn/include $TF_PATH/third_party/KDNN/
+   cp /usr/local/kdnn/lib/threadpool/libkdnn.a \
+   $TF_PATH/third_party/KDNN/src/
    ```
 
 3. Apply the KDNN header file adaptation patch.
@@ -453,6 +453,4 @@ When compiling TensorFlow and TensorFlow Serving, refer to the following trouble
 
 | Version | Date | Description |
 | ---- | ---- | ---- |
-| 03 | 2026-09-30 | This is the third official release. Restructured the installation process by consolidating duplicate environment and compilation steps across features. |
-| 02 | 2026-06-30 | This is the second official release.<ul><li>Added constant folding optimization to the TensorFlow ANNC graph compilation optimization feature.</li><li>Added adaptation environment and installation guide for the TensorFlow ANNC static graph fusion feature.</li></ul> |
-| 01 | 2026-03-30 | This is the first official release. <ul><li>Added installation steps for integrating TensorFlow with KDNN.</li><li>Added adaptation environment and installation guide for the TensorFlow KDNN thread passthrough feature.</li></ul> |
+| 01 | 2026-09-30 | This is the first official release. |
