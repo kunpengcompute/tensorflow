@@ -23,7 +23,7 @@ KDNN对接TensorFlow软件架构图如[图1](#fig4919356464)所示。
 
 **图 1**  KDNN对接TensorFlow软件架构图<a name="fig4919356464"></a>
 
-![KDNN对接TensorFlow软件架构图](figures/KDNN对接TensorFlow软件架构图.png "KDNN对接TensorFlow软件架构图")
+![KDNN对接TensorFlow软件架构图](./figures/KDNN对接TensorFlow软件架构图.png "KDNN对接TensorFlow软件架构图")
 
 ### 规格
 
