@@ -1,8 +1,8 @@
 # Installation Guide
 
-<!-- md-trans-meta sourceCommit=7cc97f4b89994805c365839c45d47415fd06ffdb translatedAt=2026-10-12T06:48:38.195Z pushedAt=2026-10-13T03:37:46.244Z -->
+<!-- md-trans-meta sourceCommit=5304d8020211b4715dabef7af6cb1c8f8366924b translatedAt=2026-10-29T06:48:38.195Z pushedAt=2026-10-30T03:37:46.244Z -->
 
-This document describes the installation process in the following order: preparing the TensorFlow source code, building the inference service, and verifying the features.
+This document describes the installation process of TensorFlow V2.20.0 on the Kunpeng platform, covering preparing the build environment, preparing the TensorFlow source code, building TensorFlow artifacts, verifying the features, and troubleshooting cases. It is intended for users who need to install and use TensorFlow on Kunpeng servers.
 
 ## Preparing the Build Environment
 
@@ -227,13 +227,13 @@ python main.py --op {op_name} --performance_test False > result.txt
 
 FAGO static graph fusion takes effect only on subgraphs that meet specific structural and input constraints.
 
-## Troubleshooting Cases
+## FAQs and Troubleshooting Cases
 
 When compiling TensorFlow, refer to the following troubleshooting case.
 
 ### Missing libnvrtc-builtins.so.12.5
 
-#### Symptom
+**Symptom**
 
 After TensorFlow is compiled and installed, running `python import tensorflow` reports an error, prompting "libnvrtc-builtins.so.12.5: cannot open shared object file: No such file or directory". The detailed information is as follows.
 
@@ -250,11 +250,11 @@ from tensorflow.python.platform import _pywrap_cpu_feature_guard
 ImportError: libnvrtc-builtins.so.12.5: cannot open shared object file: No such file or directory
 ```
 
-#### Root Cause Analysis
+**Key Process and Root Cause Analysis**
 
 The TensorFlow build script hardcodes `libnvrtc-builtins.so.12.5` as the dependency version, but the actually installed version is CUDA 12.8, whose corresponding library file is `libnvrtc-builtins.so.12.8`. At runtime, the dynamic linker cannot find the library of the expected version, causing the import to fail.
 
-#### Solution and Effect
+**Conclusion, Solution, and Effect**
 
 NVIDIA guarantees binary backward compatibility of the nvrtc-builtins library within the same major CUDA version (12.x). Creating a version symlink directly allows normal operation without affecting functionality or performance.
 

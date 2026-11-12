@@ -1,6 +1,8 @@
 # API Reference
 
-<!-- md-trans-meta sourceCommit=c700db08dbad7073836f1f07e4120868e3d93a59 translatedAt=2026-10-12T06:49:43.340Z pushedAt=2026-10-13T02:00:33.512Z -->
+<!-- md-trans-meta sourceCommit=5304d8020211b4715dabef7af6cb1c8f8366924b translatedAt=2026-10-29T06:49:43.340Z pushedAt=2026-10-30T02:00:33.512Z -->
+
+This document describes the usage instructions and examples of the TensorFlow FAGO static graph fusion feature. It is intended for users who need to use the TensorFlow FAGO feature.
 
 ## Using the TensorFlow FAGO Static Graph Fusion Feature
 

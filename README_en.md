@@ -1,8 +1,8 @@
 # Introduction to Kunpeng TensorFlow
 
-<!-- md-trans-meta sourceCommit=50c6aa44e4779ee097085a37fd0c469acbb90932 translatedAt=2026-10-12T06:48:54.835Z pushedAt=2026-10-12T08:29:14.144Z -->
+<!-- md-trans-meta sourceCommit=5304d8020211b4715dabef7af6cb1c8f8366924b translatedAt=2026-10-29T06:48:54.835Z pushedAt=2026-10-30T08:29:14.144Z -->
 
-[简体中文](./README.md) | English
+[简体中文](./README.md)|English
 
 ## Latest News
 
@@ -115,7 +115,7 @@ For detailed information about the features of Kunpeng TensorFlow V2.20.0, see [
 
 ### TensorFlow V2.20.0 Patch Release
 
-All patches use the pinned official TensorFlow `v2.20.0` commit `bf5899deaf70fa45173c5c7b8dc9ace8824dc980`.
+All patches use the pinned official TensorFlow `v2.20.0`. Commit ID: `bf5899deaf70fa45173c5c7b8dc9ace8824dc980`
 
 | Profile | Included Patches | When to Use |
 | --- | --- | --- |

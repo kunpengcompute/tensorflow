@@ -1,6 +1,8 @@
 # API Reference
 
-<!-- md-trans-meta sourceCommit=50c6aa44e4779ee097085a37fd0c469acbb90932 translatedAt=2026-10-12T10:56:10.708Z pushedAt=2026-10-12T11:14:52.870Z -->
+<!-- md-trans-meta sourceCommit=5304d8020211b4715dabef7af6cb1c8f8366924b translatedAt=2026-10-29T10:56:10.708Z pushedAt=2026-10-30T11:14:52.870Z -->
+
+This document describes the interface features including the TensorFlow KDNN thread passthrough, SparseMatmul multi-threading optimization, EmbeddingTableLookup operator of the KEmbedding operator library, ANNC static graph fusion and graph compilation optimization, as well as the variables, parameters, and usage examples of the TensorFlow Serving thread scheduling interfaces. It is intended for users who perform model inference and graph optimization development with TensorFlow V2.15.0 on the Kunpeng platform.
 
 ## Using the TensorFlow KDNN Thread Passthrough Feature
 
@@ -100,16 +102,16 @@ TensorFlow OpKernel class.
 
 | Parameter | Type | Description |
 | ---------------- | ------------- | ------ |
-| keys | int64 tensor | List of embedding keys to look up, whose shape is `[key_cnt]`. |
-| table_handle | resource | Resource table handle, created through `EmbeddingIndexToValueTable` and loaded with embedding data. |
+| keys | int64 tensor | List of embedding keys to look up, whose shape is [key_cnt]. |
+| table_handle | resource | Resource table handle, created through EmbeddingIndexToValueTable and loaded with embedding data. |
 
 **Output Parameter**
 
 | Parameter | Type | Description |
 | --------------- | ------------- | ------------- |
-| indices | int64 tensor | Indices of the SparseTensor, whose shape is `[N, 2]`, where N is the total number of non-zero elements hit, and the second dimension is `[row, col]`. |
-| values | float tensor | Values of the SparseTensor, whose shape is `[N]`, corresponding one-to-one with indices. |
-| dense_shape | int64 tensor | Dense shape, whose shape is `[2]`, with the value `[key_cnt, emb_dim]`. |
+| indices | int64 tensor | Indices of the SparseTensor, whose shape is [N, 2], where N is the total number of non-zero elements hit, and the second dimension is [row, col]. |
+| values | float tensor | Values of the SparseTensor, whose shape is [N], corresponding one-to-one with indices. |
+| dense_shape | int64 tensor | Dense shape, whose shape is [2], with the value [key_cnt, emb_dim]. |
 
 **Core Attribute**
 
@@ -466,6 +468,4 @@ Consider a server with 160 physical cores, 320 cores in total with hyper-threadi
 
 | Version | Date | Description |
 | ---------- | -------- | -------- |
-| 03 | 2026-09-30 | This is the third official release.<ul><li>Added the KEmbedding custom operator library, providing the EmbeddingTableLookup operator description.</li><li>Added the KDNN SparseMatmul multi-threading optimization interface description.</li><li>Optimized document structure.</li></ul> |
-| 02 | 2026-06-30 | This is the second official release. <ul><li>Added the description for constant folding optimization to the TensorFlow ANNC for graph compilation documentation. </li><li>Added the description for the TensorFlow ANNC static graph fusion feature. </li></ul> |
-| 01 | 2026-03-30 | This is the first official release. Added the TensorFlow KDNN thread passthrough feature usage instructions. |
+| 01 | 2026-09-30 | This is the first official release.<ul><li>Added the KEmbedding custom operator library, providing the EmbeddingTableLookup operator description.</li><li>Added the KDNN SparseMatmul multi-threading optimization interface description.</li><li>Optimized document structure.</li></ul> |

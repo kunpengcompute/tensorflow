@@ -95,7 +95,7 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是基于鲲鹏平�
 
 #### 使用ANNC静态图融合
 
-鲲鹏TensorFlow ANNC（Ascend Neural Network Compiler，昇腾神经网络编译器）静态图融合特性提供了环境变量开关，即算子可单独开启融合以及算子可全部开启融合。本章节仅提供使用样例，具体使用说明参见《[API参考](./api_reference.md)》。
+鲲鹏TensorFlow ANNC（Accelerated Neural Network Compiler，加速神经网络编译器）静态图融合特性提供了环境变量开关，即算子可单独开启融合以及算子可全部开启融合。本章节仅提供使用样例，具体使用说明参见《[API参考](./api_reference.md)》。
 
 1. 启动服务端。
 
@@ -170,7 +170,7 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是基于鲲鹏平�
 |---|---|---|
 |KDNN|Kunpeng Deep Neural Network Library|鲲鹏DNN库|
 |NUMA|Non-Uniform Memory Access|非统一内存访问|
-|ANNC|Ascend Neural Network Compiler|昇腾神经网络编译器|
+|ANNC|Ascend Neural Network Compiler|加速神经网络编译器|
 |XLA|eXternal Linear AIgebra Compiler|外部线性代数编译器|
 
 ## 修订记录
