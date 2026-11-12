@@ -1,6 +1,6 @@
 # 安装指南
 
-本文按照“准备TensorFlow源码、构建推理服务、验证特性”的顺序介绍安装流程。
+本文档介绍鲲鹏平台上TensorFlow V2.20.0版本的安装流程，涵盖准备构建环境、准备TensorFlow源码、构建TensorFlow产物与验证特性，以及故障案例，适用于需要在鲲鹏服务器上安装并使用TensorFlow的用户。
 
 ## 准备构建环境
 
@@ -212,7 +212,7 @@ TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请�
 ANNC静态图融合代码已经包含在`kdnn-annc`和`full-default`特性组合中，不需要重复下载或应用TensorFlow补丁。构建前仅需完成KDNN依赖准备。
 
 > ![表示说明的图片](public_sys-resources/icon-note.gif) **说明：**
-> 
+>
 > ANNC特性包含GPU算子。如需构建含GPU算子的版本，请按“[构建GPU版本](#构建gpu版本)”章节准备CUDA/CuDNN环境；仅使用CPU融合算子时无需GPU环境。
 
 构建前需完成KDNN依赖准备。

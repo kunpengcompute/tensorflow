@@ -1,6 +1,8 @@
 # Quick Start
 
-<!-- md-trans-meta sourceCommit=062d2574fdfde12276d08b23b05dc9d9d8b875e2 translatedAt=2026-08-31T03:44:53.550Z pushedAt=2026-09-14T09:17:32.627Z -->
+<!-- md-trans-meta sourceCommit=5304d8020211b4715dabef7af6cb1c8f8366924b translatedAt=2026-10-29T06:52:42.138Z pushedAt=2026-10-30T12:30:11.027Z -->
+
+This document describes how to install Kunpeng TensorFlow and run the inference service. It is intended for users who need to install and run Kunpeng TensorFlow.
 
 ## Installing the Kunpeng TensorFlow
 
@@ -66,7 +68,7 @@ Before use, you need to compile TensorFlow Serving based on the complete TensorF
 
 #### Using KDNN Operator Optimization
 
-Kunpeng Deep Neural Network Library (KDNN) is a high-performance AI operator library optimized for the Kunpeng platform. Operators such as MatMul, FusedMatMul, and SparseMatMul have been adapted to TensorFlow. Integrating KDNN can reduce the latency of NN operators and enhance model inference performance.
+KDNN (Kunpeng Deep Neural Network Library) is a high-performance AI operator library optimized for the Kunpeng platform. Operators such as MatMul, FusedMatMul, and SparseMatMul have been adapted to TensorFlow. Integrating KDNN can reduce the latency of NN operators and enhance model inference performance.
 
 1. Start the server.
 
@@ -95,7 +97,7 @@ Kunpeng Deep Neural Network Library (KDNN) is a high-performance AI operator lib
 
 #### Using ANNC Static Graph Fusion
 
-The Kunpeng TensorFlow ANNC static graph fusion feature provides environment variables to enable operator fusion either individually or globally. This section provides usage examples only. For details, see [API Reference](./api_reference.md).
+The Kunpeng TensorFlow ANNC (Ascend Neural Network Compiler) static graph fusion feature provides environment variables to enable operator fusion either individually or globally. This section provides usage examples only. For details, see [API Reference](./api_reference.md).
 
 1. Start the server.
 
@@ -104,7 +106,7 @@ The Kunpeng TensorFlow ANNC static graph fusion feature provides environment var
     ```
 
     >![icon note](public_sys-resources/icon-note.gif) **NOTE:**
-    >`numactl -N 0` binds the program's memory allocation to NUMA node 0.
+    >`numactl -N 0` binds the program's memory allocation to NUMA (Non-Uniform Memory Access) node 0.
 
 2. Start the performance test on the client.
 
@@ -123,7 +125,7 @@ This section provides usage examples only. The ANNC static graph fusion feature 
 >![icon note](public_sys-resources/icon-note.gif) **NOTE:**
 >This feature is provided only by a standalone frozen Legacy patch and is not part of the currently maintained default feature set.
 
-The Kunpeng TensorFlow ANNC graph compilation optimization feature provides TensorFlow graph fusion, XLA graph fusion, operator optimization, and constant folding optimization. This section provides usage examples only. For details, see [API Reference](./api_reference.md).
+The Kunpeng TensorFlow ANNC graph compilation optimization feature provides TensorFlow graph fusion, XLA (eXternal Linear Algebra Compiler) graph fusion, operator optimization, and constant folding optimization. This section provides usage examples only. For details, see [API Reference](./api_reference.md).
 
 1. Perform offline model graph optimization.
 
@@ -142,7 +144,7 @@ The Kunpeng TensorFlow ANNC graph compilation optimization feature provides Tens
     export ANNC_FLAGS="--gemm-opt --graph-opt"
     ```
 
-3. Start the TF Serving service.
+3. Start the TensorFlow Serving service.
 
     ```bash
     /path/to/tensorflow-serving/bazel-bin/tensorflow_serving/model_servers/tensorflow_model_server --port=8889 --model_name=deepfm --model_base_path=/optimized_model/deepfm --tensorflow_intra_op_parallelism=1 --tensorflow_inter_op_parallelism=-1 --xla_cpu_compilation_enabled=true
@@ -164,10 +166,17 @@ The Kunpeng TensorFlow Serving thread scheduling optimization feature provides t
 >![icon note](public_sys-resources/icon-note.gif) **NOTE:**
 >This feature has been moved to a standalone frozen Legacy patch. It is not part of the currently maintained default profile, and compatibility with KDNN, ANNC, or KEmbedding is not guaranteed.
 
+## Acronyms and Abbreviations
+
+|Acronym/Abbreviation|Full Spelling|
+|---|---|
+|KDNN|Kunpeng Deep Neural Network Library|
+|NUMA|Non-Uniform Memory Access|
+|ANNC|Ascend Neural Network Compiler|
+|XLA|eXternal Linear Algebra Compiler|
+
 ## Change History
 
-| Date | Description |
-| ---- | ---- |
-| 2026-09-30 | This is the third official release.<ul><li>Updated the instructions for creating complete TensorFlow source code by feature combination and selecting build targets as needed.</li><li>Restructured the TensorFlow Serving inference service usage instructions, and clarified the scope of currently maintained features and Legacy functions.</li></ul> |
-| 2026-06-30 | This is the second official release.<ul><li>Added constant folding optimization to the TensorFlow ANNC graph compilation optimization feature.</li><li>Added the TensorFlow ANNC static graph fusion feature with corresponding usage examples.</li></ul> |
-| 2026-03-30 | This is the first official release. <ul><li>Added usage examples for TensorFlow–KDNN integration.</li><li>Added the TensorFlow KDNN thread passthrough feature with corresponding usage examples.</li></ul> |
+| Version | Date | Description |
+| ---- | ---- | ---- |
+| 01 | 2026-09-30 | This is the first official release. |

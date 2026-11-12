@@ -1,5 +1,7 @@
 # 特性介绍
 
+本文档介绍TensorFlow FAGO静态图融合特性，说明特性的基本概念、软件架构、支持算子及输入输出约束，适用于基于TensorFlow进行高并发推理的性能优化场景。
+
 ## TensorFlow KDNN算子优化
 
 ### 简介
@@ -21,7 +23,7 @@ KDNN对接TensorFlow软件架构图如[图1](#fig4919356464)所示。
 
 **图 1**  KDNN对接TensorFlow软件架构图<a name="fig4919356464"></a>
 
-![KDNN对接TensorFlow软件架构图](figures/KDNN对接TensorFlow软件架构图.png "KDNN对接TensorFlow软件架构图")
+![KDNN对接TensorFlow软件架构图](./figures/KDNN对接TensorFlow软件架构图.png "KDNN对接TensorFlow软件架构图")
 
 ### 规格
 

@@ -1,5 +1,7 @@
 # 特性介绍
 
+本文档介绍鲲鹏BoostKit TensorFlow推理优化特性，涵盖KDNN线程直通、SparseMatmul多线程优化、EmbeddingTableLookup算子、ANNC静态图融合、ANNC图编译优化及TF Serving线程调度优化，适用于需要提升TensorFlow推理吞吐量、降低推理时延的用户。
+
 ## TensorFlow KDNN线程直通
 
 ### 简介
@@ -476,7 +478,7 @@ TensorFlow ANNC静态图融合主要在高并发推理场景中使用，表现�
 
 本章节介绍了TensorFlow ANNC（Accelerated Neural Network Compiler）图编译优化特性的基本概念和实现原理。
 
-为提升TensorFlow Serving（以下简称TF Serving）推理性能，鲲鹏BoostKit提出了TensorFlow ANNC图编译优化方案。ANNC是专注于加速神经网络计算的编译器，聚焦于通过计算图优化，高性能融合算子生成和对接技术，高效代码生成和优化能力，加速推荐的推理性能。ANNC作为基于开源OpenXLA（Open Accelerated Linear Algebra）的扩展加速套件，发布在openEuler组织的ANNC开源仓，具有鲲鹏亲和的优化特性，通过编译选项和代码补丁的方式接入TensorFlow推理框架和XLA，基于TensorFlow Serving/TensorFlow 2.15版本新增TensorFlow图融合、XLA（Accelerated Linear Algebra）图融合、算子优化和常量折叠优化特性。
+为提升TensorFlow Serving（以下简称TF Serving）推理性能，鲲鹏BoostKit提出了TensorFlow ANNC图编译优化方案。ANNC是专注于加速神经网络计算的编译器，聚焦于通过计算图优化，高性能融合算子生成和对接技术，高效代码生成和优化能力，加速推荐的推理性能。ANNC作为基于开源OpenXLA（Open eXternal Linear AIgebra Compiler）的扩展加速套件，发布在openEuler组织的ANNC开源仓，具有鲲鹏亲和的优化特性，通过编译选项和代码补丁的方式接入TensorFlow推理框架和XLA，基于TensorFlow Serving/TensorFlow 2.15版本新增TensorFlow图融合、XLA（eXternal Linear AIgebra Compiler）图融合、算子优化和常量折叠优化特性。
 
 - TensorFlow图融合：提供TensorFlow模型层面的图融合与图重写功能。
 - XLA图融合：提供ANNC XLA图融合特性。
@@ -609,7 +611,7 @@ TensorFlow Serving线程调度优化特性以Patch的方式实现，并合入了
   - 交叉绑核，适用于开启超线程的场景，将TensorFlow线程绑定到物理核，TF Serving通信线程绑定到虚拟核。
 
 > ![icon note](public_sys-resources/icon-note.gif) **说明：**
-> XLA（Accelerated Linear Algebra）是TensorFlow中的优化编译器，用于加速线性代数操作的执行。XLA通过将TensorFlow的计算图转换成高效的、低级别的硬件指令，从而提升计算性能。
+> XLA（eXternal Linear AIgebra Compiler）是TensorFlow中的优化编译器，用于加速线性代数操作的执行。XLA通过将TensorFlow的计算图转换成高效的、低级别的硬件指令，从而提升计算性能。
 
 ### 软件架构
 
@@ -707,6 +709,4 @@ TensorFlow Serving用于推理的线程大致分为两类：通信线程和计�
 
 | 文档版本 | 发布日期 | 修改说明 |
 | ---- | ---- | --- |
-| 03 | 2026-09-30 | 第三次正式发布。 <ul><li>新增KDNN SparseMatmul多线程优化特性介绍内容。</li><li>新增kembedding算子库EmbeddingTableLookup算子特性介绍内容。</li></ul> |
-| 02 | 2026-06-30 | 第二次正式发布。 <ul><li>TensorFlow ANNC图编译优化特性增加常量折叠优化特性介绍内容。</li><li>新增TensorFlow ANNC静态图融合特性，增加对应特性介绍，软件架构等内容。</li></ul> |
-| 01 | 2026-03-30 | 第一次正式发布。 <ul><li>新增TensorFlow KDNN线程直通特性，增加对应特性介绍，软件架构等内容。</li></ul> |
+| 01 | 2026-09-30 | 第一次正式发布。|

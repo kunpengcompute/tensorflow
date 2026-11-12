@@ -1,5 +1,7 @@
 # 快速入门
 
+本文档介绍鲲鹏TensorFlow的安装与推理服务运行方法，适用于需要安装和运行鲲鹏TensorFlow的用户。
+
 ## 安装鲲鹏TensorFlow
 
 1. 获取鲲鹏TensorFlow补丁仓。
@@ -64,7 +66,7 @@
 
 #### 使用KDNN算子优化
 
-KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的基于鲲鹏平台进行优化的高性能AI算子库。其中MatMul、FusedMatMul、SparseMatMul算子已经适配TensorFlow。集成KDNN可以降低NN类算子的时延，增强模型推理性能。
+KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是基于鲲鹏平台进行优化的高性能AI算子库。其中MatMul、FusedMatMul、SparseMatMul算子已经适配TensorFlow。集成KDNN可以降低NN类算子的时延，增强模型推理性能。
 
 1. 启动服务端。
 
@@ -93,7 +95,7 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 
 #### 使用ANNC静态图融合
 
-鲲鹏TensorFlow ANNC静态图融合特性提供了环境变量开关，即算子可单独开启融合以及算子可全部开启融合。本章节仅提供使用样例，具体使用说明参见《[API参考](./api_reference.md)》。
+鲲鹏TensorFlow ANNC（Accelerated Neural Network Compiler，加速神经网络编译器）静态图融合特性提供了环境变量开关，即算子可单独开启融合以及算子可全部开启融合。本章节仅提供使用样例，具体使用说明参见《[API参考](./api_reference.md)》。
 
 1. 启动服务端。
 
@@ -162,10 +164,17 @@ KDNN（Kunpeng Deep Neural Network Library，鲲鹏DNN库）是华为提供的�
 >![icon note](public_sys-resources/icon-note.gif) **说明：**
 >该特性已归入独立冻结的Legacy补丁，不属于当前维护的默认Profile，也不保证与KDNN、ANNC或KEmbedding组合兼容。
 
+## 缩略语
+
+|缩略语|英文全称|中文全称|
+|---|---|---|
+|KDNN|Kunpeng Deep Neural Network Library|鲲鹏DNN库|
+|NUMA|Non-Uniform Memory Access|非统一内存访问|
+|ANNC|Accelerated Neural Network Compiler|加速神经网络编译器|
+|XLA|eXternal Linear AIgebra Compiler|外部线性代数编译器|
+
 ## 修订记录
 
 | 文档版本 | 发布日期 | 修改说明 |
 | ---- | ---- | --- |
-| 03 | 2026-09-30 | 第三次正式发布。<ul><li>更新按特性组合创建完整TensorFlow源码及按需选择构建目标的操作指导。</li><li>重构TensorFlow Serving推理服务使用说明，并明确当前维护特性与Legacy功能的使用范围。</li></ul> |
-| 02 | 2026-06-30 | 第二次正式发布。<ul><li>TensorFlow ANNC图编译优化特性增加常量折叠优化特性内容。</li><li>新增TensorFlow ANNC静态图融合特性，增加对应使用样例。</li></ul> |
-| 01 | 2026-03-30 | 第一次正式发布。 <ul><li>新增TensorFlow集成KDNN使用示例。</li><li>新增TensorFlow KDNN线程直通特性，增加对应使用示例。</li></ul> |
+| 01 | 2026-09-30 | 第一次正式发布。 |
