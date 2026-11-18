@@ -1,6 +1,6 @@
 # Feature Introduction
 
-<!-- md-trans-meta sourceCommit=5304d8020211b4715dabef7af6cb1c8f8366924b translatedAt=2026-10-29T10:56:11.517Z pushedAt=2026-10-30T12:06:07.729Z -->
+<!-- md-trans-meta sourceCommit=5304d8020211b4715dabef7af6cb1c8f8366924b translatedAt=2026-11-12T10:56:11.517Z pushedAt=2026-11-12T12:06:07.729Z -->
 
 This document describes the Kunpeng BoostKit TensorFlow inference optimization features, covering KDNN thread passthrough, SparseMatmul multi-threading optimization, the EmbeddingTableLookup operator, ANNC static graph fusion, ANNC graph compilation optimization, and TF Serving thread scheduling optimization. It is intended for users who need to improve TensorFlow inference throughput and reduce inference latency.
 
@@ -685,7 +685,7 @@ XLA-enabled deployments create threads for XLA computation.
 
 **Figure 13** Inference request handling process<a name="fig1746025495015"></a><a id="inference-request-handling-process"></a>
 
-![TF Serving inference request handling process, where client requests are parsed by grpcpp_sync_ser threads and then executed in parallel layers by tf_Compute and Eigen threads](./figures/Inference-request-handing-process.png "Inference request handing process")
+![TF Serving inference request handling process, where client requests are parsed by grpcpp_sync_ser threads and then executed in parallel layers by tf_Compute and Eigen threads](./figures/Inference-request-handing-process.png "Inference request handling process")
 
 Client inference requests are parsed by `grpcpp_sync_ser` threads before triggering session-based inference execution. Parallel operator processing occurs through `tf_Compute or host_executor` threads, with `tf_numa_-1_Eige` or `tf_XLAEigen` threads handling intra-operator parallel computing.
 
