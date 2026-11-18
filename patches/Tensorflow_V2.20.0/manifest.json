@@ -11,8 +11,10 @@
       "description": "Shared build integration, CI tooling, and the gtest/lcov incremental-coverage test framework required by the feature patches.",
       "patterns": [
         ".gitignore",
+        ".bazelrc",
         "Dockerfile.ci",
         "ci_build.sh",
+        "gflags_switch.bzl",
         "tools/coverage_test/**",
         "tensorflow/dtensor/mlir/shape_utils.cc",
         "tensorflow/dtensor/mlir/spmd_expansion.cc",
@@ -160,6 +162,8 @@
     "dummy_tf_func.h",
     "dummy_tf_utils.cc",
     "dummy_tf_utils.h",
+    "tensorflow/core/gflags.cc",
+    "tensorflow/core/gflags_test.cc",
     "predictor_server.cc",
     "benchmark_utest/**",
     "third_party/brpc/**",
@@ -167,7 +171,9 @@
     "tools/README.zh.md",
     "tools/collect_serving_timeline.py",
     "tools/run_serving_benchmark.sh",
-    "tools/runmetadata_to_timeline.py"
+    "tools/runmetadata_to_timeline.py",
+    "tensorflow/python/kernel_tests/math_ops/**",
+    "third_party/xla/third_party/eigen3/workspace.bzl"
   ],
   "generated_files": [
     {

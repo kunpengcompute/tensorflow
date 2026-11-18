@@ -152,7 +152,7 @@ index 0000000000000000000000000000000000000000..0decef247f9023aa9310434cac201391
 +}  // namespace ops
 +}  // namespace tensorflow
 diff --git a/tensorflow/core/BUILD b/tensorflow/core/BUILD
-index 69a2c5fcaadf88a816e23343b11bff108083633f..ef98eed5c49848df00e4680cfee87370ab102ab2 100644
+index 69a2c5fcaadf88a816e23343b11bff108083633f..8d1cd71179d1bea4f4637fdaded7fa5bdb661a9f 100644
 --- a/tensorflow/core/BUILD
 +++ b/tensorflow/core/BUILD
 @@ -564,6 +564,7 @@ cc_library(
@@ -194,6 +194,60 @@ index 69a2c5fcaadf88a816e23343b11bff108083633f..ef98eed5c49848df00e4680cfee87370
          "function_ops_op_lib",
          "functional_grad",
          "functional_ops_op_lib",
+@@ -1324,9 +1333,15 @@ cc_library(
+     srcs = [
+         ":lib_internal_private_headers",
+         "//tensorflow/core/platform:legacy_lib_internal_srcs",
++        "gflags.cc",
+     ],
+     hdrs = [":lib_internal_public_headers"],
+-    copts = tf_copts(),
++    copts = tf_copts() + select({
++        # predictor_server 路径（//:gflags_switch_flag=on）：gflags.cc 编出
++        # 13 个功能开关旗标；默认配置为空翻译单元，gflags 不进 so/wheel。
++        "//:gflags_switch_on": ["-DKDNN_SWITCH_GFLAGS"],
++        "//conditions:default": [],
++    }),
+     features = ["-layering_check"],
+     deps = tf_additional_lib_deps() + [
+         ":core_stringpiece",
+@@ -1507,6 +1522,10 @@ cc_library(
+             "//tensorflow/lite/toco:toco_flags_proto_cc_impl",
+             "//tensorflow/lite/toco:types_proto_cc_impl",
+         ],
++    }) + select({
++        # KDNN 功能开关 gflag 分支（predictor_server 路径）才引入 gflags。
++        "//:gflags_switch_on": ["@com_github_gflags_gflags//:gflags"],
++        "//conditions:default": [],
+     }),
+     # Alwayslink causes a cc_binary to "always link" in the
+     # srcs for a given cc_library, even if they are unreferenced, see:
+@@ -1995,6 +2014,25 @@ tf_cc_test(
+     ],
+ )
+ 
++# KDNN 功能开关 gflag 分支单测：默认配置（环境变量分支）跳过；gflag 语义
++# 用 --//:gflags_switch_flag=on 跑（与 predictor_server 同配置）。
++tf_cc_test(
++    name = "gflags_switch_test",
++    srcs = ["gflags_test.cc"],
++    extra_copts = select({
++        "//:gflags_switch_on": ["-DKDNN_SWITCH_GFLAGS"],
++        "//conditions:default": [],
++    }),
++    deps = [
++        ":lib_internal_impl",
++        ":test",
++        ":test_main",
++    ] + select({
++        "//:gflags_switch_on": ["@com_github_gflags_gflags//:gflags"],
++        "//conditions:default": [],
++    }),
++)
++
+ tf_cc_test_mkl(
+     name = "mkl_related_tests",
+     size = "small",
 diff --git a/tensorflow/core/api_def/base_api/api_def_FlashAttentionBackward.pbtxt b/tensorflow/core/api_def/base_api/api_def_FlashAttentionBackward.pbtxt
 new file mode 100644
 index 0000000000000000000000000000000000000000..8cd23f5fad698da27484c7fadc160900f5265f3e
@@ -425,10 +479,10 @@ index e967c46836756d74d2e5746ad2e5253868edaf2f..a2acdde676e1065f2dc164a86a6a9c64
  tf_cuda_cc_test(
 diff --git a/tensorflow/core/grappler/optimizers/graph_optimizer/BUILD b/tensorflow/core/grappler/optimizers/graph_optimizer/BUILD
 new file mode 100644
-index 0000000000000000000000000000000000000000..e36fd011d562caa20a069b356bf7096c4178688a
+index 0000000000000000000000000000000000000000..a8bae4917ae2721afa608133f5384412bc773e0e
 --- /dev/null
 +++ b/tensorflow/core/grappler/optimizers/graph_optimizer/BUILD
-@@ -0,0 +1,57 @@
+@@ -0,0 +1,75 @@
 +load("//tensorflow:tensorflow.bzl", "tf_cc_test")
 +
 +package(
@@ -445,13 +499,22 @@ index 0000000000000000000000000000000000000000..e36fd011d562caa20a069b356bf7096c
 +    linkstatic = True,
 +    alwayslink = True,
 +    visibility = ["//visibility:public"],
++    copts = select({
++        # KDNN 功能开关 gflag 分支（predictor_server 路径）：读点走 FLAGS_*；
++        # 默认（so/wheel）走环境变量分支。
++        "//:gflags_switch_on": ["-DKDNN_SWITCH_GFLAGS"],
++        "//conditions:default": [],
++    }),
 +    deps = [
 +        "//tensorflow/core/framework:node_def_util",
 +        "//tensorflow/core:framework",
 +        "//tensorflow/core/grappler:graph_view",
 +        "//tensorflow/core/grappler:grappler_item",
 +        "//tensorflow/core/grappler:op_types",
-+    ],
++    ] + select({
++        "//:gflags_switch_on": ["@com_github_gflags_gflags//:gflags"],
++        "//conditions:default": [],
++    }),
 +)
 +
 +cc_library(
@@ -461,12 +524,21 @@ index 0000000000000000000000000000000000000000..e36fd011d562caa20a069b356bf7096c
 +    linkstatic = True,
 +    alwayslink = True,
 +    visibility = ["//visibility:public"],
++    copts = select({
++        # KDNN 功能开关 gflag 分支（predictor_server 路径）：读点走 FLAGS_*；
++        # 默认（so/wheel）走环境变量分支。
++        "//:gflags_switch_on": ["-DKDNN_SWITCH_GFLAGS"],
++        "//conditions:default": [],
++    }),
 +    deps = [
 +        "//tensorflow/core/grappler:graph_view",
 +        "//tensorflow/core/grappler:grappler_item",
 +        "//tensorflow/core/grappler:op_types",
 +        "//tensorflow/core/grappler/costs:graph_properties",
-+    ],
++    ] + select({
++        "//:gflags_switch_on": ["@com_github_gflags_gflags//:gflags"],
++        "//conditions:default": [],
++    }),
 +)
 +
 +tf_cc_test(
@@ -488,11 +560,18 @@ index 0000000000000000000000000000000000000000..e36fd011d562caa20a069b356bf7096c
 +)
 diff --git a/tensorflow/core/grappler/optimizers/graph_optimizer/flash_attn_graph_opt.cc b/tensorflow/core/grappler/optimizers/graph_optimizer/flash_attn_graph_opt.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..fcb5cdf9cc6667d1f92604e6fc0c3a662b11f788
+index 0000000000000000000000000000000000000000..9b916ab56415c08b27b746d3cdc3836337f393bc
 --- /dev/null
 +++ b/tensorflow/core/grappler/optimizers/graph_optimizer/flash_attn_graph_opt.cc
-@@ -0,0 +1,258 @@
+@@ -0,0 +1,268 @@
 +#include "flash_attn_graph_opt.h"
++
++#ifdef KDNN_SWITCH_GFLAGS
++#include "gflags/gflags.h"
++
++DECLARE_bool(annc);
++DECLARE_bool(annc_fused_flashattn_fwd);
++#endif  // KDNN_SWITCH_GFLAGS
 +
 +using namespace tensorflow;
 +using namespace tensorflow::grappler;
@@ -719,16 +798,19 @@ index 0000000000000000000000000000000000000000..fcb5cdf9cc6667d1f92604e6fc0c3a66
 +}
 +
 +void run_flash_attn_optimization(GraphDef* graph) {
-+
++#ifndef KDNN_SWITCH_GFLAGS
 +  const char* annc_fused_all = getenv("ANNC_FUSED_ALL");
 +  const char* annc_fused_flashattn_fwd = getenv("ANNC_FUSED_FLASHATTN_FWD");
-+
-+  bool enable_all = (annc_fused_all != nullptr) && strcmp(annc_fused_all, "1") == 0;
-+  bool enable_flashattn_fwd = (annc_fused_flashattn_fwd != nullptr) && strcmp(annc_fused_flashattn_fwd, "1") == 0;
++  bool FLAGS_annc =
++      (annc_fused_all != nullptr) && strcmp(annc_fused_all, "1") == 0;
++  bool FLAGS_annc_fused_flashattn_fwd =
++      (annc_fused_flashattn_fwd != nullptr) &&
++      strcmp(annc_fused_flashattn_fwd, "1") == 0;
++#endif  // KDNN_SWITCH_GFLAGS
 +
 +  if (graph == nullptr) return;
 +
-+  if(enable_all || enable_flashattn_fwd) {
++  if (FLAGS_annc || FLAGS_annc_fused_flashattn_fwd) {
 +    std::vector<FwdCandidate> candidates;
 +    absl::flat_hash_set<std::string> processed;
 +    for (NodeDef& node : *graph->mutable_node()) {
@@ -790,10 +872,10 @@ index 0000000000000000000000000000000000000000..f7d849b100279c82fecad1fbb288d848
 +#endif  // FAGO_TF_FLASH_ATTN_GRAPH_OPT_H_
 diff --git a/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.cc b/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..c833a0f7660f949ccd8b7807fbe02bddd6b8f28c
+index 0000000000000000000000000000000000000000..cf70608649a26346ac52e32145d80de345806433
 --- /dev/null
 +++ b/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.cc
-@@ -0,0 +1,1235 @@
+@@ -0,0 +1,1283 @@
 +/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
@@ -819,6 +901,22 @@ index 0000000000000000000000000000000000000000..c833a0f7660f949ccd8b7807fbe02bdd
 +#endif
 +
 +#include "graph_opt.h"
++
++#ifdef KDNN_SWITCH_GFLAGS
++#include "gflags/gflags.h"
++
++DECLARE_bool(annc);
++DECLARE_bool(annc_fused_sps_stitch);
++DECLARE_bool(annc_fused_sps_stitch_reduce);
++DECLARE_bool(annc_fused_sps_reduce);
++DECLARE_bool(annc_fused_emb_padding);
++DECLARE_bool(annc_fused_emb_padding_fast);
++DECLARE_bool(annc_fused_sps_select);
++DECLARE_bool(annc_fused_gather);
++DECLARE_bool(annc_fused_sps_reshape);
++DECLARE_bool(annc_fused_emb_actionid_gather);
++DECLARE_bool(annc_fused_sps_reduce_nonzero);
++#endif  // KDNN_SWITCH_GFLAGS
 +
 +using namespace tensorflow;
 +using namespace tensorflow::grappler;
@@ -1923,12 +2021,22 @@ index 0000000000000000000000000000000000000000..c833a0f7660f949ccd8b7807fbe02bdd
 +  }
 +};
 +
++#ifndef KDNN_SWITCH_GFLAGS
 +static bool IsEnvEnabled(const char* name) {
 +  const char* value = getenv(name);
 +  return value != nullptr && strcmp(value, "1") == 0;
 +}
++#endif  // KDNN_SWITCH_GFLAGS
 +
 +bool ANNCAnyFusionEnabled() {
++#ifdef KDNN_SWITCH_GFLAGS
++  return FLAGS_annc || FLAGS_annc_fused_sps_stitch ||
++         FLAGS_annc_fused_sps_stitch_reduce || FLAGS_annc_fused_sps_reduce ||
++         FLAGS_annc_fused_emb_padding || FLAGS_annc_fused_emb_padding_fast ||
++         FLAGS_annc_fused_sps_select || FLAGS_annc_fused_gather ||
++         FLAGS_annc_fused_sps_reshape || FLAGS_annc_fused_emb_actionid_gather ||
++         FLAGS_annc_fused_sps_reduce_nonzero;
++#else
 +  // Keep this list in sync with the env vars consumed by
 +  // run_graph_optimization below. Deliberately not cached: callers may
 +  // change the env between sessions.
@@ -1948,6 +2056,7 @@ index 0000000000000000000000000000000000000000..c833a0f7660f949ccd8b7807fbe02bdd
 +    if (IsEnvEnabled(env_name)) return true;
 +  }
 +  return false;
++#endif  // KDNN_SWITCH_GFLAGS
 +}
 +
 +bool RuntimeSveSupported() {
@@ -1965,6 +2074,7 @@ index 0000000000000000000000000000000000000000..c833a0f7660f949ccd8b7807fbe02bdd
 +void run_graph_optimization(GraphDef* graph, GraphProperties props) {
 +  GraphOptimizer optimizer(graph, props);
 +
++#ifndef KDNN_SWITCH_GFLAGS
 +  const char* annc_fused_all = getenv("ANNC_FUSED_ALL");
 +  const char* annc_fused_sps_stitch = getenv("ANNC_FUSED_SPS_STITCH");
 +  const char* annc_fused_sps_stitch_reduce = getenv("ANNC_FUSED_SPS_STITCH_REDUCE");
@@ -1980,47 +2090,67 @@ index 0000000000000000000000000000000000000000..c833a0f7660f949ccd8b7807fbe02bdd
 +  const char* annc_fused_sps_reduce_nonzero =
 +      getenv("ANNC_FUSED_SPS_REDUCE_NONZERO");
 +
-+  bool enable_all =
++  bool FLAGS_annc =
 +      (annc_fused_all != nullptr) && strcmp(annc_fused_all, "1") == 0;
-+
++  bool FLAGS_annc_fused_sps_stitch =
++      (annc_fused_sps_stitch != nullptr) &&
++      strcmp(annc_fused_sps_stitch, "1") == 0;
++  bool FLAGS_annc_fused_sps_stitch_reduce =
++      (annc_fused_sps_stitch_reduce != nullptr) &&
++      strcmp(annc_fused_sps_stitch_reduce, "1") == 0;
++  bool FLAGS_annc_fused_sps_reduce =
++      (annc_fused_sps_reduce != nullptr) &&
++      strcmp(annc_fused_sps_reduce, "1") == 0;
++  bool FLAGS_annc_fused_emb_padding =
++      (annc_fused_emb_padding != nullptr) &&
++      strcmp(annc_fused_emb_padding, "1") == 0;
++  bool FLAGS_annc_fused_emb_padding_fast =
++      (annc_fused_emb_padding_fast != nullptr) &&
++      strcmp(annc_fused_emb_padding_fast, "1") == 0;
++  bool FLAGS_annc_fused_sps_select =
++      (annc_fused_sps_select != nullptr) &&
++      strcmp(annc_fused_sps_select, "1") == 0;
++  bool FLAGS_annc_fused_gather =
++      (annc_fused_gather != nullptr) &&
++      strcmp(annc_fused_gather, "1") == 0;
++  bool FLAGS_annc_fused_sps_reshape =
++      (annc_fused_sps_reshape != nullptr) &&
++      strcmp(annc_fused_sps_reshape, "1") == 0;
++  bool FLAGS_annc_fused_emb_actionid_gather =
++      (annc_fused_emb_actionid_gather != nullptr) &&
++      strcmp(annc_fused_emb_actionid_gather, "1") == 0;
++  bool FLAGS_annc_fused_sps_reduce_nonzero =
++      (annc_fused_sps_reduce_nonzero != nullptr) &&
++      strcmp(annc_fused_sps_reduce_nonzero, "1") == 0;
++#endif  // KDNN_SWITCH_GFLAGS
 +  if (RuntimeSveSupported() &&
-+      (enable_all || (annc_fused_sps_stitch_reduce != nullptr &&
-+                      strcmp(annc_fused_sps_stitch_reduce, "1") == 0)))
++      (FLAGS_annc || FLAGS_annc_fused_sps_stitch_reduce))
 +    optimizer.register_rewriter(
 +        std::make_unique<KPFusedSparseDynamicStitchReduceRewriter>());
-+  if (enable_all || (annc_fused_sps_stitch != nullptr &&
-+                     strcmp(annc_fused_sps_stitch, "1") == 0))
++  if (FLAGS_annc || FLAGS_annc_fused_sps_stitch)
 +    optimizer.register_rewriter(
 +        std::make_unique<KPFusedSparseDynamicStitchRewriter>());
-+  if (enable_all || (annc_fused_sps_reduce != nullptr &&
-+                     strcmp(annc_fused_sps_reduce, "1") == 0))
++  if (FLAGS_annc || FLAGS_annc_fused_sps_reduce)
 +    optimizer.register_rewriter(
 +        std::make_unique<KPFusedSparseSegmentReduceRewriter>());
-+  if (enable_all || (annc_fused_emb_padding_fast != nullptr &&
-+                     strcmp(annc_fused_emb_padding_fast, "1") == 0))
++  if (FLAGS_annc || FLAGS_annc_fused_emb_padding_fast)
 +    optimizer.register_rewriter(
 +        std::make_unique<KPFusedEmbeddingPaddingFastRewriter>());
-+  if (enable_all || (annc_fused_emb_padding != nullptr &&
-+                     strcmp(annc_fused_emb_padding, "1") == 0))
++  if (FLAGS_annc || FLAGS_annc_fused_emb_padding)
 +    optimizer.register_rewriter(
 +        std::make_unique<KPFusedEmbeddingPaddingRewriter>());
-+  if (enable_all || (annc_fused_sps_select != nullptr &&
-+                     strcmp(annc_fused_sps_select, "1") == 0))
++  if (FLAGS_annc || FLAGS_annc_fused_sps_select)
 +    optimizer.register_rewriter(
 +        std::make_unique<KPFusedSparseSelectRewriter>());
-+  if (enable_all ||
-+      (annc_fused_gather != nullptr && strcmp(annc_fused_gather, "1") == 0))
++  if (FLAGS_annc || FLAGS_annc_fused_gather)
 +    optimizer.register_rewriter(std::make_unique<KPFusedGatherRewriter>());
-+  if (enable_all || (annc_fused_sps_reshape != nullptr &&
-+                     strcmp(annc_fused_sps_reshape, "1") == 0))
++  if (FLAGS_annc || FLAGS_annc_fused_sps_reshape)
 +    optimizer.register_rewriter(
 +        std::make_unique<KPFusedSparseReshapeRewriter>());
-+  if (enable_all || annc_fused_emb_actionid_gather != nullptr &&
-+      strcmp(annc_fused_emb_actionid_gather, "1") == 0)
++  if (FLAGS_annc || FLAGS_annc_fused_emb_actionid_gather)
 +    optimizer.register_rewriter(
 +        std::make_unique<KPFusedEmbeddingActionIdGatherRewriter>());
-+  if (enable_all || annc_fused_sps_reduce_nonzero != nullptr &&
-+      strcmp(annc_fused_sps_reduce_nonzero, "1") == 0)
++  if (FLAGS_annc || FLAGS_annc_fused_sps_reduce_nonzero)
 +    optimizer.register_rewriter(
 +        std::make_unique<KPFusedSparseSegmentReduceNonzeroRewriter>());
 +
@@ -2031,10 +2161,10 @@ index 0000000000000000000000000000000000000000..c833a0f7660f949ccd8b7807fbe02bdd
 +}  // namespace annc
 diff --git a/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.h b/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..3b1509999b9e0b922c180760adab283f84b2e830
+index 0000000000000000000000000000000000000000..c7f646e73c6990a48125d433599133af9239f9a3
 --- /dev/null
 +++ b/tensorflow/core/grappler/optimizers/graph_optimizer/graph_opt.h
-@@ -0,0 +1,247 @@
+@@ -0,0 +1,248 @@
 +/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
@@ -2267,10 +2397,11 @@ index 0000000000000000000000000000000000000000..3b1509999b9e0b922c180760adab283f
 +  std::vector<std::unique_ptr<PatternRewriter>> rewriters_;
 +};
 +
-+// True when any ANNC_FUSED_* env var is enabled. Checked live (not cached)
-+// because callers may set the env after process start, e.g. from Python
-+// before creating a session. Used to skip the whole ANNC pass, including the
-+// O(graph) static shape inference, when no fusion is requested.
++// True when any ANNC_FUSED_* switch is enabled (env var, or gflag
++// --annc_fused_* in the KDNN_SWITCH_GFLAGS / predictor_server build). Checked
++// live (not cached) because callers may set the env after process start, e.g.
++// from Python before creating a session. Used to skip the whole ANNC pass,
++// including the O(graph) static shape inference, when no fusion is requested.
 +bool ANNCAnyFusionEnabled();
 +
 +// True when the CPU supports SVE, as required by the
@@ -3593,10 +3724,10 @@ index 427b3c3e51d5f3c4ae657169444acf964fd69958..d5278d5635f777d919920cee40531cf6
    return absl::OkStatus();
 diff --git a/tensorflow/core/kernels/embedding_fused_action_id_gather.cc b/tensorflow/core/kernels/embedding_fused_action_id_gather.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..dcdb5818582e037ada23acb991d02169ff4be22c
+index 0000000000000000000000000000000000000000..08bccdcdaaef9a9e497ed42fa6cfee724db43e08
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_action_id_gather.cc
-@@ -0,0 +1,263 @@
+@@ -0,0 +1,264 @@
 +/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
@@ -3696,8 +3827,8 @@ index 0000000000000000000000000000000000000000..dcdb5818582e037ada23acb991d02169
 +      total_units, cost_per_unit,
 +      [&](int64_t begin, int64_t end) {
 +        for (int64_t flat = begin; flat < end; ++flat) {
-+          const int i = static_cast<int>(flat / I21);
-+          const int j = static_cast<int>(flat % I21);
++          const int64_t i = flat / I21;
++          const int64_t j = flat % I21;
 +
 +          Tindices2 idx2 = indices2_data[(indices2_dims == 2) ? (i * I21 + j) : j];
 +
@@ -3819,6 +3950,7 @@ index 0000000000000000000000000000000000000000..dcdb5818582e037ada23acb991d02169
 +    int pack_size = pack_dim.scalar<int32>()();
 +    int pack_const = pack.scalar<int32>()();
 +    OP_REQUIRES(context, pack_size > 0, errors::InvalidArgument("pack_size must > 0"));
++    OP_REQUIRES(context, pack_const >= 0, errors::InvalidArgument("pack const must >= 0, got ", pack_const));
 +    int64_t a_reshaped_cols = gathered.NumElements() / pack_size;
 +    auto a_reshaped = gathered.shaped<float, 2>({pack_size, a_reshaped_cols});
 +    Tensor* output;
@@ -4238,7 +4370,7 @@ index 0000000000000000000000000000000000000000..74d092d4a96457d761844a475606bd02
 +}  // namespace tensorflow
 diff --git a/tensorflow/core/kernels/embedding_fused_gather.cc b/tensorflow/core/kernels/embedding_fused_gather.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..405072848059c7b647620090e57745863d7641ac
+index 0000000000000000000000000000000000000000..f4f1060fea67c94aba780706f8de217daab5ccdf
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_gather.cc
 @@ -0,0 +1,90 @@
@@ -4283,12 +4415,12 @@ index 0000000000000000000000000000000000000000..405072848059c7b647620090e5774586
 +                errors::Internal("Embedding table shape must be 2D"));
 +    OP_REQUIRES(context, begin.NumElements() == 2, errors::Internal("begin must be same as keys rank"));
 +    int32 col = begin.flat<int32>().data()[1];
-+    OP_REQUIRES(context, col < keys.dim_size(1), errors::Internal("slice cols out of keys range"));
++    OP_REQUIRES(context, col >= 0 && col < keys.dim_size(1), errors::Internal("slice cols out of keys range"));
 +    
 +    Tensor* out_indices = nullptr;
 +    OP_REQUIRES_OK(context,
 +                   context->allocate_output(
-+                   1, TensorShape({static_cast<int32>(keys.dim_size(0))}), &out_indices));
++                   1, TensorShape({keys.dim_size(0)}), &out_indices));
 +    int32 *out_indices_data = out_indices->flat<int32>().data();
 +
 +    auto keys_mat = keys.matrix<int64>();
@@ -4310,14 +4442,14 @@ index 0000000000000000000000000000000000000000..405072848059c7b647620090e5774586
 +    Tensor* out_unique_value = nullptr;
 +    OP_REQUIRES_OK(context,
 +                   context->allocate_output(
-+                   0, TensorShape({static_cast<int32>(unique_values.size())}), &out_unique_value));
++                   0, TensorShape({static_cast<int64_t>(unique_values.size())}), &out_unique_value));
 +    std::memcpy(out_unique_value->data(), unique_values.data(), unique_values.size() * sizeof(int64_t));
 +
 +    Tensor* out_data = nullptr;
-+    int embedding_dims = data.dim_size(1);
++    int64_t embedding_dims = data.dim_size(1);
 +    OP_REQUIRES_OK(context,
 +                   context->allocate_output(
-+                   2, TensorShape({static_cast<int32>(unique_values.size()), embedding_dims}), &out_data));
++                   2, TensorShape({static_cast<int64_t>(unique_values.size()), embedding_dims}), &out_data));
 +
 +    const float *data_mat = data.flat<float>().data();
 +    for (int64_t cur_row = 0; cur_row < unique_values.size(); ++cur_row) {
@@ -4528,10 +4660,10 @@ index 0000000000000000000000000000000000000000..7d3b174d3e17ef9cbdb9223ab0e40a62
 \ No newline at end of file
 diff --git a/tensorflow/core/kernels/embedding_fused_padding.cc b/tensorflow/core/kernels/embedding_fused_padding.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..4418a4860f216634610965175c1380259658f7b7
+index 0000000000000000000000000000000000000000..830a22287d9850e2f6f13bb2947c6e48b42d4a94
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_padding.cc
-@@ -0,0 +1,126 @@
+@@ -0,0 +1,130 @@
 +/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
@@ -4617,6 +4749,10 @@ index 0000000000000000000000000000000000000000..4418a4860f216634610965175c138025
 +    OP_REQUIRES(context,
 +                pack.scalar<int32>()() == output_cols,
 +                errors::InvalidArgument("pack(", pack.scalar<int32>()(), ") is not equal to embedding dims"));
++    OP_REQUIRES(context,
++                output_rows >= 0 &&
++                    (output_cols == 0 || output_rows <= kint64max / output_cols),
++                errors::InvalidArgument("embedding padding output size exceeds int64"));
 +
 +    Tensor* output0 = nullptr;
 +    Tensor* output1 = nullptr;
@@ -4989,7 +5125,7 @@ index 0000000000000000000000000000000000000000..6d6870bb0a289824bf75a480d07e90e4
 +}  // end namespace tensorflow
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch.cc b/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..20bcfece5ca633bf52a034db845c299f1fdc929f
+index 0000000000000000000000000000000000000000..66dc69eb98fb6a6a8515abe7f1b6b32f8974e0e7
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_dynamic_stitch.cc
 @@ -0,0 +1,93 @@
@@ -5068,8 +5204,8 @@ index 0000000000000000000000000000000000000000..20bcfece5ca633bf52a034db845c299f
 +
 +    auto worker_threads = context->device()->tensorflow_cpu_worker_threads();
 +    const int64 cost_per_unit = 120; // Actual single cycle execution time 
-+    auto work = [&](int start, int end) {
-+      for (int i = start; i < end; ++i) {
++    auto work = [&](int64_t start, int64_t end) {
++      for (int64_t i = start; i < end; ++i) {
 +        const int64_t global_id = x_flat(i);
 +        const int64_t table_id = global_id % num_partitions;
 +        const int64_t row_id = global_id / num_partitions;
@@ -5792,10 +5928,10 @@ index 0000000000000000000000000000000000000000..075c4445f1149bd7b8bc462253c20466
 +}  // namespace tensorflow
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_reshape.cc b/tensorflow/core/kernels/embedding_fused_sparse_reshape.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..ba1366d6d67cccad1e5c2cac2cbc76ffc0368d68
+index 0000000000000000000000000000000000000000..815cb9005f77c24f6c229a75ef1841535982bbbd
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_reshape.cc
-@@ -0,0 +1,203 @@
+@@ -0,0 +1,205 @@
 +/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
@@ -5922,7 +6058,7 @@ index 0000000000000000000000000000000000000000..ba1366d6d67cccad1e5c2cac2cbc76ff
 +                                          &result_indices));
 +  auto input_ind = input_indices_in.matrix<int64>();
 +  auto output_ind = result_indices->matrix<int64>();
-+  for (int i = 0; i < nnz; ++i) {
++  for (int64 i = 0; i < nnz; ++i) {
 +    int64 id = 0;
 +    for (int j = 0; j < input_rank; ++j) {
 +      id += input_ind(i, j) * input_strides[j];
@@ -5956,8 +6092,10 @@ index 0000000000000000000000000000000000000000..ba1366d6d67cccad1e5c2cac2cbc76ff
 +
 +    OP_REQUIRES(context, slice_input.dims() == 2, errors::Internal("slice_input dims must == 2"));
 +    OP_REQUIRES(context, new_shape.dim_size(0) == 2, errors::Internal("new_shape dim size must == 2"));
-+    OP_REQUIRES(context, pack_const.dims() == 0, 
++    OP_REQUIRES(context, pack_const.dims() == 0,
 +                errors::InvalidArgument("pack_const must be a scalar"));
++    OP_REQUIRES(context, pack_const.scalar<T>()() > 0,
++                errors::InvalidArgument("pack_const must > 0"));
 +    VLOG(1) << "Input slice_input shape: " << slice_input.shape().DebugString();
 +    VLOG(1) << "Input begin value: " << begin.DebugString();
 +    VLOG(1) << "Input new_shape value: " << new_shape.DebugString();
@@ -5965,8 +6103,8 @@ index 0000000000000000000000000000000000000000..ba1366d6d67cccad1e5c2cac2cbc76ff
 +    OP_REQUIRES(context, begin.dims() == 1 && begin.dim_size(0) == 2,
 +                errors::InvalidArgument("begin must be 1D with at least 2 elements"));
 +    int32 col = begin.flat<int32>().data()[1];
-+    OP_REQUIRES(context, col < slice_input.dim_size(1), errors::Internal("begin[1] must < slice_input.dim_size(1)"));
-+    int64_t num_rows = slice_input.dim_size(0);
++    OP_REQUIRES(context, col >= 0 && col < slice_input.dim_size(1), errors::Internal("begin[1] must in [0, slice_input.dim_size(1))"));
++    int64 num_rows = slice_input.dim_size(0);
 +    auto slice_input_mat = slice_input.matrix<int64>();
 +
 +    VLOG(1) << "num_rows: " << num_rows;
@@ -5981,7 +6119,7 @@ index 0000000000000000000000000000000000000000..ba1366d6d67cccad1e5c2cac2cbc76ff
 +    
 +    Tensor indices_in(DT_INT64, TensorShape({num_rows, 2}));
 +    auto indices_in_mat = indices_in.matrix<int64>();
-+    for (int i = 0; i < num_rows; ++i) {
++    for (int64 i = 0; i < num_rows; ++i) {
 +        indices_in_mat(i, 0) = i;
 +        indices_in_mat(i, 1) = slice_input_mat(i, col);
 +    }
@@ -6001,7 +6139,7 @@ index 0000000000000000000000000000000000000000..ba1366d6d67cccad1e5c2cac2cbc76ff
 +#undef REGISTER_KERNEL
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_reshape_test.cc b/tensorflow/core/kernels/embedding_fused_sparse_reshape_test.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..cdc11b52deb11cff110d97f059ad30f2167861e5
+index 0000000000000000000000000000000000000000..ad25765f3a0462af49ab1f70291d432221c9d039
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_reshape_test.cc
 @@ -0,0 +1,281 @@
@@ -6162,7 +6300,7 @@ index 0000000000000000000000000000000000000000..cdc11b52deb11cff110d97f059ad30f2
 +      {2, 2},
 +      {2});
 +  EXPECT_FALSE(s.ok());
-+  EXPECT_TRUE(absl::StrContains(s.message(), "begin[1] must < slice_input.dim_size(1)"));
++  EXPECT_TRUE(absl::StrContains(s.message(), "begin[1] must in [0, slice_input.dim_size(1))"));
 +}
 +
 +// 反例4：target shape 有多个 -1
@@ -6288,10 +6426,10 @@ index 0000000000000000000000000000000000000000..cdc11b52deb11cff110d97f059ad30f2
 +}  // namespace
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce.cc b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..eb23c7dbef55f20e11c98d7f101c4aef5f496e6e
+index 0000000000000000000000000000000000000000..c702527a6b960aeaffb82ae0f3a49c836235ade6
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce.cc
-@@ -0,0 +1,165 @@
+@@ -0,0 +1,173 @@
 +/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
@@ -6356,13 +6494,17 @@ index 0000000000000000000000000000000000000000..eb23c7dbef55f20e11c98d7f101c4aef
 +
 +    // Calculate max segment_id
 +    int64 max_seg_id = 0;
-+    for (int32 i = 0; i < num_indices; ++i) {
++    for (int64 i = 0; i < num_indices; ++i) {
 +      int64 seg_id = slice_input_mat(i, col);
++      OP_REQUIRES(context, seg_id >= 0,
++                  errors::InvalidArgument("segment id must be non-negative, got ", seg_id));
 +      if (seg_id > max_seg_id) {
 +        max_seg_id = seg_id;
 +      }
 +    }
-+    const int64 batch_size = max_seg_id + 1;
++    OP_REQUIRES(context, max_seg_id < kint32max,
++                errors::InvalidArgument("max segment id overflows int32"));
++    const int32 batch_size = static_cast<int32>(max_seg_id + 1);
 +
 +    Tensor* output = nullptr;
 +    OP_REQUIRES_OK(context,
@@ -6374,7 +6516,7 @@ index 0000000000000000000000000000000000000000..eb23c7dbef55f20e11c98d7f101c4aef
 +                   context->allocate_output(1, TensorShape({}), &slice_out));
 +    if (out_dim == 0)
 +      slice_out->scalar<int32>()() = batch_size;
-+    else slice_out->scalar<int32>()() = embedding_size;
++    else slice_out->scalar<int32>()() = static_cast<int32>(embedding_size);
 +
 +    auto output_data = output->matrix<float>().data();
 +
@@ -6386,6 +6528,8 @@ index 0000000000000000000000000000000000000000..eb23c7dbef55f20e11c98d7f101c4aef
 +      for (int64 i = 0; i < num_indices; ++i) {
 +        const int64 seg_id = slice_input_mat(i, col);
 +        const Tidx data_row = indices_vec(i);
++        OP_REQUIRES(context, data_row >= 0 && data_row < input_tensor.dim_size(0),
++                    errors::InvalidArgument("indices out of input row range"));
 +        counts_vec(seg_id) += 1;
 +
 +        float* output_row = output_data + seg_id * embedding_size;
@@ -6427,6 +6571,8 @@ index 0000000000000000000000000000000000000000..eb23c7dbef55f20e11c98d7f101c4aef
 +      for (int64 i = 0; i < num_indices; ++i) {
 +        const int64 seg_id = slice_input_mat(i, col);
 +        const Tidx data_row = indices_vec(i);
++        OP_REQUIRES(context, data_row >= 0 && data_row < input_tensor.dim_size(0),
++                    errors::InvalidArgument("indices out of input row range"));
 +
 +        float* output_row = output_data + seg_id * embedding_size;
 +        const float* input_data_row = input_data + data_row * embedding_size;
@@ -6460,10 +6606,10 @@ index 0000000000000000000000000000000000000000..eb23c7dbef55f20e11c98d7f101c4aef
 \ No newline at end of file
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_nonzero.cc b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_nonzero.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..83a0f867ab9175e2fdd3663893c2d4255b1d3357
+index 0000000000000000000000000000000000000000..a827d62e2c3df89fb901288145062b3295c85809
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_segment_reduce_nonzero.cc
-@@ -0,0 +1,387 @@
+@@ -0,0 +1,397 @@
 +/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
@@ -6530,13 +6676,17 @@ index 0000000000000000000000000000000000000000..83a0f867ab9175e2fdd3663893c2d425
 +    int64 max_seg_id = 0;
 +    for (int64 i = 0; i < num_indices; ++i) {
 +      int64 seg_id = slice_input_mat(i, col);
++      OP_REQUIRES(context, seg_id >= 0,
++                  errors::InvalidArgument("segment id must be non-negative, got ", seg_id));
 +      segment_ids[i] = seg_id;
 +      if (seg_id > max_seg_id) {
 +        max_seg_id = seg_id;
 +      }
 +    }
 +
-+    const int64 batch_size = max_seg_id + 1;
++    OP_REQUIRES(context, max_seg_id < kint32max,
++                errors::InvalidArgument("max segment id overflows int32"));
++    const int32 batch_size = static_cast<int32>(max_seg_id + 1);
 +
 +    // 获取线程池
 +    auto* worker_threads = context->device()->tensorflow_cpu_worker_threads();
@@ -6554,7 +6704,7 @@ index 0000000000000000000000000000000000000000..83a0f867ab9175e2fdd3663893c2d425
 +      Tensor* output_shape = nullptr;
 +      OP_REQUIRES_OK(
 +          context, context->allocate_output(0, TensorShape({1}), &output_shape));
-+      output_shape->flat<int32>()(0) = static_cast<int32>(batch_size);
++      output_shape->flat<int32>()(0) = batch_size;
 +
 +      // 优化：使用map管理索引 + 连续内存存储
 +      absl::flat_hash_map<int64, int64> seg_id_to_idx;
@@ -6569,6 +6719,8 @@ index 0000000000000000000000000000000000000000..83a0f867ab9175e2fdd3663893c2d425
 +        for (int64 i = 0; i < num_indices; ++i) {
 +          const int64 seg_id = segment_ids[i];
 +          const Tidx data_row = indices_vec(i);
++          OP_REQUIRES(context, data_row >= 0 && data_row < input_tensor.dim_size(0),
++                      errors::InvalidArgument("indices out of input row range"));
 +          
 +          auto it = seg_id_to_idx.find(seg_id);
 +          int64 idx;
@@ -6627,6 +6779,8 @@ index 0000000000000000000000000000000000000000..83a0f867ab9175e2fdd3663893c2d425
 +        for (int64 i = 0; i < num_indices; ++i) {
 +          const int64 seg_id = segment_ids[i];
 +          const Tidx data_row = indices_vec(i);
++          OP_REQUIRES(context, data_row >= 0 && data_row < input_tensor.dim_size(0),
++                      errors::InvalidArgument("indices out of input row range"));
 +          
 +          auto it = seg_id_to_idx.find(seg_id);
 +          int64 idx;
@@ -6685,7 +6839,7 @@ index 0000000000000000000000000000000000000000..83a0f867ab9175e2fdd3663893c2d425
 +      Tensor* output_shape = nullptr;
 +      OP_REQUIRES_OK(
 +          context, context->allocate_output(0, TensorShape({2}), &output_shape));
-+      output_shape->flat<int32>()(0) = static_cast<int32>(batch_size);
++      output_shape->flat<int32>()(0) = batch_size;
 +      output_shape->flat<int32>()(1) = static_cast<int32>(embed_dim);
 +
 +      // 优化：map管理索引 + 连续内存存储数据
@@ -6700,6 +6854,8 @@ index 0000000000000000000000000000000000000000..83a0f867ab9175e2fdd3663893c2d425
 +      for (int64 i = 0; i < num_indices; ++i) {
 +        const int64 seg_id = segment_ids[i];
 +        const Tidx data_row = indices_vec(i);
++        OP_REQUIRES(context, data_row >= 0 && data_row < input_tensor.dim_size(0),
++                    errors::InvalidArgument("indices out of input row range"));
 +        
 +        auto it = seg_id_to_idx.find(seg_id);
 +        int64 idx;
@@ -7253,10 +7409,10 @@ index 0000000000000000000000000000000000000000..e7512ffd039f6f778371f63b4f306b7e
 +}  // namespace tensorflow
 diff --git a/tensorflow/core/kernels/embedding_fused_sparse_select.cc b/tensorflow/core/kernels/embedding_fused_sparse_select.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..872222ec187801f94dfd81abe0cce442fbd15da5
+index 0000000000000000000000000000000000000000..f06ac7e58c36521311eb7b2d6a89fd212b178c80
 --- /dev/null
 +++ b/tensorflow/core/kernels/embedding_fused_sparse_select.cc
-@@ -0,0 +1,112 @@
+@@ -0,0 +1,116 @@
 +/* Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 +
 +Licensed under the Apache License, Version 2.0 (the "License");
@@ -7297,6 +7453,10 @@ index 0000000000000000000000000000000000000000..872222ec187801f94dfd81abe0cce442
 +    const Tensor& equal2 = context->input(5);
 +    const Tensor& equal3 = context->input(6);
 +
++    OP_REQUIRES(context,
++                greater.NumElements() > 0 && equal1.NumElements() > 0 &&
++                    equal2.NumElements() > 0 && equal3.NumElements() > 0,
++                errors::InvalidArgument("greater/equal1/equal2/equal3 must be non-empty"));
 +    int32_t equal1_val = equal1.flat<int32_t>()(0);
 +    int32_t equal2_val = equal2.flat<int32_t>()(0);
 +    int32_t equal3_val = equal3.flat<int32_t>()(0);
