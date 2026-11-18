@@ -1,6 +1,6 @@
 # Feature Introduction
 
-<!-- md-trans-meta sourceCommit=5304d8020211b4715dabef7af6cb1c8f8366924b translatedAt=2026-10-29T10:56:11.517Z pushedAt=2026-10-30T12:06:07.729Z -->
+<!-- md-trans-meta sourceCommit=5304d8020211b4715dabef7af6cb1c8f8366924b translatedAt=2026-11-12T10:56:11.517Z pushedAt=2026-11-12T12:06:07.729Z -->
 
 This document describes the Kunpeng BoostKit TensorFlow inference optimization features, covering KDNN thread passthrough, SparseMatmul multi-threading optimization, the EmbeddingTableLookup operator, ANNC static graph fusion, ANNC graph compilation optimization, and TF Serving thread scheduling optimization. It is intended for users who need to improve TensorFlow inference throughput and reduce inference latency.
 
