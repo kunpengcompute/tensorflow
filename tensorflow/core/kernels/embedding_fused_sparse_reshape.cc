@@ -124,7 +124,7 @@ static void ReshapeKp(OpKernelContext *context, const Tensor &input_indices_in,
                                           &result_indices));
   auto input_ind = input_indices_in.matrix<int64>();
   auto output_ind = result_indices->matrix<int64>();
-  for (int i = 0; i < nnz; ++i) {
+  for (int64 i = 0; i < nnz; ++i) {
     int64 id = 0;
     for (int j = 0; j < input_rank; ++j) {
       id += input_ind(i, j) * input_strides[j];
@@ -158,8 +158,10 @@ class KPFusedSparseReshapeOp : public OpKernel {
 
     OP_REQUIRES(context, slice_input.dims() == 2, errors::Internal("slice_input dims must == 2"));
     OP_REQUIRES(context, new_shape.dim_size(0) == 2, errors::Internal("new_shape dim size must == 2"));
-    OP_REQUIRES(context, pack_const.dims() == 0, 
+    OP_REQUIRES(context, pack_const.dims() == 0,
                 errors::InvalidArgument("pack_const must be a scalar"));
+    OP_REQUIRES(context, pack_const.scalar<T>()() > 0,
+                errors::InvalidArgument("pack_const must > 0"));
     VLOG(1) << "Input slice_input shape: " << slice_input.shape().DebugString();
     VLOG(1) << "Input begin value: " << begin.DebugString();
     VLOG(1) << "Input new_shape value: " << new_shape.DebugString();
@@ -167,8 +169,8 @@ class KPFusedSparseReshapeOp : public OpKernel {
     OP_REQUIRES(context, begin.dims() == 1 && begin.dim_size(0) == 2,
                 errors::InvalidArgument("begin must be 1D with at least 2 elements"));
     int32 col = begin.flat<int32>().data()[1];
-    OP_REQUIRES(context, col < slice_input.dim_size(1), errors::Internal("begin[1] must < slice_input.dim_size(1)"));
-    int64_t num_rows = slice_input.dim_size(0);
+    OP_REQUIRES(context, col >= 0 && col < slice_input.dim_size(1), errors::Internal("begin[1] must in [0, slice_input.dim_size(1))"));
+    int64 num_rows = slice_input.dim_size(0);
     auto slice_input_mat = slice_input.matrix<int64>();
 
     VLOG(1) << "num_rows: " << num_rows;
@@ -183,7 +185,7 @@ class KPFusedSparseReshapeOp : public OpKernel {
     
     Tensor indices_in(DT_INT64, TensorShape({num_rows, 2}));
     auto indices_in_mat = indices_in.matrix<int64>();
-    for (int i = 0; i < num_rows; ++i) {
+    for (int64 i = 0; i < num_rows; ++i) {
         indices_in_mat(i, 0) = i;
         indices_in_mat(i, 1) = slice_input_mat(i, col);
     }

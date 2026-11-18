@@ -33,6 +33,7 @@ limitations under the License.
 #endif  // GOOGLE_CUDA
 
 #include <functional>
+#include <limits>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -109,7 +110,11 @@ struct LaunchFusedMatMulOp<CPUDevice, T> {
     bool transpose_b_ = dim_pair[0].second == 1;
     bool fusion_relu = fusion == FusedComputationType::kBiasAddWithRelu;
     bool kdnn_enable_fusion = (fusion == FusedComputationType::kBiasAdd) || fusion_relu;
-    if (IsKDNNEnabled() && std::is_same<T, float>::value && kdnn_enable_fusion && !transpose_a_) {
+    const int int32max = std::numeric_limits<int>::max();
+    if (IsKDNNEnabled() && std::is_same<T, float>::value && kdnn_enable_fusion &&
+        !transpose_a_ && FastBoundsCheck(a.dim_size(0), int32max) &&
+        FastBoundsCheck(b.dim_size(0), int32max) &&
+        FastBoundsCheck(b.dim_size(1), int32max)) {
       kdnnFusedGemm(context, a, b, output, fusion_relu, transpose_a_, transpose_b_);
       return;
     }

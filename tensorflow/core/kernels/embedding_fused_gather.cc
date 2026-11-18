@@ -39,12 +39,12 @@ class KPFusedGather : public OpKernel {
                 errors::Internal("Embedding table shape must be 2D"));
     OP_REQUIRES(context, begin.NumElements() == 2, errors::Internal("begin must be same as keys rank"));
     int32 col = begin.flat<int32>().data()[1];
-    OP_REQUIRES(context, col < keys.dim_size(1), errors::Internal("slice cols out of keys range"));
+    OP_REQUIRES(context, col >= 0 && col < keys.dim_size(1), errors::Internal("slice cols out of keys range"));
     
     Tensor* out_indices = nullptr;
     OP_REQUIRES_OK(context,
                    context->allocate_output(
-                   1, TensorShape({static_cast<int32>(keys.dim_size(0))}), &out_indices));
+                   1, TensorShape({keys.dim_size(0)}), &out_indices));
     int32 *out_indices_data = out_indices->flat<int32>().data();
 
     auto keys_mat = keys.matrix<int64>();
@@ -66,14 +66,14 @@ class KPFusedGather : public OpKernel {
     Tensor* out_unique_value = nullptr;
     OP_REQUIRES_OK(context,
                    context->allocate_output(
-                   0, TensorShape({static_cast<int32>(unique_values.size())}), &out_unique_value));
+                   0, TensorShape({static_cast<int64_t>(unique_values.size())}), &out_unique_value));
     std::memcpy(out_unique_value->data(), unique_values.data(), unique_values.size() * sizeof(int64_t));
 
     Tensor* out_data = nullptr;
-    int embedding_dims = data.dim_size(1);
+    int64_t embedding_dims = data.dim_size(1);
     OP_REQUIRES_OK(context,
                    context->allocate_output(
-                   2, TensorShape({static_cast<int32>(unique_values.size()), embedding_dims}), &out_data));
+                   2, TensorShape({static_cast<int64_t>(unique_values.size()), embedding_dims}), &out_data));
 
     const float *data_mat = data.flat<float>().data();
     for (int64_t cur_row = 0; cur_row < unique_values.size(); ++cur_row) {

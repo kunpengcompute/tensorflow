@@ -1,5 +1,12 @@
 #include "flash_attn_graph_opt.h"
 
+#ifdef KDNN_SWITCH_GFLAGS
+#include "gflags/gflags.h"
+
+DECLARE_bool(annc);
+DECLARE_bool(annc_fused_flashattn_fwd);
+#endif  // KDNN_SWITCH_GFLAGS
+
 using namespace tensorflow;
 using namespace tensorflow::grappler;
 
@@ -225,16 +232,19 @@ void ApplyFwd(GraphDef* graph, const FwdCandidate& c) {
 }
 
 void run_flash_attn_optimization(GraphDef* graph) {
-
+#ifndef KDNN_SWITCH_GFLAGS
   const char* annc_fused_all = getenv("ANNC_FUSED_ALL");
   const char* annc_fused_flashattn_fwd = getenv("ANNC_FUSED_FLASHATTN_FWD");
-
-  bool enable_all = (annc_fused_all != nullptr) && strcmp(annc_fused_all, "1") == 0;
-  bool enable_flashattn_fwd = (annc_fused_flashattn_fwd != nullptr) && strcmp(annc_fused_flashattn_fwd, "1") == 0;
+  bool FLAGS_annc =
+      (annc_fused_all != nullptr) && strcmp(annc_fused_all, "1") == 0;
+  bool FLAGS_annc_fused_flashattn_fwd =
+      (annc_fused_flashattn_fwd != nullptr) &&
+      strcmp(annc_fused_flashattn_fwd, "1") == 0;
+#endif  // KDNN_SWITCH_GFLAGS
 
   if (graph == nullptr) return;
 
-  if(enable_all || enable_flashattn_fwd) {
+  if (FLAGS_annc || FLAGS_annc_fused_flashattn_fwd) {
     std::vector<FwdCandidate> candidates;
     absl::flat_hash_set<std::string> processed;
     for (NodeDef& node : *graph->mutable_node()) {

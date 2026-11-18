@@ -83,6 +83,10 @@ public:
     OP_REQUIRES(context,
                 pack.scalar<int32>()() == output_cols,
                 errors::InvalidArgument("pack(", pack.scalar<int32>()(), ") is not equal to embedding dims"));
+    OP_REQUIRES(context,
+                output_rows >= 0 &&
+                    (output_cols == 0 || output_rows <= kint64max / output_cols),
+                errors::InvalidArgument("embedding padding output size exceeds int64"));
 
     Tensor* output0 = nullptr;
     Tensor* output1 = nullptr;

@@ -38,6 +38,10 @@ public:
     const Tensor& equal2 = context->input(5);
     const Tensor& equal3 = context->input(6);
 
+    OP_REQUIRES(context,
+                greater.NumElements() > 0 && equal1.NumElements() > 0 &&
+                    equal2.NumElements() > 0 && equal3.NumElements() > 0,
+                errors::InvalidArgument("greater/equal1/equal2/equal3 must be non-empty"));
     int32_t equal1_val = equal1.flat<int32_t>()(0);
     int32_t equal2_val = equal2.flat<int32_t>()(0);
     int32_t equal3_val = equal3.flat<int32_t>()(0);

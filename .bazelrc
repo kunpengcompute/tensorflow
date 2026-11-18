@@ -675,6 +675,10 @@ build:elinux_armhf --copt -mfp16-format=ieee
 
 # Config-specific options should come above this line.
 
+# ASAN 编译选项（--config=asan），见 tools/coverage_test/asan.bazelrc；
+# 由 tools/coverage_test/run_coverage.py 的 --asan 选项启用。
+try-import %workspace%/tools/coverage_test/asan.bazelrc
+
 # Load rc file written by ./configure.
 try-import %workspace%/.tf_configure.bazelrc
 

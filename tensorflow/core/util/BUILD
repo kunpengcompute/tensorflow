@@ -517,7 +517,12 @@ cc_library(
     name = "port",
     srcs = ["port.cc"],
     hdrs = ["port.h"],
-    copts = tf_copts(),
+    copts = tf_copts() + select({
+        # KDNN 功能开关 gflag 分支（predictor_server 路径）：读点走 FLAGS_*；
+        # 默认（so/wheel）走环境变量分支。
+        "//:gflags_switch_on": ["-DKDNN_SWITCH_GFLAGS"],
+        "//conditions:default": [],
+    }),
     visibility = [
         "//tensorflow/core:__pkg__",
         "//tensorflow/python:__pkg__",
@@ -527,7 +532,10 @@ cc_library(
         ":env_var",
         "//tensorflow/core/platform:platform_port",
         "@com_google_absl//absl/base",
-    ],
+    ] + select({
+        "//:gflags_switch_on": ["@com_github_gflags_gflags//:gflags"],
+        "//conditions:default": [],
+    }),
     alwayslink = 1,
 )
 

@@ -230,10 +230,11 @@ class GraphOptimizer {
   std::vector<std::unique_ptr<PatternRewriter>> rewriters_;
 };
 
-// True when any ANNC_FUSED_* env var is enabled. Checked live (not cached)
-// because callers may set the env after process start, e.g. from Python
-// before creating a session. Used to skip the whole ANNC pass, including the
-// O(graph) static shape inference, when no fusion is requested.
+// True when any ANNC_FUSED_* switch is enabled (env var, or gflag
+// --annc_fused_* in the KDNN_SWITCH_GFLAGS / predictor_server build). Checked
+// live (not cached) because callers may set the env after process start, e.g.
+// from Python before creating a session. Used to skip the whole ANNC pass,
+// including the O(graph) static shape inference, when no fusion is requested.
 bool ANNCAnyFusionEnabled();
 
 // True when the CPU supports SVE, as required by the

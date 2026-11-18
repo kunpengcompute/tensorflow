@@ -1,0 +1,11 @@
+# ASAN编译选项，--config=asan 启用。
+
+build:asan --copt=-fsanitize=address
+
+build:asan --copt=-fsanitize-recover=address,all
+
+build:asan --copt=-O0
+build:asan --copt=-U_FORTIFY_SOURCE
+
+build:asan --copt=-fno-omit-frame-pointer
+build:asan --linkopt=-fsanitize=address

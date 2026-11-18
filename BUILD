@@ -25,7 +25,23 @@ load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
 load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("//tensorflow:tensorflow.bzl", "tf_cc_binary")
+load("//:gflags_switch.bzl", "gflags_switch_dep", "gflags_switch_flag")
 package(default_visibility = ["//visibility:public"],)
+
+# 功能开关分支旗标：默认 "off"（环境变量分支，so/wheel）；predictor_server
+# 经 predictor_server_lib_gflags 依赖边置 "on"（gflag 分支）；测试 gflag
+# 语义可整体打开：--//:gflags_switch_flag=on。
+gflags_switch_flag(
+    name = "gflags_switch_flag",
+    build_setting_default = "off",
+)
+
+config_setting(
+    name = "gflags_switch_on",
+    flag_values = {
+        ":gflags_switch_flag": "on",
+    },
+)
 
 cc_library(
   name = 'tensorflow_lib',
@@ -102,8 +118,8 @@ cc_proto_library(
     ],
 )
 
-cc_binary(
-    name = "predictor_server",
+cc_library(
+    name = "predictor_server_lib",
     srcs = [
         "predictor_server.cc",
     ],
@@ -113,6 +129,22 @@ cc_binary(
         "@brpc//:brpc",
         "//:dummy_tf_func",
         "@com_github_google_gperftools//:tcmalloc"
+    ],
+)
+
+# predictor_server 的编译/链接入口：依赖边 transition 把 //:gflags_switch_flag
+# 置 "on"，整个闭包（含 TF 核心的开关读点）编译为 gflag 分支
+# （--annc / --annc_fused_* / --enable_kdnn 独占，不读环境变量）。
+# so/wheel等其他构建不构建此部分，默认环境变量分支。
+gflags_switch_dep(
+    name = "predictor_server_lib_gflags",
+    dep = ":predictor_server_lib",
+)
+
+cc_binary(
+    name = "predictor_server",
+    deps = [
+        ":predictor_server_lib_gflags",
     ],
 )
 

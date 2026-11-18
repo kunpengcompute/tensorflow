@@ -15,13 +15,13 @@ def repo():
     # archive/refs/heads/ path. The extracted top-level directory is still named
     # after the branch (eigen-dev-tf-2.20.0), hence the strip_prefix below.
     EIGEN_COMMIT = "a515c422db5f4ab2bda2b36ff3017f339b759969"
-    EIGEN_SHA256 = "3b329f365350336a70be221454907aabe13f4f038bec7cea8bafbe1b1e7eace1"
+    EIGEN_SHA256 = "1c3482ad4ef224fd5eae2f5d23aaf7300f47857f2841e3d2cad09d87691669c1"
     # LINT.ThenChange(//tensorflow/lite/tools/cmake/modules/eigen.cmake)
 
     tf_http_archive(
         name = "eigen_archive",
         build_file = "//third_party/eigen3:eigen_archive.BUILD",
         sha256 = EIGEN_SHA256,
-        strip_prefix = "eigen-dev-tf-2.20.0",
+        strip_prefix = "eigen-a515c422db5f4ab2bda2b36ff3017f339b759969",
         urls = tf_mirror_urls("https://raw.gitcode.com/boostkit/eigen/archive/refs/heads/{commit}.tar.gz".format(commit = EIGEN_COMMIT)),
     )

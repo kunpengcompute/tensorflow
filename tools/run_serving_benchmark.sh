@@ -99,10 +99,11 @@ Mode variables:
                              Default: "baseline dnn opt"
 
 Server mode behavior:
-  baseline                   Starts server with TF_ENABLE_ONEDNN_OPTS=0 and --enable_kdnn=false.
-  dnn                        Starts server with TF_ENABLE_ONEDNN_OPTS=1 and --enable_kdnn=true.
-  opt                        Same as dnn, plus --annc=true,
-                             --annc_cf_matmul_batchnorm=2, and --annc_fused_matmul=true.
+  baseline                   Starts server with TF_ENABLE_ONEDNN_OPTS=0 and
+                             --enable_kdnn=false.
+  dnn                        Starts server with TF_ENABLE_ONEDNN_OPTS=1 and
+                             --enable_kdnn=true.
+  opt                        Same as dnn, plus --annc=true.
 USAGE
 }
 
@@ -196,7 +197,7 @@ mode_gflags() {
       echo "--enable_kdnn=true"
       ;;
     opt)
-      echo "--enable_kdnn=true --annc=true --annc_cf_matmul_batchnorm=2 --annc_fused_matmul=true"
+      echo "--enable_kdnn=true --annc=true"
       ;;
   esac
 }
@@ -462,9 +463,7 @@ main() {
         ;;
       opt)
         run_mode opt true 1 \
-          --annc=true \
-          --annc_cf_matmul_batchnorm=2 \
-          --annc_fused_matmul=true
+          --annc=true
         ;;
     esac
   done
