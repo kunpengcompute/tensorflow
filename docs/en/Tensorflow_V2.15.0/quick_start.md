@@ -1,6 +1,6 @@
 # Quick Start
 
-<!-- md-trans-meta sourceCommit=5304d8020211b4715dabef7af6cb1c8f8366924b translatedAt=2026-10-29T06:52:42.138Z pushedAt=2026-10-30T12:30:11.027Z -->
+<!-- md-trans-meta sourceCommit=775521134a4f1344331bdcb523288b12e9ac92ee translatedAt=2026-11-12T06:52:42.138Z pushedAt=2026-11-12T12:30:11.027Z -->
 
 This document describes how to install Kunpeng TensorFlow and run the inference service. It is intended for users who need to install and run Kunpeng TensorFlow.
 
@@ -172,7 +172,7 @@ The Kunpeng TensorFlow Serving thread scheduling optimization feature provides t
 |---|---|
 |KDNN|Kunpeng Deep Neural Network Library|
 |NUMA|Non-Uniform Memory Access|
-|ANNC|Ascend Neural Network Compiler|
+|ANNC|Accelerated Neural Network Compiler|
 |XLA|eXternal Linear Algebra Compiler|
 
 ## Change History
