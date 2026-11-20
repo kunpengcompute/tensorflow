@@ -137,10 +137,10 @@ TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请�
 
 #### 下载KDNN软件包及校验文件
 
-访问[KDNN发布网页](https://gitcode.com/boostkit/boostsra/releases)，找到套件发行版v1.4.0，下载下面两个文件:
+访问[KDNN发布网页](https://gitcode.com/boostkit/boostsra/releases)，找到套件发行版v1.5.0，下载下面两个文件:
 
-- KDNN软件包: `BoostKit-boostcore-kdnn_3.2.0.zip`
-- SHA256校验文件: `BoostKit-boostcore-kdnn_3.2.0.zip.sha256`
+- KDNN软件包: `BoostKit-boostcore-kdnn_3.3.0.zip`
+- SHA256校验文件: `BoostKit-boostcore-kdnn_3.3.0.zip.sha256sum`
 
 #### 软件包完整性校验
 
@@ -154,7 +154,7 @@ TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请�
 在校验软件包完整性之前，需要准备如下文件：
 
 - 软件包：BoostKit-boostcore-kdnn_xxx.zip。
-- 校验文件：同名的.sha256文件。
+- 校验文件：同名的.sha256sum文件。
 
 ##### 操作指导
 
@@ -183,8 +183,8 @@ TensorFlow V2.20.0使用官方指定的Bazel 7.4.1构建。Bazel安装方法请�
 1. 将KDNN软件包解压缩，并使用rpm -ivh命令安装。
 
    ```bash
-   unzip BoostKit-boostcore-kdnn_3.2.0.zip
-   rpm -ivh boostcore-kdnn-3.2.0-1.aarch64.rpm
+   unzip BoostKit-boostcore-kdnn_3.3.0.zip
+   rpm -ivh boostcore-kdnn-3.3.0-1.aarch64.rpm
    ```
 
    安装后，头文件位于`/usr/local/kdnn/include`，线程池和OpenMP库分别位于`/usr/local/kdnn/lib/threadpool`和`/usr/local/kdnn/lib/omp`。
