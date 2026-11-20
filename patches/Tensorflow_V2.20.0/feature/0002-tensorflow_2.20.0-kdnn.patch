@@ -351,7 +351,7 @@ index 0000000000000000000000000000000000000000..ac1d6813a97035f3838eb8bc85d85432
 +}  // namespace
 +}  // namespace tensorflow
 diff --git a/tensorflow/core/kernels/concat_op.cc b/tensorflow/core/kernels/concat_op.cc
-index 0b660766f931e66fcb1e9d2d9169af9b4fe10a65..c35b270855c347617461b3dc7b550de8ae4e0efc 100644
+index 0b660766f931e66fcb1e9d2d9169af9b4fe10a65..6231ab6419c520ada5a7e926c204c71c3c1d839d 100644
 --- a/tensorflow/core/kernels/concat_op.cc
 +++ b/tensorflow/core/kernels/concat_op.cc
 @@ -31,6 +31,11 @@ limitations under the License.
@@ -370,7 +370,7 @@ index 0b660766f931e66fcb1e9d2d9169af9b4fe10a65..c35b270855c347617461b3dc7b550de8
          return;
        }
  #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
-+/*
++
 +#if defined(ENABLE_KDNN)
 +      KDNN::Element::TypeT kdnnType = KDNN::Element::TypeAdapter<T>::value;
 +      if(IsKDNNEnabled() && kdnnType != KDNN::Element::TypeT::UNDEFINED) {
@@ -378,7 +378,7 @@ index 0b660766f931e66fcb1e9d2d9169af9b4fe10a65..c35b270855c347617461b3dc7b550de8
 +        return;
 +      }
 +#endif
-+*/
++
        ConcatCPU<T>(c->device(), inputs_flat, &output_flat);
      }
    }
@@ -483,10 +483,18 @@ index 1d345be634a1d4b5dad05c1e52c1569e5c1ccd9e..213f814ff11d87c13e8b0b24f6d3a22e
      TF_RETURN_IF_ERROR(
          ReshapeToRank3(*output, bcast.output_batch_size(), &output_reshaped));
 diff --git a/tensorflow/core/kernels/matmul_op_fused.cc b/tensorflow/core/kernels/matmul_op_fused.cc
-index 502654ca09765eb0a28d3a98b51f907a171b3b68..e2845e3c286162b9824f7bc808ab379fbd5c3351 100644
+index 502654ca09765eb0a28d3a98b51f907a171b3b68..fb1db32878845069e1035fef18cb6bc1b95171f4 100644
 --- a/tensorflow/core/kernels/matmul_op_fused.cc
 +++ b/tensorflow/core/kernels/matmul_op_fused.cc
-@@ -51,6 +51,7 @@ limitations under the License.
+@@ -33,6 +33,7 @@ limitations under the License.
+ #endif  // GOOGLE_CUDA
+ 
+ #include <functional>
++#include <limits>
+ #include <string>
+ #include <type_traits>
+ #include <utility>
+@@ -51,6 +52,7 @@ limitations under the License.
  #include "tensorflow/core/platform/errors.h"
  #include "tensorflow/core/util/matmul_autotune.h"
  #include "tensorflow/core/util/tensor_format.h"
@@ -494,7 +502,7 @@ index 502654ca09765eb0a28d3a98b51f907a171b3b68..e2845e3c286162b9824f7bc808ab379f
  
  #if defined(TENSORFLOW_USE_CUSTOM_CONTRACTION_KERNEL)
  #include "xla/tsl/framework/contraction/eigen_contraction_kernel.h"
-@@ -73,6 +74,10 @@ limitations under the License.
+@@ -73,6 +75,10 @@ limitations under the License.
  #include "tensorflow/core/util/use_cudnn.h"
  #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
  
@@ -505,7 +513,7 @@ index 502654ca09765eb0a28d3a98b51f907a171b3b68..e2845e3c286162b9824f7bc808ab379f
  namespace tensorflow {
  
  typedef Eigen::ThreadPoolDevice CPUDevice;
-@@ -99,6 +104,16 @@ struct LaunchFusedMatMulOp<CPUDevice, T> {
+@@ -99,6 +105,20 @@ struct LaunchFusedMatMulOp<CPUDevice, T> {
        const Eigen::array<Eigen::IndexPair<Eigen::DenseIndex>, 1>& dim_pair,
        FusedComputationType fusion, const FusedComputationArgs& fusion_args,
        Tensor* output, bool use_autotune) {
@@ -514,7 +522,11 @@ index 502654ca09765eb0a28d3a98b51f907a171b3b68..e2845e3c286162b9824f7bc808ab379f
 +    bool transpose_b_ = dim_pair[0].second == 1;
 +    bool fusion_relu = fusion == FusedComputationType::kBiasAddWithRelu;
 +    bool kdnn_enable_fusion = (fusion == FusedComputationType::kBiasAdd) || fusion_relu;
-+    if (IsKDNNEnabled() && std::is_same<T, float>::value && kdnn_enable_fusion && !transpose_a_) {
++    const int int32max = std::numeric_limits<int>::max();
++    if (IsKDNNEnabled() && std::is_same<T, float>::value && kdnn_enable_fusion &&
++        !transpose_a_ && FastBoundsCheck(a.dim_size(0), int32max) &&
++        FastBoundsCheck(b.dim_size(0), int32max) &&
++        FastBoundsCheck(b.dim_size(1), int32max)) {
 +      kdnnFusedGemm(context, a, b, output, fusion_relu, transpose_a_, transpose_b_);
 +      return;
 +    }
@@ -1433,11 +1445,54 @@ index fe856e6b6bba8cb3ae186b9a6f5e452ae19574a0..806150c4db31870db91106444e057972
 +BM_SparseTensorDenseMatmulAllThreads(128,  4096, 4096, 512, false, false);
 +
  }  // end namespace tensorflow
+diff --git a/tensorflow/core/util/BUILD b/tensorflow/core/util/BUILD
+index 3acd07c02fadf8e4bf8db651d726733f6c3a1131..b4de26cfc4e87bce218763a8bc9142c6d5cd0ba9 100644
+--- a/tensorflow/core/util/BUILD
++++ b/tensorflow/core/util/BUILD
+@@ -517,7 +517,12 @@ cc_library(
+     name = "port",
+     srcs = ["port.cc"],
+     hdrs = ["port.h"],
+-    copts = tf_copts(),
++    copts = tf_copts() + select({
++        # KDNN 功能开关 gflag 分支（predictor_server 路径）：读点走 FLAGS_*；
++        # 默认（so/wheel）走环境变量分支。
++        "//:gflags_switch_on": ["-DKDNN_SWITCH_GFLAGS"],
++        "//conditions:default": [],
++    }),
+     visibility = [
+         "//tensorflow/core:__pkg__",
+         "//tensorflow/python:__pkg__",
+@@ -527,7 +532,10 @@ cc_library(
+         ":env_var",
+         "//tensorflow/core/platform:platform_port",
+         "@com_google_absl//absl/base",
+-    ],
++    ] + select({
++        "//:gflags_switch_on": ["@com_github_gflags_gflags//:gflags"],
++        "//conditions:default": [],
++    }),
+     alwayslink = 1,
+ )
+ 
 diff --git a/tensorflow/core/util/port.cc b/tensorflow/core/util/port.cc
-index ba138848bef3fdb66071a8f959176e2a403fdf62..50343eb68e363be61559b527e9a535fa8640e7a0 100644
+index ba138848bef3fdb66071a8f959176e2a403fdf62..2585ee1b98c8c6e89b880189468a395680bc4ae6 100644
 --- a/tensorflow/core/util/port.cc
 +++ b/tensorflow/core/util/port.cc
-@@ -188,4 +188,31 @@ bool IsZenDnnEnabled() {
+@@ -19,6 +19,12 @@ limitations under the License.
+ #include "tensorflow/core/platform/cpu_info.h"
+ #include "tensorflow/core/util/env_var.h"
+ 
++#ifdef KDNN_SWITCH_GFLAGS
++#include "gflags/gflags.h"
++
++DECLARE_bool(enable_kdnn);
++#endif  // KDNN_SWITCH_GFLAGS
++
+ namespace tensorflow {
+ 
+ bool IsGoogleCudaEnabled() {
+@@ -188,4 +194,44 @@ bool IsZenDnnEnabled() {
  #endif  // !AMD_ZENDNN
  }
  
@@ -1446,25 +1501,38 @@ index ba138848bef3fdb66071a8f959176e2a403fdf62..50343eb68e363be61559b527e9a535fa
 +  return false;
 +#else
 +  static absl::once_flag once;
-+  static bool KDNN_enabled = true;
++#ifndef KDNN_SWITCH_GFLAGS
++  static bool FLAGS_enable_kdnn = true;
++#endif  // KDNN_SWITCH_GFLAGS
 +  absl::call_once(once, [&] {
-+    auto status = ReadBoolFromEnvVar("TF_ENABLE_KDNN_OPTS", KDNN_enabled,
-+                                     &KDNN_enabled);
++#ifdef KDNN_SWITCH_GFLAGS
++    if (FLAGS_enable_kdnn) {
++      LOG(INFO) << "KDNN custom operations are on. "
++                << "You may see slightly different numerical results due to "
++                << "floating-point round-off errors from different computation "
++                << "orders. To turn them off, set the flag "
++                << "`--enable_kdnn=false`.";
++    }
++#else
++    auto status = ReadBoolFromEnvVar("TF_ENABLE_KDNN_OPTS",
++                                     FLAGS_enable_kdnn,
++                                     &FLAGS_enable_kdnn);
 +
 +    if (!status.ok()) {
 +      LOG(WARNING) << "TF_ENABLE_KDNN_OPTS is not set to either '0', 'false',"
 +                   << " '1', or 'true'. Using the default setting: "
-+                   << KDNN_enabled;
++                   << FLAGS_enable_kdnn;
 +    }
-+    if (KDNN_enabled) {
++    if (FLAGS_enable_kdnn) {
 +      LOG(INFO) << "KDNN custom operations are on. "
 +                << "You may see slightly different numerical results due to "
 +                << "floating-point round-off errors from different computation "
 +                << "orders. To turn them off, set the environment variable "
 +                << "`TF_ENABLE_KDNN_OPTS=0`.";
 +    }
++#endif  // KDNN_SWITCH_GFLAGS
 +  });
-+  return KDNN_enabled;
++  return FLAGS_enable_kdnn;
 +#endif  // !KDNN
 +}
 +
@@ -1499,6 +1567,169 @@ index 0000000000000000000000000000000000000000..e7cdcc1d46d2524db31856a51e4169df
 +
 +def kdnn_copts():
 +    return if_enable_kdnn(["-DENABLE_KDNN"])
+diff --git a/tensorflow/python/kernel_tests/benchmark/BUILD b/tensorflow/python/kernel_tests/benchmark/BUILD
+new file mode 100644
+index 0000000000000000000000000000000000000000..a3a70b13a23e9ec52f0e1df0ff633056861c26ee
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/benchmark/BUILD
+@@ -0,0 +1,10 @@
++package(
++    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
++    default_visibility = ["//tensorflow:internal"],
++    licenses = ["notice"],
++)
++
++py_library(
++    name = "matmul_cases",
++    srcs = ["matmul_cases.py"],
++)
+diff --git a/tensorflow/python/kernel_tests/benchmark/compare_wheels.py b/tensorflow/python/kernel_tests/benchmark/compare_wheels.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..7c27418277cb2bc455f9206c084d5e62a6fb82f2
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/benchmark/compare_wheels.py
+@@ -0,0 +1,141 @@
++"""Installs two TensorFlow wheels, benchmarks them, and writes Markdown."""
++
++import argparse
++import json
++import os
++import subprocess
++import sys
++import tempfile
++from pathlib import Path
++
++
++_SCRIPT_DIR = Path(__file__).resolve().parent
++_WORKER = _SCRIPT_DIR / "run_wheel_matmul.py"
++
++
++def _run(command, **kwargs):
++  return subprocess.run(command, check=True, text=True, **kwargs)
++
++
++def _last_json_line(output):
++  for line in reversed(output.splitlines()):
++    try:
++      return json.loads(line)
++    except json.JSONDecodeError:
++      pass
++  raise RuntimeError("benchmark worker did not produce a JSON result")
++
++
++def _install_wheel(python, wheel):
++  # Retain the environment's dependencies.  Only TensorFlow itself is swapped
++  # between the baseline and candidate runs.
++  _run([python, "-m", "pip", "uninstall", "--yes", "tensorflow"])
++  _run([
++      python, "-m", "pip", "install", "--no-deps", wheel,
++  ])
++
++
++def _run_wheel(python, args):
++  environment = os.environ.copy()
++  environment["TF_CPP_MIN_LOG_LEVEL"] = "2"
++  environment["TF_ENABLE_KDNN_OPTS"] = "0"
++  environment.pop("PYTHONPATH", None)
++  command = [
++      python,
++      _WORKER,
++      "--warmup", str(args.warmup),
++      "--iterations", str(args.iterations),
++      "--samples", str(args.samples),
++      "--intra-threads", str(args.intra_threads),
++  ]
++  for name in args.case:
++    command.extend(["--case", name])
++  completed = _run(command, cwd=tempfile.gettempdir(), env=environment,
++                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
++  return _last_json_line(completed.stdout)
++
++
++def _format_us(value):
++  return "%.3f" % value
++
++
++def _write_markdown(path, baseline_label, baseline, candidate_label, candidate):
++  candidate_by_name = {case["name"]: case for case in candidate["cases"]}
++  lines = [
++      "# MatMul Wheel Comparison",
++      "",
++      "KDNN is disabled for both processes (`TF_ENABLE_KDNN_OPTS=0`). "
++      "Numbers are median wall time in microseconds per `tf.matmul`; lower is better.",
++      "",
++      "| Case | A shape | B shape | %s (us) | %s (us) | Speedup (%s/%s) |" % (
++          baseline_label, candidate_label, baseline_label, candidate_label),
++      "| --- | --- | --- | ---: | ---: | ---: |",
++  ]
++  for base in baseline["cases"]:
++    comparison = candidate_by_name[base["name"]]
++    speedup = base["median_us"] / comparison["median_us"]
++    lines.append("| %s | %s | %s | %s | %s | %.3fx |" % (
++        base["name"], base["shape_a"], base["shape_b"],
++        _format_us(base["median_us"]), _format_us(comparison["median_us"]),
++        speedup))
++  lines.extend([
++      "",
++      "## Run Metadata",
++      "",
++      "| Wheel | TensorFlow version | Warmup | Timed iterations | Samples | Intra-op threads |",
++      "| --- | --- | ---: | ---: | ---: | ---: |",
++      "| %s | %s | %d | %d | %d | %d |" % (
++          baseline_label, baseline["tensorflow_version"], baseline["warmup"],
++          baseline["iterations"], baseline["samples"], baseline["intra_threads"]),
++      "| %s | %s | %d | %d | %d | %d |" % (
++          candidate_label, candidate["tensorflow_version"], candidate["warmup"],
++          candidate["iterations"], candidate["samples"], candidate["intra_threads"]),
++      "",
++  ])
++  path.write_text("\n".join(lines), encoding="utf-8")
++
++
++def main():
++  parser = argparse.ArgumentParser(
++      description="Compare two TensorFlow 2.20 wheels on logged MatMul shapes.")
++  parser.add_argument(
++      "--python", required=True, type=Path,
++      help="Python executable for the dedicated benchmark environment.")
++  parser.add_argument("--baseline-wheel", required=True, type=Path)
++  parser.add_argument("--candidate-wheel", required=True, type=Path)
++  parser.add_argument("--baseline-label", default="baseline")
++  parser.add_argument("--candidate-label", default="candidate")
++  parser.add_argument("--output-dir", type=Path,
++                      default=Path("matmul_wheel_results"))
++  parser.add_argument("--warmup", type=int, default=10)
++  parser.add_argument("--iterations", type=int, default=100)
++  parser.add_argument("--samples", type=int, default=7)
++  parser.add_argument("--intra-threads", type=int, default=16)
++  parser.add_argument("--case", action="append", default=[])
++  args = parser.parse_args()
++
++  if args.baseline_wheel == args.candidate_wheel:
++    raise ValueError("baseline-wheel and candidate-wheel must be different files")
++  if not args.python.is_file():
++    raise ValueError("Python executable does not exist: %s" % args.python)
++  for wheel in (args.baseline_wheel, args.candidate_wheel):
++    if not wheel.is_file() or wheel.suffix != ".whl":
++      raise ValueError("wheel does not exist: %s" % wheel)
++
++  args.output_dir.mkdir(parents=True, exist_ok=True)
++  _install_wheel(args.python, args.baseline_wheel)
++  baseline = _run_wheel(args.python, args)
++  _install_wheel(args.python, args.candidate_wheel)
++  candidate = _run_wheel(args.python, args)
++
++  (args.output_dir / "baseline.json").write_text(
++      json.dumps(baseline, indent=2, sort_keys=True) + "\n", encoding="utf-8")
++  (args.output_dir / "candidate.json").write_text(
++      json.dumps(candidate, indent=2, sort_keys=True) + "\n", encoding="utf-8")
++  _write_markdown(args.output_dir / "comparison.md", args.baseline_label,
++                  baseline, args.candidate_label, candidate)
++  print(args.output_dir / "comparison.md")
++
++
++if __name__ == "__main__":
++  main()
 diff --git a/tensorflow/python/kernel_tests/benchmark/framework/_init_.py b/tensorflow/python/kernel_tests/benchmark/framework/_init_.py
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
@@ -1889,6 +2120,80 @@ index 0000000000000000000000000000000000000000..1ee592efd85d940fe014a8e1a70e854f
 +if __name__ == "__main__":
 +    main()
 \ No newline at end of file
+diff --git a/tensorflow/python/kernel_tests/benchmark/matmul_cases.py b/tensorflow/python/kernel_tests/benchmark/matmul_cases.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..ec519ec2891e4356fdbe828d9ea670c17249b9fd
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/benchmark/matmul_cases.py
+@@ -0,0 +1,68 @@
++"""MatMul inputs collected from the production-model log."""
++
++
++def _case(name, shape_a, shape_b, transpose_a=False, transpose_b=False):
++  return (name, tuple(shape_a), tuple(shape_b), transpose_a, transpose_b)
++
++
++# Duplicate operators in test.log are intentionally kept once.  The remaining
++# cases cover all distinct input shapes from h, a, p, and c.
++MODEL_SHAPES = (
++    _case("h_59x30x16", (59, 30), (30, 16)),
++    _case("h_59x16x8", (59, 16), (16, 8)),
++    _case("h_59x8x1", (59, 8), (8, 1)),
++    _case("h_4130x116x32", (4130, 116), (116, 32)),
++    _case("h_4130x104x32", (4130, 104), (104, 32)),
++    _case("h_4130x32x16", (4130, 32), (32, 16)),
++    _case("h_4130x16x1", (4130, 16), (16, 1)),
++    _case("h_59x1570x128", (59, 1570), (1570, 128)),
++    _case("h_59x1570x256", (59, 1570), (1570, 256)),
++    _case("h_59x256x128", (59, 256), (256, 128)),
++    _case("h_59x128x64", (59, 128), (128, 64)),
++    _case("h_59x64x2", (59, 64), (64, 2)),
++    _case("h_59x64x32", (59, 64), (64, 32)),
++    _case("h_59x32x64", (59, 32), (32, 64)),
++    _case("h_59x32x2", (59, 32), (32, 2)),
++    _case("a_35x400x400", (35, 400), (400, 400)),
++    _case("a_35x800x1", (35, 800), (800, 1)),
++    _case("a_39x5x1", (39, 5), (5, 1)),
++    _case("a_39x492x1", (39, 492), (492, 1)),
++    _case("a_39x400x400", (39, 400), (400, 400)),
++    _case("a_39x800x1", (39, 800), (800, 1)),
++    _case("a_46x5x1", (46, 5), (5, 1)),
++    _case("a_46x492x1", (46, 492), (492, 1)),
++    _case("p_self_attention_qkv", (1, 32, 16), (16, 8)),
++    _case("p_self_attention_scores", (1, 32, 8), (1, 32, 8),
++          transpose_b=True),
++    _case("p_self_attention_values", (1, 32, 32), (1, 32, 8)),
++    _case("p_50x32x32x16", (50, 32, 32), (32, 16)),
++    _case("p_50x32x64x16", (50, 32, 64), (64, 16)),
++    _case("p_50x32x16x8", (50, 32, 16), (16, 8)),
++    _case("p_50x32x8x4", (50, 32, 8), (8, 4)),
++    _case("p_50x32x4x1", (50, 32, 4), (4, 1)),
++    _case("p_attention_query", (50, 1, 32), (50, 32, 16)),
++    _case("p_50x1298x250", (50, 1298), (1298, 250)),
++    _case("p_50x250x250", (50, 250), (250, 250)),
++    _case("p_50x250x100", (50, 250), (250, 100)),
++    _case("p_50x100x1", (50, 100), (100, 1)),
++    _case("c_19x8x4", (19, 8), (8, 4)),
++    _case("c_16x8x4", (16, 8), (8, 4)),
++    _case("c_37x8x4", (37, 8), (8, 4)),
++    _case("c_1x24x16", (1, 24), (24, 16)),
++    _case("c_1x14x28x16", (1, 14, 28), (28, 16)),
++    _case("c_1x48x28x16", (1, 48, 28), (28, 16)),
++    _case("c_1x77x20x16", (1, 77, 20), (20, 16)),
++    _case("c_1x16x16", (1, 16), (16, 16)),
++    _case("c_1x80x36x16", (1, 80, 36), (36, 16)),
++    _case("c_1x32x16", (1, 32), (32, 16)),
++    _case("c_59x1540x64", (59, 1540), (1540, 64)),
++    _case("c_59x48x80", (59, 48), (48, 80)),
++    _case("c_59x48x48", (59, 48), (48, 48)),
++    _case("c_59x1316x2", (59, 1316), (1316, 2)),
++    _case("c_59x1316x256", (59, 1316), (1316, 256)),
++    _case("c_59x256x128", (59, 256), (256, 128)),
++    _case("c_moe_combine", (59, 1, 2), (59, 2, 128)),
++    _case("c_59x128x64", (59, 128), (128, 64)),
++    _case("c_59x64x1", (59, 64), (64, 1)),
++    _case("c_59x64x6", (59, 64), (64, 6)),
++)
 diff --git a/tensorflow/python/kernel_tests/benchmark/ops/batchmatmul_ops.py b/tensorflow/python/kernel_tests/benchmark/ops/batchmatmul_ops.py
 new file mode 100644
 index 0000000000000000000000000000000000000000..00469662ef3b341eb4e2a0ebe5adace77f5bd4eb
@@ -2069,6 +2374,291 @@ index 0000000000000000000000000000000000000000..00469662ef3b341eb4e2a0ebe5adace7
 +            meta={'trans_a': False, 'trans_b': False},
 +        ),
 +        
++    ])
++    return test_case
+\ No newline at end of file
+diff --git a/tensorflow/python/kernel_tests/benchmark/ops/concat_ops.py b/tensorflow/python/kernel_tests/benchmark/ops/concat_ops.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..4cbc14c2a8e21b26a5f9309b9ff88f75d2512bbc
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/benchmark/ops/concat_ops.py
+@@ -0,0 +1,278 @@
++import tensorflow as tf
++import numpy as np
++from functools import partial
++from framework.runner import TestCase, CheckFuncClass
++
++def get_test_cases():
++    """每个算子文件都统一实现这个接口"""
++    def concat_op(inputs, meta):
++        return tf.concat(inputs, meta["axis"])
++
++    def build_18input_2D(dtype=np.float32):
++        batch = 150
++        shapes = [
++            (batch, 960),
++            (batch, 24),
++            (batch, 4),
++            (batch, 4),
++            (batch, 4),
++            (batch, 64),
++            (batch, 4),
++            (batch, 4),
++            (batch, 32),
++            (batch, 4),
++            (batch, 4),
++            (batch, 24),
++            (batch, 4),
++            (batch, 4),
++            (batch, 24),
++            (batch, 4),
++            (batch, 4),
++            (batch, 16),
++        ]
++        return [np.random.uniform(0, 1, shape).astype(dtype) for shape in shapes]
++
++    def build_12input_2D(dtype=np.float32):
++        batch = 150
++        shapes = [
++            (batch, 192),
++            (batch, 288),
++            (batch, 64),
++            (batch, 48),
++            (batch, 48),
++            (batch, 8),
++            (batch, 48),
++            (batch, 48),
++            (batch, 8),
++            (batch, 256),
++            (batch, 128),
++            (batch, 128),
++        ]
++        return [np.random.uniform(0, 1, shape).astype(dtype) for shape in shapes]
++
++    def build_8input_3D(dtype=np.float32):
++        batch = 16
++        seq = 64
++        shapes = [
++            (batch, seq, 32),
++            (batch, seq, 64),
++            (batch, seq, 16),
++            (batch, seq, 16),
++            (batch, seq, 16),
++            (batch, seq, 16),
++            (batch, seq, 16),
++            (batch, seq, 16),
++        ]
++        return [np.random.uniform(0, 1, shape).astype(dtype) for shape in shapes]
++
++    def build_4input_2D(dtype=np.float32):
++        batch = 256
++        shapes = [
++            (batch, 192),
++            (batch, 288),
++            (batch, 64),
++            (batch, 48),
++        ]
++        return [np.random.uniform(0, 1, shape).astype(dtype) for shape in shapes]
++    
++    def build_3input_2D(dtype=np.float32):
++        shapes = [
++            (128, 1510),
++            (128, 36),
++            (128, 24),
++        ]
++        return [np.random.uniform(0, 1, shape).astype(dtype) for shape in shapes]
++    
++    def build_2input_2D(batch, input1_dim, input2_dim, dtype=np.float32):
++        shapes = [
++            (batch, input1_dim),
++            (batch, input2_dim),
++        ]
++        return [np.random.uniform(0, 1, shape).astype(dtype) for shape in shapes]
++
++    def build_dynamic_input(num_inputs, dtype, shape_template, concat_axis):
++        """
++        通用输入构造器
++        :param num_inputs: 输入 Tensor 的个数 (1, 2, 8, 12, 18)
++        :param dtype: 数据类型 (np.float32, np.int32 等)
++        :param shape_template: 基础 3D 形状，例如 (batch, seq, feature)
++        :param concat_axis: 拼接的轴，用于微调形状确保可以 concat
++        """
++        inputs = []
++        for i in range(num_inputs):
++            curr_shape = list(shape_template)
++            # 为了模拟真实情况，我们可以让拼接轴上的长度略有不同
++            curr_shape[concat_axis] = np.random.randint(1, 10) # 如果需要动态长度可开启
++            
++            if np.issubdtype(dtype, np.integer):
++                data = np.random.randint(0, 100, curr_shape).astype(dtype)
++            else:
++                data = np.random.uniform(0, 1, curr_shape).astype(dtype)
++            inputs.append(data)
++        return inputs
++
++    class ConcatTestCaseFactory:
++        @staticmethod
++        def create_func_test():
++            all_cases = []
++            input_counts = [1, 2, 8, 12, 18]
++            dtypes = {
++                "fp32": np.float32, 
++                "bf16": np.uint16, # 工业界常用 uint16 模拟 bf16 存储
++                "int32": np.int32, 
++                "int8": np.int8, 
++                "uint8": np.uint8
++            }
++            axes = [0, 1, 2, -1, -2, -3]
++            base_3d_shape = (32, 64, 128) # 示例 3D 基础形状
++            for num in input_counts:
++                for dtype_name, dtype_val in dtypes.items():
++                    for axis in axes:
++                        case_name = f"concat_3D_{num}in_{dtype_name}_axis{axis}"
++                        
++                        # 使用 partial 预绑定所有参数
++                        input_fn = partial(
++                            build_dynamic_input, 
++                            num_inputs=num, 
++                            dtype=dtype_val, 
++                            shape_template=base_3d_shape, 
++                            concat_axis=axis
++                        )
++                        
++                        case = TestCase(
++                            name=case_name,
++                            op_fn=concat_op,
++                            input_fn=input_fn,
++                            num_iters=0,
++                            check_fn=CheckFuncClass.check_fn_equal,
++                            meta={'axis': axis}
++                        )
++                        all_cases.append(case)
++            return all_cases
++    
++    test_case = []
++    test_case.extend(ConcatTestCaseFactory.create_func_test())
++    # perf test case
++    test_case.extend([
++        TestCase(
++            name="concat_18input_2D_float",
++            op_fn=concat_op,
++            input_fn=partial(build_18input_2D, dtype=np.float32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_12input_2D_float",
++            op_fn=concat_op,
++            input_fn=partial(build_12input_2D, dtype=np.float32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_8input_3D_float",
++            op_fn=concat_op,
++            input_fn=partial(build_8input_3D, dtype=np.float32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_4input_2D_float",
++            op_fn=concat_op,
++            input_fn=partial(build_4input_2D, dtype=np.float32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_3input_2D_float",
++            op_fn=concat_op,
++            input_fn=partial(build_3input_2D, dtype=np.float32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_2input_2D_small_float",
++            op_fn=concat_op,
++            input_fn=partial(build_2input_2D, batch=128, input1_dim=400, input2_dim=400, dtype=np.float32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_18input_2D_int32",
++            op_fn=concat_op,
++            input_fn=partial(build_18input_2D, dtype=np.int32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_12input_2D_int32",
++            op_fn=concat_op,
++            input_fn=partial(build_12input_2D, dtype=np.int32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_8input_3D_int32",
++            op_fn=concat_op,
++            input_fn=partial(build_8input_3D, dtype=np.int32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_4input_2D_int32",
++            op_fn=concat_op,
++            input_fn=partial(build_4input_2D, dtype=np.int32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_3input_2D_int32",
++            op_fn=concat_op,
++            input_fn=partial(build_3input_2D, dtype=np.int32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
++        TestCase(
++            name="concat_2input_2D_small_int32",
++            op_fn=concat_op,
++            input_fn=partial(build_2input_2D, batch=128, input1_dim=400, input2_dim=400, dtype=np.int32),
++            num_iters=1000,
++            optimize_percent = 5,
++            operator_name = "ConcatV2",
++            check_fn=CheckFuncClass.check_fn_equal,
++            meta={'axis': -1}
++        ),
 +    ])
 +    return test_case
 \ No newline at end of file
@@ -2489,6 +3079,224 @@ index 0000000000000000000000000000000000000000..c4f690f660194728ca1926a7904f4c5b
 +        ))
 +
 +    return test_cases
+diff --git a/tensorflow/python/kernel_tests/benchmark/run_wheel_matmul.py b/tensorflow/python/kernel_tests/benchmark/run_wheel_matmul.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..0c100f824c19c300837aeadd7b478d5d2b7ede0d
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/benchmark/run_wheel_matmul.py
+@@ -0,0 +1,116 @@
++"""Runs the logged MatMul shapes against one installed TensorFlow wheel.
++
++CHANGE vs original: operands are materialised as tensors ONCE (tf.constant)
++instead of being passed as NumPy arrays, so the NumPy -> Tensor conversion is
++no longer inside the timed loop.  CLI, JSON schema and the kdnn switch are
++unchanged.
++"""
++
++import argparse
++import json
++import statistics
++import time
++
++import numpy as np
++
++from matmul_cases import MODEL_SHAPES
++
++
++def _percentile(values, percentile):
++  ordered = sorted(values)
++  index = round((len(ordered) - 1) * percentile)
++  return ordered[index]
++
++
++def _to_numpy(x):
++  return x.numpy() if hasattr(x, "numpy") else np.asarray(x)
++
++
++def _run_case(tf, case, warmup, iterations, samples):
++  name, shape_a, shape_b, transpose_a, transpose_b = case
++  rng = np.random.RandomState(20260826)
++  a_np = rng.normal(0.0, 0.1, size=shape_a).astype(np.float32)
++  b_np = rng.normal(0.0, 0.1, size=shape_b).astype(np.float32)
++
++  # NumPy reference (unchanged).
++  expected = np.matmul(
++      np.swapaxes(a_np, -1, -2) if transpose_a else a_np,
++      np.swapaxes(b_np, -1, -2) if transpose_b else b_np)
++
++  # Materialise operands as tensors ONCE -- no conversion inside the loop.
++  a = tf.constant(a_np)
++  b = tf.constant(b_np)
++
++  def matmul():
++    return tf.matmul(a, b, transpose_a=transpose_a, transpose_b=transpose_b)
++
++  result = matmul()
++  if not np.allclose(_to_numpy(result), expected, rtol=1e-4, atol=1e-5):
++    raise RuntimeError("%s produced a result different from NumPy" % name)
++
++  for _ in range(warmup):
++    matmul()
++
++  samples_us = []
++  for _ in range(samples):
++    start_ns = time.perf_counter_ns()
++    for _ in range(iterations):
++      matmul()
++    samples_us.append((time.perf_counter_ns() - start_ns) / iterations / 1000.0)
++
++  return {
++      "name": name,
++      "shape_a": list(shape_a),
++      "shape_b": list(shape_b),
++      "transpose_a": transpose_a,
++      "transpose_b": transpose_b,
++      "samples_us": samples_us,
++      "mean_us": statistics.fmean(samples_us),
++      "median_us": statistics.median(samples_us),
++      "p95_us": _percentile(samples_us, 0.95),
++  }
++
++
++def main():
++  parser = argparse.ArgumentParser()
++  parser.add_argument("--warmup", type=int, required=True)
++  parser.add_argument("--iterations", type=int, required=True)
++  parser.add_argument("--samples", type=int, required=True)
++  parser.add_argument("--intra-threads", type=int, required=True)
++  parser.add_argument("--case", action="append", dest="case_names")
++  args = parser.parse_args()
++
++  if min(args.warmup, args.iterations, args.samples, args.intra_threads) < 1:
++    raise ValueError("warmup, iterations, samples, and intra-threads must be positive")
++
++  # TensorFlow must be configured before the first op is executed.
++  import tensorflow as tf  # pylint: disable=g-import-not-at-top
++  tf.config.threading.set_intra_op_parallelism_threads(args.intra_threads)
++  tf.config.threading.set_inter_op_parallelism_threads(1)
++
++  cases = MODEL_SHAPES
++  if args.case_names:
++    selected = set(args.case_names)
++    cases = tuple(case for case in cases if case[0] in selected)
++    missing = selected.difference(case[0] for case in cases)
++    if missing:
++      raise ValueError("unknown case(s): %s" % ", ".join(sorted(missing)))
++
++  report = {
++      "tensorflow_version": tf.__version__,
++      "warmup": args.warmup,
++      "iterations": args.iterations,
++      "samples": args.samples,
++      "intra_threads": args.intra_threads,
++      "kdnn_enabled": False,
++      "operands": "tf.constant",
++      "cases": [
++          _run_case(tf, case, args.warmup, args.iterations, args.samples)
++          for case in cases
++      ],
++  }
++  print(json.dumps(report, sort_keys=True))
++
++
++if __name__ == "__main__":
++  main()
+diff --git a/tensorflow/python/kernel_tests/benchmark/summarize_comparison.py b/tensorflow/python/kernel_tests/benchmark/summarize_comparison.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..51a39f798f34bc0ddccab1a59349931d3a37119f
+--- /dev/null
++++ b/tensorflow/python/kernel_tests/benchmark/summarize_comparison.py
+@@ -0,0 +1,90 @@
++"""Summarizes MatMul wheel-comparison Markdown by production model."""
++
++import argparse
++from collections import defaultdict
++from pathlib import Path
++
++
++_GROUPS = ("h", "a", "p", "c")
++
++
++def _parse_rows(path):
++  rows = []
++  in_results_table = False
++  for line in path.read_text(encoding="utf-8").splitlines():
++    if line.startswith("| Case | A shape | B shape |"):
++      in_results_table = True
++      continue
++    if not in_results_table:
++      continue
++    if not line.startswith("|"):
++      break
++    if line.startswith("| ---"):
++      continue
++    fields = [field.strip() for field in line.strip().strip("|").split("|")]
++    if len(fields) != 6:
++      raise ValueError("invalid result row: %s" % line)
++    name, unused_shape_a, unused_shape_b, baseline, candidate, unused_speedup = fields
++    try:
++      rows.append((name, float(baseline), float(candidate)))
++    except ValueError as error:
++      raise ValueError("invalid timing row: %s" % line) from error
++  if not rows:
++    raise ValueError("no MatMul result rows found in %s" % path)
++  return rows
++
++
++def _summarize(rows):
++  totals = defaultdict(lambda: [0.0, 0.0])
++  for name, baseline_us, candidate_us in rows:
++    group = name.split("_", 1)[0]
++    if group not in _GROUPS:
++      raise ValueError("unrecognized model prefix in case: %s" % name)
++    totals["all"][0] += baseline_us
++    totals["all"][1] += candidate_us
++    totals[group][0] += baseline_us
++    totals[group][1] += candidate_us
++  return totals
++
++
++def _write_summary(path, source, totals):
++  lines = [
++      "# MatMul Performance Summary",
++      "",
++      "Source: `%s`" % source,
++      "",
++      "Each value is the sum of the per-case median times in microseconds. "
++      "Lower time is better.",
++      "",
++      "| Group | baseline (us) | candidate (us) | Speedup (baseline/candidate) |",
++      "| --- | ---: | ---: | ---: |",
++  ]
++  for group in ("all",) + _GROUPS:
++    baseline_us, candidate_us = totals[group]
++    if candidate_us == 0.0:
++      # A partial run may not cover every model group.
++      continue
++    lines.append("| %s | %.3f | %.3f | %.3fx |" % (
++        group, baseline_us, candidate_us, baseline_us / candidate_us))
++  lines.append("")
++  path.write_text("\n".join(lines), encoding="utf-8")
++
++
++def main():
++  parser = argparse.ArgumentParser(
++      description="Summarize MatMul timings from comparison.md.")
++  parser.add_argument("comparison", type=Path,
++                      help="Path to compare_wheels.py output comparison.md.")
++  parser.add_argument("--output", type=Path,
++                      help="Output Markdown path; defaults beside comparison.md.")
++  args = parser.parse_args()
++
++  if not args.comparison.is_file():
++    raise ValueError("comparison file does not exist: %s" % args.comparison)
++  output = args.output or args.comparison.with_name("summary.md")
++  _write_summary(output, args.comparison, _summarize(_parse_rows(args.comparison)))
++  print(output)
++
++
++if __name__ == "__main__":
++  main()
 diff --git a/third_party/KDNN/BUILD b/third_party/KDNN/BUILD
 new file mode 100644
 index 0000000000000000000000000000000000000000..d3667eaa02f254b517095005c670e907236354b5
