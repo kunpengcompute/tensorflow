@@ -77,10 +77,10 @@ Both TensorFlow and TensorFlow Serving are built using Bazel 6.5.0. For the Baze
 
 #### Downloading the KDNN Package and Checksum File
 
-Go to the [KDNN releases page](https://gitcode.com/boostkit/boostsra/releases), locate release v1.4.0, and download the following files:
+Go to the [KDNN releases page](https://gitcode.com/boostkit/boostsra/releases), locate release v1.5.0, and download the following files:
 
-- KDNN package: `BoostKit-boostcore-kdnn_3.2.0.zip`
-- SHA256 checksum file: `BoostKit-boostcore-kdnn_3.2.0.zip.sha256`
+- KDNN package: `BoostKit-boostcore-kdnn_3.3.0.zip`
+- SHA256 checksum file: `BoostKit-boostcore-kdnn_3.3.0.zip.sha256sum`
 
 #### Verifying Package Integrity
 
@@ -94,7 +94,7 @@ Here, we determine whether the software package is complete by comparing the che
 Prepare the following files before verifying package integrity.
 
 - Package: `BoostKit-boostcore-kdnn_xxx.zip`
-- Checksum file: a `.sha256` file with the same name as the package
+- Checksum file: a `.sha256sum` file with the same name as the package
 
 ##### Procedure
 
@@ -121,8 +121,8 @@ To verify package integrity, perform the following steps.
 1. Decompress the KDNN software package and install it using the `rpm -ivh` command.
 
    ```bash
-   unzip BoostKit-boostcore-kdnn_3.2.0.zip
-   rpm -ivh boostcore-kdnn-3.2.0-1.aarch64.rpm
+   unzip BoostKit-boostcore-kdnn_3.3.0.zip
+   rpm -ivh boostcore-kdnn-3.3.0-1.aarch64.rpm
    ```
 
    After installation, the header files are located at `/usr/local/kdnn/include`, and the thread pool and OpenMP libraries are located at `/usr/local/kdnn/lib/threadpool` and `/usr/local/kdnn/lib/omp`, respectively.
